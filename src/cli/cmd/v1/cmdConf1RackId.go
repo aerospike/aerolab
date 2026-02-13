@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
@@ -24,6 +25,8 @@ type ConfRackIdCmd struct {
 	NoRestart   bool            `short:"e" long:"no-restart" description:"if no SC namespaces are found: aerolab will automatically restart aerospike when rackid is set; set this to prevent said action"`
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf" default:"/etc/aerospike/aerospike.conf"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -78,11 +81,17 @@ func (c *ConfRackIdCmd) SetRackId(system *System, inventory *backends.Inventory,
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.SetRackId(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -90,11 +99,12 @@ func (c *ConfRackIdCmd) SetRackId(system *System, inventory *backends.Inventory,
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if c.Nodes.String() != "" {
@@ -202,6 +212,8 @@ func (c *ConfRackIdCmd) processInstance(instance *backends.Instance, namespaces 
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)

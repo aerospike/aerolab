@@ -1,13 +1,18 @@
 #!/bin/bash
 
-### supported distros: rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:13 debian:12 debian:11 centos:stream9 centos:stream8 amazonlinux:2023 amazonlinux:2
+### supported distros: rockylinux:10 rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:13 debian:12 debian:11 centos:stream10 centos:stream9 centos:stream8 amazonlinux:2023 amazonlinux:2
 ### usage: ./efs_install.sh
 ### this script installs EFS utils; it will skip installation if EFS is already installed
 ### note: FIPS mode is handled by efs_mount.sh
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 function install_efs_pre() {
     set -e
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    retry_cmd curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     mkdir -p /opt/aerolab
     cd /opt/aerolab
 }
@@ -49,10 +54,10 @@ if [ $? -eq 0 ]; then
     if [ $? -eq 0 ]; then
         # amazon linux
         set -e
-        yum -y install amazon-efs-utils
+        retry_cmd yum -y install amazon-efs-utils
     else
         # rpm
-        type -t git >/dev/null 2>&1 || yum -y install git
+        type -t git >/dev/null 2>&1 || retry_cmd yum -y install git
         set -e
         #tag=$(install_efs_get_tag)
         tag=v2.3.3 # TODO: until we add all the huge dependencies to build v2.4.0
@@ -60,11 +65,11 @@ if [ $? -eq 0 ]; then
         rpm -q amazon-efs-utils-${tag:1}
         if [ $? -ne 0 ]; then
             install_efs_pre
-            yum -y install rpm-build make openssl-devel rust cargo systemd
+            retry_cmd yum -y install rpm-build make openssl-devel rust cargo systemd
             install_efs_clone ${tag}
             . "$HOME/.cargo/env"
             make rpm
-            yum -y install build/amazon-efs-utils*rpm
+            retry_cmd yum -y install build/amazon-efs-utils*rpm
         fi
     fi
 else
@@ -75,15 +80,15 @@ else
     if [ $? -ne 0 ]; then
         set -e
         UPD=1
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get -y install git
+        retry_cmd apt-get update
+        DEBIAN_FRONTEND=noninteractive retry_cmd apt-get -y install git
         set +e
     fi
     type -t curl >/dev/null 2>&1
     if [ $? -ne 0 ]; then
         set -e
-        if [ ${UPD} -eq 0 ]; then UPD=1; apt-get update; fi
-        DEBIAN_FRONTEND=noninteractive apt-get -y install curl
+        if [ ${UPD} -eq 0 ]; then UPD=1; retry_cmd apt-get update; fi
+        DEBIAN_FRONTEND=noninteractive retry_cmd apt-get -y install curl
         set +e
     fi
     set -e
@@ -100,11 +105,11 @@ else
     fi
     if [ $INST -ne 0 ]; then
         install_efs_pre
-        if [ ${UPD} -eq 0 ]; then apt-get update; fi
-        DEBIAN_FRONTEND=noninteractive apt-get -y install binutils rustc cargo pkg-config libssl-dev gettext
+        if [ ${UPD} -eq 0 ]; then retry_cmd apt-get update; fi
+        DEBIAN_FRONTEND=noninteractive retry_cmd apt-get -y install binutils rustc cargo pkg-config libssl-dev gettext
         install_efs_clone ${tag}
         . "$HOME/.cargo/env"
         ./build-deb.sh
-        apt-get -y install ./build/amazon-efs-utils*deb
+        retry_cmd apt-get -y install ./build/amazon-efs-utils*deb
     fi
 fi

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
@@ -19,6 +20,8 @@ type ConfFixMeshCmd struct {
 	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	ConfigPath      string          `short:"c" long:"config-path" description:"path to a custom aerospike config file to use for the configuration" default:"/etc/aerospike/aerospike.conf"`
 	ParallelThreads int             `short:"p" long:"parallel-threads" description:"number of threads to use for parallel execution" default:"10"`
+	MaxRetries      int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -58,8 +61,13 @@ func (c *ConfFixMeshCmd) FixMesh(system *System, inventory *backends.Inventory, 
 		logger.Debug("  Instance: %s (node %d, state: %s, IP: %s)", inst.Name, inst.NodeNo, inst.InstanceState, inst.IP.Private)
 	}
 
+	instances, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
+
 	// Exclude terminated and terminating instances (AWS keeps terminated instances in inventory)
-	instances := inventory.Instances.WithClusterName(c.ClusterName.String()).
+	instances = instances.WithClusterName(c.ClusterName.String()).
 		WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).
 		WithState(backends.LifeCycleStateRunning)
 
@@ -103,6 +111,8 @@ func (c *ConfFixMeshCmd) FixMesh(system *System, inventory *backends.Inventory, 
 			hasErr = true
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			logger.Error("Failed to fix mesh for node %s: %s", i.Name, err)

@@ -9,6 +9,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -17,6 +18,8 @@ type ClientConfigureToolsCmd struct {
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
 	ConnectAMS TypeClientName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
 	Threads    int            `short:"t" long:"threads" description:"Number of parallel threads" default:"10"`
+	MaxRetries int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help       HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -51,6 +54,10 @@ func (c *ClientConfigureToolsCmd) configureTools(system *System, inventory *back
 
 	// Get AMS client instances to find Loki endpoint
 	logger.Info("Finding AMS instance: %s", c.ConnectAMS.String())
+	_, err := c.ConnectAMS.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	amsInstances := inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(c.ConnectAMS.String()).WithState(backends.LifeCycleStateRunning).Describe()
 	if len(amsInstances) == 0 {
 		return fmt.Errorf("AMS client '%s' not found or has no running instances", c.ConnectAMS.String())
@@ -69,6 +76,10 @@ func (c *ClientConfigureToolsCmd) configureTools(system *System, inventory *back
 	logger.Info("Using Loki endpoint: %s", lokiEndpoint)
 
 	// Get tools client instances
+	_, err = c.ClientName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	toolsClients, err := getClientInstancesHelper(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {
 		return err
@@ -114,6 +125,8 @@ func (c *ClientConfigureToolsCmd) configureToolsClient(client *backends.Instance
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 	sftpClient, err := sshexec.NewSftp(conf)
 	if err != nil {
 		return fmt.Errorf("failed to create SFTP client: %w", err)
@@ -133,7 +146,7 @@ func (c *ClientConfigureToolsCmd) configureToolsClient(client *backends.Instance
 	// 2. Upload Promtail installation script
 	installScript := c.generatePromtailInstallScript(isArm)
 	err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/opt/install-promtail.sh",
+		DestPath:    "/opt/aerolab/scripts/install-promtail.sh",
 		Source:      strings.NewReader(installScript),
 		Permissions: 0755,
 	})
@@ -144,7 +157,7 @@ func (c *ClientConfigureToolsCmd) configureToolsClient(client *backends.Instance
 	// 3. Upload Promtail configuration script
 	configScript := c.generatePromtailConfigScript()
 	err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/opt/configure-promtail.sh",
+		DestPath:    "/opt/aerolab/scripts/configure-promtail.sh",
 		Source:      strings.NewReader(configScript),
 		Permissions: 0755,
 	})
@@ -155,42 +168,90 @@ func (c *ClientConfigureToolsCmd) configureToolsClient(client *backends.Instance
 	sftpClient.Close()
 
 	// 4. Execute installation script
+	installScriptPath := "/opt/aerolab/scripts/install-promtail.sh"
 	output := client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"/bin/bash", "/opt/install-promtail.sh"},
+			Command:        []string{"/bin/bash", installScriptPath},
 			SessionTimeout: 5 * time.Minute,
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 	if output.Output.Err != nil {
-		return fmt.Errorf("failed to install Promtail: %w (stdout: %s, stderr: %s)", output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			installScriptPath,
+			[]byte(installScript),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to install Promtail: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)", output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	// 5. Execute configuration script
+	configScriptPath := "/opt/aerolab/scripts/configure-promtail.sh"
 	output = client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"/bin/bash", "/opt/configure-promtail.sh"},
+			Command:        []string{"/bin/bash", configScriptPath},
 			SessionTimeout: time.Minute,
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 	if output.Output.Err != nil {
-		return fmt.Errorf("failed to configure Promtail: %w (stdout: %s, stderr: %s)", output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			configScriptPath,
+			[]byte(configScript),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to configure Promtail: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)", output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	// 6. Create systemd service and enable/start Promtail
+	systemdScript := "systemctl daemon-reload && systemctl enable promtail && systemctl restart promtail"
 	output = client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"/bin/bash", "-c", "systemctl daemon-reload && systemctl enable promtail && systemctl restart promtail"},
+			Command:        []string{"/bin/bash", "-c", systemdScript},
 			SessionTimeout: time.Minute,
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 	if output.Output.Err != nil {
-		return fmt.Errorf("failed to enable and start Promtail: %w (stdout: %s, stderr: %s)", output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			"inline:systemctl",
+			[]byte(systemdScript),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to enable and start Promtail: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)", output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	logger.Debug("Successfully configured Promtail on %s:%d", client.ClusterName, client.NodeNo)
@@ -207,14 +268,19 @@ func (c *ClientConfigureToolsCmd) generatePromtailInstallScript(isArm bool) stri
 	return fmt.Sprintf(`#!/bin/bash
 set -e
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 # Check if Promtail is already installed
 if [ -f /usr/bin/promtail ]; then
 	echo "Promtail already installed"
 else
-	apt-get update
-	apt-get -y install unzip wget
+	retry_cmd apt-get update
+	retry_cmd apt-get -y install unzip wget
 	cd /root
-	wget -q https://github.com/grafana/loki/releases/download/v3.3.0/promtail-linux-%s.zip
+	retry_cmd wget -q https://github.com/grafana/loki/releases/download/v3.3.0/promtail-linux-%s.zip
 	unzip -q promtail-linux-%s.zip
 	mv promtail-linux-%s /usr/bin/promtail
 	chmod 755 /usr/bin/promtail

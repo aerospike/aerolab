@@ -361,6 +361,12 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	tags[TAG_AEROLAB_PROJECT] = s.project
 	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
 	tags[TAG_ARCHITECTURE] = input.Instance.Architecture.String()
+	// Explicitly override base image labels to prevent Docker's label merge from
+	// inheriting TAG_PUBLIC_TEMPLATE/TAG_PUBLIC_NAME from the parent base image.
+	// Without this, committed template images (aerospike, AGI, etc.) would be
+	// mistakenly matched as "public" base OS images by GetImages().
+	tags[TAG_PUBLIC_TEMPLATE] = "false"
+	tags[TAG_PUBLIC_NAME] = input.Name
 	output = &backends.CreateImageOutput{
 		Image: &backends.Image{
 			BackendType:     input.BackendType,

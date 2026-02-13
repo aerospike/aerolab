@@ -2,6 +2,11 @@
 DL_URL_ARM64="{{.DownloadURLARM64}}"
 DL_URL_AMD64="{{.DownloadURLAMD64}}"
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 set -e
 
 if [ "$(uname -m)" == "aarch64" ] || [ "$(uname -m)" == "arm64" ]; then
@@ -10,7 +15,7 @@ else
     DL_URL="$DL_URL_AMD64"
 fi
 
-curl -L -o /tmp/aerolab.zip "$DL_URL"
+retry_cmd curl -L -o /tmp/aerolab.zip "$DL_URL"
 
 pushd /tmp
 unzip aerolab.zip

@@ -2,6 +2,12 @@
 VERSION="{{.Version}}"
 ENABLE_GRAFANA="{{.EnableGrafana}}"
 START_GRAFANA="{{.StartGrafana}}"
+
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 # Determine package manager
 if command -v apt-get &> /dev/null; then
     # Debian/Ubuntu
@@ -9,16 +15,16 @@ if command -v apt-get &> /dev/null; then
         ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
     fi
     set -e
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https software-properties-common wget
-    wget -q -O /usr/share/keyrings/grafana.key https://apt.grafana.com/gpg.key
+    retry_cmd apt-get update
+    DEBIAN_FRONTEND=noninteractive retry_cmd apt-get install -y apt-transport-https software-properties-common wget
+    retry_cmd wget -q -O /usr/share/keyrings/grafana.key https://apt.grafana.com/gpg.key
     echo "deb [signed-by=/usr/share/keyrings/grafana.key] https://apt.grafana.com stable main" | tee /etc/apt/sources.list.d/grafana.list
-    apt-get update
+    retry_cmd apt-get update
     set +e
     if [ -z "$VERSION" ]; then
-        apt-get install -y grafana || exit 1
+        retry_cmd apt-get install -y grafana || exit 1
     else
-        apt-get install -y grafana="$VERSION" || exit 1
+        retry_cmd apt-get install -y grafana="$VERSION" || exit 1
     fi
 
 elif command -v yum &> /dev/null; then
@@ -42,9 +48,9 @@ sslcacert=/etc/pki/tls/certs/ca-bundle.crt
 EOF
 
     if [ -z "$VERSION" ]; then
-        yum install -y grafana || exit 1
+        retry_cmd yum install -y grafana || exit 1
     else
-        yum install -y grafana-"$VERSION" || exit 1
+        retry_cmd yum install -y grafana-"$VERSION" || exit 1
     fi
 
 else

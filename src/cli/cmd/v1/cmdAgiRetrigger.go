@@ -68,8 +68,10 @@ type AgiRetriggerCmd struct {
 	IngestLogLevel   *int            `long:"ingest-log-level" description:"Log level: 1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL"`
 	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"Enable CPU profiling for ingest"`
 
-	Force bool    `long:"force" description:"Do not ask for confirmation, just continue" webdisable:"true" webset:"true"`
-	Help  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Force      bool          `long:"force" description:"Do not ask for confirmation, just continue" webdisable:"true" webset:"true"`
+	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help       HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi run-ingest.
@@ -172,9 +174,13 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 	}
 
 	// Get AGI instance
-	instance := inventory.Instances.WithClusterName(string(c.ClusterName)).WithState(backends.LifeCycleStateRunning)
+	instance, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
+	instance = instance.WithState(backends.LifeCycleStateRunning)
 	if instance.Count() == 0 {
-		return fmt.Errorf("AGI instance %s not found or not running", c.ClusterName)
+		return fmt.Errorf("AGI instance %s not running", c.ClusterName)
 	}
 	inst := instance.Describe()[0]
 
@@ -187,6 +193,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 	if len(outputs) == 0 || outputs[0].Output.Err != nil || len(outputs[0].Output.Stdout) == 0 {
 		return errors.New("instance is missing file `/opt/agi-installed`, most likely it is still starting")
@@ -201,6 +209,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 	if len(outputs) > 0 && outputs[0].Output.Err == nil && len(outputs[0].Output.Stdout) > 0 {
 		pid := strings.TrimSpace(string(outputs[0].Output.Stdout))
@@ -212,6 +222,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if len(checkOutputs) > 0 && checkOutputs[0].Output.Err == nil {
 			return errors.New("ingest already running")
@@ -223,6 +235,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 	if err != nil {
 		return fmt.Errorf("could not get SFTP config: %w", err)
 	}
+	sftpConf.MaxRetries = c.MaxRetries
+	sftpConf.RetrySleep = c.RetrySleep
 	sftpCli, err := sshexec.NewSftp(sftpConf)
 	if err != nil {
 		return fmt.Errorf("could not create SFTP client: %w", err)
@@ -354,6 +368,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -421,6 +437,8 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 	if len(outputs) > 0 && outputs[0].Output.Err != nil {
 		return fmt.Errorf("could not start ingest system: %s: %s", outputs[0].Output.Err, string(outputs[0].Output.Stdout))
@@ -572,6 +590,8 @@ func (c *AgiRetriggerCmd) uploadLocalSource(inst *backends.Instance, logger *log
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)

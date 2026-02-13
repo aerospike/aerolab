@@ -14,6 +14,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/installers/nodeexporter"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -25,6 +26,8 @@ type ClusterAddExporterCmd struct {
 	ExporterVersion     string          `short:"v" long:"exporter-version" description:"Exporter version to install" default:"latest"`
 	NodeExporterVersion string          `long:"node-exporter-version" description:"Node exporter version to install (e.g., 1.5.0)" default:"latest"`
 	ParallelThreads     int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries          int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep          time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help                HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -74,9 +77,15 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			return nil, fmt.Errorf("custom conf file %s does not exist", c.CustomConf)
 		}
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output []*backends.ExecOutput
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			inst, err := c.AddExporterCluster(system, inventory, args, stdin, stdout, stderr, logger)
@@ -86,10 +95,12 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			output = append(output, inst...)
 		}
 		return output, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -149,6 +160,8 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -156,8 +169,9 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 		}
 		defer client.Close()
 		now := time.Now().Format("20060102150405")
+		scriptPath := "/opt/aerolab/scripts/add-exporter." + now + ".sh"
 		err = client.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install.sh." + now,
+			DestPath:    scriptPath,
 			Source:      strings.NewReader(string(installScript)),
 			Permissions: 0755,
 		})
@@ -166,7 +180,7 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			return
 		}
 		detail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install.sh." + now},
+			Command:        []string{"bash", scriptPath},
 			SessionTimeout: 5 * time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -185,9 +199,26 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr)))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				inst.ClusterName,
+				inst.NodeNo,
+				scriptPath,
+				installScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s) (also failed to save logs: %v)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr))
+			} else {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, output.Output.Err)))
+			}
 			return
 		}
 		// upload the custom conf if provided
@@ -197,6 +228,8 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 				return
 			}
+			conf.MaxRetries = c.MaxRetries
+			conf.RetrySleep = c.RetrySleep
 			client, err := sshexec.NewSftp(conf)
 			if err != nil {
 				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -234,6 +267,8 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -242,8 +277,9 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 		defer client.Close()
 
 		now := time.Now().Format("20060102150405")
+		nodeExporterScriptPath := "/opt/aerolab/scripts/install-node-exporter." + now + ".sh"
 		err = client.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install-node-exporter.sh." + now,
+			DestPath:    nodeExporterScriptPath,
 			Source:      bytes.NewReader(nodeExporterScript),
 			Permissions: 0755,
 		})
@@ -253,7 +289,7 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 		}
 
 		detail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install-node-exporter.sh." + now},
+			Command:        []string{"bash", nodeExporterScriptPath},
 			SessionTimeout: 5 * time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -273,9 +309,26 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr)))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				inst.ClusterName,
+				inst.NodeNo,
+				nodeExporterScriptPath,
+				nodeExporterScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s) (also failed to save logs: %v)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr))
+			} else {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, output.Output.Err)))
+			}
 			return
 		}
 		logger.Debug("Successfully installed node_exporter on %s:%d", inst.ClusterName, inst.NodeNo)

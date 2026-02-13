@@ -12,6 +12,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -23,6 +24,8 @@ type ClusterAddAerolabCmd struct {
 	AerolabVersion  string          `short:"v" long:"aerolab-version" description:"Aerolab version to install" default:"latest"`
 	Prerelease      bool            `short:"r" long:"prerelease" description:"Install prerelease version"`
 	ParallelThreads int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries      int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -67,9 +70,15 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output []*backends.ExecOutput
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			inst, err := c.AddAerolabCluster(system, inventory, args, stdin, stdout, stderr, logger)
@@ -79,10 +88,12 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 			output = append(output, inst...)
 		}
 		return output, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -120,6 +131,8 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -127,8 +140,9 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 		}
 		defer client.Close()
 		now := time.Now().Format("20060102150405")
+		scriptPath := "/opt/aerolab/scripts/add-aerolab." + now + ".sh"
 		err = client.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install.sh." + now,
+			DestPath:    scriptPath,
 			Source:      strings.NewReader(string(installScript)),
 			Permissions: 0755,
 		})
@@ -137,7 +151,7 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 			return
 		}
 		detail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install.sh." + now},
+			Command:        []string{"bash", scriptPath},
 			SessionTimeout: 5 * time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -156,9 +170,26 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr)))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				inst.ClusterName,
+				inst.NodeNo,
+				scriptPath,
+				installScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (stdout: %s, stderr: %s) (also failed to save logs: %v)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr))
+			} else {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, output.Output.Err)))
+			}
 		}
 	})
 	if hasErr != nil {

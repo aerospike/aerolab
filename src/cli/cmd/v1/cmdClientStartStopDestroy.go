@@ -21,6 +21,8 @@ type ClientStartCmd struct {
 	ClientName      TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clients" default:"client"`
 	Machines        TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
 	ParallelThreads int            `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries      int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -57,6 +59,22 @@ func (c *ClientStartCmd) Execute(args []string) error {
 }
 
 func (c *ClientStartCmd) startClients(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
+	// Pre-validate client names exist
+	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
+		if strings.Contains(c.ClientName.String(), ",") {
+			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+					return fmt.Errorf("client '%s' not found", clientName)
+				}
+			}
+		} else {
+			_, err := c.ClientName.GetInstanceList(inventory, backends.LifeCycleStateStopped)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Get client instances
 	clients, err := c.getClientInstances(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {
@@ -93,6 +111,8 @@ func (c *ClientStartCmd) startClients(system *System, inventory *backends.Invent
 			logger.Error("Failed to get SFTP config for %s:%d: %s", inst.ClusterName, inst.NodeNo, err)
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
@@ -119,6 +139,8 @@ func (c *ClientStartCmd) startClients(system *System, inventory *backends.Invent
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			scriptErr = true
@@ -134,6 +156,8 @@ func (c *ClientStartCmd) startClients(system *System, inventory *backends.Invent
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			scriptErr = true
@@ -167,6 +191,22 @@ func (c *ClientStopCmd) Execute(args []string) error {
 }
 
 func (c *ClientStopCmd) stopClients(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
+	// Pre-validate client names exist
+	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
+		if strings.Contains(c.ClientName.String(), ",") {
+			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+					return fmt.Errorf("client '%s' not found", clientName)
+				}
+			}
+		} else {
+			_, err := c.ClientName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Get client instances
 	clients, err := c.getClientInstances(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {
@@ -206,6 +246,21 @@ func (c *ClientDestroyCmd) Execute(args []string) error {
 }
 
 func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
+	// Pre-validate client names exist
+	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
+		if strings.Contains(c.ClientName.String(), ",") {
+			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+					return fmt.Errorf("client '%s' not found", clientName)
+				}
+			}
+		} else {
+			if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(c.ClientName.String()).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+				return fmt.Errorf("client '%s' not found", c.ClientName.String())
+			}
+		}
+	}
+
 	// Get client instances
 	clients, err := c.getClientInstances(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {

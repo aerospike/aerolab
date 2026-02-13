@@ -60,6 +60,11 @@ func (c *AttachShellCmd) AttachShell(system *System, inventory *backends.Invento
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists (with interactive selection if not found)
+	_, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	parallelThreads := c.ParallelThreads
 	if !c.Parallel {
 		parallelThreads = 1

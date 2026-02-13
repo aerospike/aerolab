@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
 
+	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/utils/choice"
 	flags "github.com/rglonek/go-flags"
 )
 
@@ -84,6 +88,117 @@ func (t *TypeXDRVersion) String() string {
 }
 func (t *TypeNode) Int() int {
 	return int(*t)
+}
+
+// guiZone is a special string type for zone parameters in create commands.
+// It provides dynamic choices for the web UI via the List() method.
+//
+// Web UI Dynamic Choices Pattern:
+//
+// To make a command parameter render as a dropdown in the web UI with dynamically-fetched options:
+//  1. Define a custom type based on string (e.g. type guiZone string)
+//  2. Implement String() string on it
+//  3. Implement List(system *System) ([][]string, string, error) where:
+//     - The [][]string return is a list of [value, displayLabel] pairs
+//     - The string return is the default value to pre-select
+//     - The error return signals any failure in fetching choices
+//  4. Use the type on a struct field and add the tag: webchoice:"method::List"
+//
+// The web UI reflect system (ResolveDynamicChoices in cmdWebUIReflect.go) will:
+//  - Detect the webchoice:"method::List" tag
+//  - Call the List() method via reflection
+//  - Populate the Choices field in the ParameterInfo sent to the frontend
+//  - The frontend SelectInput component renders it as a searchable dropdown
+//
+// For static choices, use webchoice:"value1,value2,value3" instead.
+type guiZone string
+
+func (g guiZone) String() string {
+	return string(g)
+}
+
+// List returns a list of available zones for the web UI zone picker.
+func (g guiZone) List(system *System) ([][]string, string, error) {
+	zones, err := system.Backend.ListAvailableZones(backends.BackendType(system.Opts.Config.Backend.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	z := [][]string{}
+	for _, zone := range zones {
+		z = append(z, []string{zone, zone})
+	}
+	def := ""
+	if string(g) != "" {
+		def = string(g)
+	} else if len(zones) > 0 {
+		def = zones[0]
+	}
+	return z, def, nil
+}
+
+// guiInstanceType is a special string type for instance type parameters in create commands.
+// It provides dynamic choices for the web UI via the List() method.
+// See guiZone documentation above for the full pattern description.
+type guiInstanceType string
+
+func (g guiInstanceType) String() string {
+	return string(g)
+}
+
+// List returns a sorted list of instance types with details (arch, CPUs, RAM, NVMe, pricing),
+// and the default instance type for the current backend.
+func (g guiInstanceType) List(system *System) ([][]string, string, error) {
+	instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
+	if err != nil {
+		return nil, "", err
+	}
+	var itypes backends.InstanceTypeList
+	def := ""
+	for _, it := range instanceTypes {
+		if it.Region != system.Opts.Config.Backend.Region {
+			continue
+		}
+		if len(it.Arch) == 0 {
+			continue
+		}
+		if it.Name == string(g) {
+			def = it.Name
+		}
+		itypes = append(itypes, it)
+	}
+	sep := "."
+	if system.Opts.Config.Backend.Type == "gcp" {
+		sep = "-"
+	}
+	sort.Slice(itypes, func(i, j int) bool {
+		ni := strings.Split(itypes[i].Name, sep)[0]
+		nj := strings.Split(itypes[j].Name, sep)[0]
+		if ni < nj {
+			return true
+		}
+		if ni > nj {
+			return false
+		}
+		if itypes[i].CPUs != itypes[j].CPUs {
+			return itypes[i].CPUs < itypes[j].CPUs
+		}
+		return itypes[i].MemoryGiB < itypes[j].MemoryGiB
+	})
+	types := [][]string{}
+	for _, nType := range itypes {
+		arch := "amd64"
+		if slices.Contains(nType.Arch, backends.ArchitectureARM64) {
+			arch = "arm64"
+		}
+		types = append(types, []string{nType.Name, fmt.Sprintf("%s (ARCH:%s CPUs:%d RamGB:%0.2f NVMe:%d/%dG on-demand:$%0.2f/hr spot:$%0.2f/hr)", nType.Name, arch, nType.CPUs, nType.MemoryGiB, nType.NvmeCount, nType.NvmeTotalSizeGiB, nType.PricePerHour.OnDemand, nType.PricePerHour.Spot)})
+	}
+	if def == "" {
+		def = "e2-standard-4"
+		if system.Opts.Config.Backend.Type == "aws" {
+			def = "t3a.xlarge"
+		}
+	}
+	return types, def, nil
 }
 
 func (t *TypeClientName) Complete(match string) []flags.Completion {
@@ -268,7 +383,7 @@ func (t *TypeDistro) Complete(match string) []flags.Completion {
 }
 
 func (t *TypeDistroVersion) Complete(match string) []flags.Completion {
-	clist := []string{"24.04", "22.04", "20.04", "18.04", "9", "8", "7", "2", "2023", "13", "12", "11", "10", "9"}
+	clist := []string{"24.04", "22.04", "20.04", "18.04", "10", "9", "8", "7", "2", "2023", "13", "12", "11"}
 	out := []flags.Completion{}
 	for _, item := range clist {
 		if match == "" || strings.HasPrefix(item, match) {
@@ -291,4 +406,76 @@ func (t *TypeAerospikeVersion) Complete(match string) []flags.Completion {
 		}
 	}
 	return out
+}
+
+func (t *TypeClusterName) GetInstanceList(inventory *backends.Inventory, interactiveStates ...backends.LifeCycleState) (backends.Instances, error) {
+	if inventory == nil {
+		return nil, errors.New("inventory is required")
+	}
+	tstr := string(*t)
+	instances, err := getInstanceListForClusterName(&tstr, inventory, []string{"server", "aerospike"}, interactiveStates...)
+	if err != nil {
+		return nil, err
+	}
+	*t = TypeClusterName(tstr)
+	return instances, nil
+}
+
+func (t *TypeAgiClusterName) GetInstanceList(inventory *backends.Inventory, interactiveStates ...backends.LifeCycleState) (backends.Instances, error) {
+	if inventory == nil {
+		return nil, errors.New("inventory is required")
+	}
+	tstr := string(*t)
+	instances, err := getInstanceListForClusterName(&tstr, inventory, []string{"agi"}, interactiveStates...)
+	if err != nil {
+		return nil, err
+	}
+	*t = TypeAgiClusterName(tstr)
+	return instances, nil
+}
+
+func (t *TypeClientName) GetInstanceList(inventory *backends.Inventory, interactiveStates ...backends.LifeCycleState) (backends.Instances, error) {
+	if inventory == nil {
+		return nil, errors.New("inventory is required")
+	}
+	tstr := string(*t)
+	instances, err := getInstanceListForClusterName(&tstr, inventory, []string{"client"}, interactiveStates...)
+	if err != nil {
+		return nil, err
+	}
+	*t = TypeClientName(tstr)
+	return instances, nil
+}
+
+// returns the cluster instance list for a given cluster name, or an error if cluster is not found
+func getInstanceListForClusterName(t *string, inventory *backends.Inventory, instanceTypes []string, interactiveStates ...backends.LifeCycleState) (backends.Instances, error) {
+	cluster := inventory.Instances.WithClusterName(*t).WithType(instanceTypes...).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+	if cluster == nil || cluster.Count() == 0 {
+		if IsInteractive() {
+			// get cluster list
+			clusters := []string{}
+			for _, i := range inventory.Instances.WithType(instanceTypes...).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Describe() {
+				if len(interactiveStates) > 0 && !slices.Contains(interactiveStates, i.InstanceState) {
+					continue
+				}
+				if !slices.Contains(clusters, i.ClusterName) && strings.Contains(i.ClusterName, string(*t)) {
+					clusters = append(clusters, i.ClusterName)
+				}
+			}
+			if len(clusters) == 0 {
+				return nil, errors.New("cluster not found")
+			}
+			sort.Strings(clusters)
+			// ask user to select a cluster interactively
+			choice, quitting, err := choice.Choice(fmt.Sprintf("Cluster %s not found, select an existing cluster:", string(*t)), choice.StringSliceToItems(clusters))
+			if err != nil || quitting {
+				return nil, err
+			}
+			*t = choice
+			cluster = inventory.Instances.WithClusterName(string(*t)).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+		} else {
+			return nil, errors.New("cluster not found")
+		}
+	}
+	return cluster.Describe(), nil
 }

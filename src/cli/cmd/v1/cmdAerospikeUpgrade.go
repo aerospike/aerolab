@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -26,6 +27,8 @@ type AerospikeUpgradeCmd struct {
 	CustomSourceFile flags.Filename  `short:"f" long:"custom-source-file" description:"custom source file for upgrade; must be .deb, .rpm, .tgz, or the asd binary itself"`
 	RestartAerospike bool            `short:"r" long:"restart" description:"Restart aerospike service after upgrade"`
 	Threads          int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries       int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help             HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -80,9 +83,15 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			inst, err := c.UpgradeAerospike(system, inventory, logger, args, action)
@@ -92,11 +101,12 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if c.Nodes.String() != "" {
@@ -291,6 +301,8 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)
@@ -301,7 +313,7 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 
 	// Upload upgrade script
 	err = client.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/tmp/upgrade-aerospike.sh",
+		DestPath:    "/opt/aerolab/scripts/upgrade-aerospike.sh",
 		Source:      bytes.NewReader(upgradeScript),
 		Permissions: 0755,
 	})
@@ -324,8 +336,9 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 		stdinp := io.NopCloser(os.Stdin)
 		stdin = &stdinp
 	}
+	scriptPath := "/opt/aerolab/scripts/upgrade-aerospike.sh"
 	detail := sshexec.ExecDetail{
-		Command:        []string{"bash", "/tmp/upgrade-aerospike.sh"},
+		Command:        []string{"bash", scriptPath},
 		Terminal:       terminal,
 		SessionTimeout: 15 * time.Minute,
 	}
@@ -343,19 +356,31 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	// Check for errors
 	if output.Output.Err != nil {
-		// Output script contents on failure if not already shown
-		if system.logLevel < 5 {
-			logger.Error("Upgrade script failed, script contents:")
-			fmt.Fprintf(os.Stderr, "%s\n", upgradeScript)
-		}
-		return fmt.Errorf("upgrade script failed: %w\nstdout: %s\nstderr: %s",
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			instance.ClusterName,
+			instance.NodeNo,
+			scriptPath,
+			upgradeScript,
+			output.Output.Stdout,
+			output.Output.Stderr,
 			output.Output.Err,
-			string(output.Output.Stdout),
-			string(output.Output.Stderr))
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("upgrade script failed: %w\nstdout: %s\nstderr: %s (also failed to save logs: %v)",
+				output.Output.Err,
+				string(output.Output.Stdout),
+				string(output.Output.Stderr),
+				saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
 	}
 
 	logger.Info("Successfully upgraded aerospike on %s:%d", instance.ClusterName, instance.NodeNo)
@@ -431,6 +456,8 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)
@@ -478,6 +505,8 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			logger.Warn("Failed to stop aerospike on %s:%d: %s", instance.ClusterName, instance.NodeNo, output.Output.Err)
@@ -505,6 +534,8 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			return fmt.Errorf("failed to create temp directory: %w", output.Output.Err)
@@ -520,6 +551,8 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			return fmt.Errorf("failed to extract tarball: %w\nstdout: %s\nstderr: %s",
@@ -556,10 +589,26 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 	if output.Output.Err != nil {
-		return fmt.Errorf("install command failed: %w\nstdout: %s\nstderr: %s",
-			output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			instance.ClusterName,
+			instance.NodeNo,
+			"inline:install-"+dstType,
+			[]byte(strings.Join(installCmd, " ")),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("install command failed: %w\nstdout: %s\nstderr: %s (also failed to save logs: %v)",
+				output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
 	}
 
 	// Restore aerospike.conf
@@ -583,6 +632,8 @@ func (c *AerospikeUpgradeCmd) customUpgradeInstance(instance *backends.Instance,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			return fmt.Errorf("failed to start aerospike: %w\nstdout: %s\nstderr: %s",

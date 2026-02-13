@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -60,12 +61,22 @@ func (c *AttachAsadmCmd) AttachAsadm(system *System, inventory *backends.Invento
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists (with interactive selection if not found)
+	_, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	parallelThreads := c.ParallelThreads
 	if !c.Parallel {
 		parallelThreads = 1
 	}
 	if args == nil && c.Tail != nil {
 		args = c.Tail
+	}
+	// If non-interactive and no asadm parameters specified, fail early - an interactive
+	// asadm session cannot work without a terminal
+	if len(args) == 0 && !IsInteractive() {
+		return fmt.Errorf("interactive mode is disabled (AEROLAB_NONINTERACTIVE is set or no TTY detected); specify asadm parameters using '-- <asadm-parameters>' syntax")
 	}
 	node := c.Node.String()
 	if node == "all" {

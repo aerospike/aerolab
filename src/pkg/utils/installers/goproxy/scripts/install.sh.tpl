@@ -1,5 +1,10 @@
 # shellcheck disable=SC2148
 
+# Retry helper: try once, sleep 1s, retry once
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 VERSION="{{.Version}}"
 DOWNLOAD_URL_ARM64="{{.DownloadURLARM64}}"
 DOWNLOAD_URL_AMD64="{{.DownloadURLAMD64}}"
@@ -14,7 +19,7 @@ fi
 
 set -e
 pushd /tmp
-curl -L -o goproxy-${VERSION}.linux-${ARCH}.tar.gz ${DOWNLOAD_URL}
+retry_cmd curl -L -o goproxy-${VERSION}.linux-${ARCH}.tar.gz ${DOWNLOAD_URL}
 tar -zxvf goproxy-${VERSION}.linux-${ARCH}.tar.gz
 mv goproxy /usr/local/bin/
 mkdir -p /var/lib/goproxy

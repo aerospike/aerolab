@@ -52,11 +52,17 @@ func (c *ClusterStopCmd) StopCluster(system *System, inventory *backends.Invento
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.StopCluster(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -64,10 +70,12 @@ func (c *ClusterStopCmd) StopCluster(system *System, inventory *backends.Invento
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())

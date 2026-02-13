@@ -21,6 +21,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -152,12 +153,16 @@ type AgiCreateCmd struct {
 	// Docker-specific options
 	Docker AgiCreateCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
 
+	// Retry options
+	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // AgiCreateCmdAws contains AWS-specific options for AGI instance creation.
 type AgiCreateCmdAws struct {
-	InstanceType        string        `short:"I" long:"instance-type" description:"Instance type (min 12GB RAM); empty=auto-select"`
+	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 12GB RAM); empty=auto-select" webchoice:"method::List"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size in GB" default:"40"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"Security group IDs (comma-separated)"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"Subnet ID or availability zone"`
@@ -179,9 +184,9 @@ type AgiCreateCmdAws struct {
 
 // AgiCreateCmdGcp contains GCP-specific options for AGI instance creation.
 type AgiCreateCmdGcp struct {
-	InstanceType        string        `long:"instance" description:"Instance type" default:"c2d-highmem-4"`
-	Disks               []string      `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
-	Zone                string        `long:"zone" description:"GCP zone"`
+	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-highmem-4" webchoice:"method::List"`
+	Disks               []string        `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
+	Zone                guiZone         `long:"zone" description:"GCP zone" webchoice:"method::List"`
 	Tags                []string      `long:"tag" description:"Network tags"`
 	Labels              []string      `long:"label" description:"Labels (key=value)"`
 	SpotInstance        bool          `long:"spot-instance" description:"Request spot instance"`
@@ -266,6 +271,30 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		c.ClusterName = TypeAgiClusterName(c.generateAutoName())
 	}
 
+	// Check if AGI with the same name already exists
+	for {
+		existingAGI := inventory.Instances.
+			WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).
+			WithClusterName(string(c.ClusterName)).
+			WithTags(map[string]string{"aerolab.type": "agi"})
+		if existingAGI.Count() == 0 {
+			break
+		}
+		if !IsInteractive() {
+			return nil, fmt.Errorf("AGI '%s' already exists", c.ClusterName)
+		}
+		logger.Warn("AGI '%s' already exists", c.ClusterName)
+		newName, err := AskForString("Enter a new AGI name: ")
+		if err != nil {
+			return nil, fmt.Errorf("failed to read new name: %w", err)
+		}
+		newName = strings.TrimSpace(newName)
+		if newName == "" {
+			return nil, errors.New("AGI name cannot be empty")
+		}
+		c.ClusterName = TypeAgiClusterName(newName)
+	}
+
 	// Check for existing EFS volume (AWS only)
 	if system.Opts.Config.Backend.Type == "aws" && c.AWS.WithEFS {
 		volumeName := strings.ReplaceAll(c.AWS.EFSName, "{AGI_NAME}", string(c.ClusterName))
@@ -308,7 +337,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 
 	// Set default GCP zone from configured region if not specified
 	if backendType == "gcp" && c.GCP.Zone == "" {
-		c.GCP.Zone = system.Opts.Config.Backend.Region + "-a"
+		c.GCP.Zone = guiZone(system.Opts.Config.Backend.Region + "-a")
 		logger.Info("Using default zone %s", c.GCP.Zone)
 	}
 
@@ -383,7 +412,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 			itypes, err := system.Backend.GetInstanceTypes(backends.BackendTypeAWS)
 			if err == nil {
 				for _, i := range itypes {
-					if i.Name == c.AWS.InstanceType && len(i.Arch) > 0 {
+					if i.Name == string(c.AWS.InstanceType) && len(i.Arch) > 0 {
 						arch.FromString(i.Arch[0].String())
 						break
 					}
@@ -399,7 +428,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 			itypes, err := system.Backend.GetInstanceTypes(backends.BackendTypeGCP)
 			if err == nil {
 				for _, i := range itypes {
-					if i.Name == c.GCP.InstanceType && len(i.Arch) > 0 {
+					if i.Name == string(c.GCP.InstanceType) && len(i.Arch) > 0 {
 						arch.FromString(i.Arch[0].String())
 						break
 					}
@@ -420,6 +449,18 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		return nil, err
 	}
 	logger.Info("Using AGI template: %s", templateName)
+
+	// Refresh inventory if a new template was just created, so that
+	// CreateInstances can find the image and recognise it as official.
+	// Without this, Docker instances get tagged aerolab.custom.image=true
+	// (because the stale inventory doesn't contain the new template),
+	// which causes Exec to use docker-exec instead of SSH.
+	if templateCreated {
+		inventory, err = system.Backend.GetRefreshedInventory()
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh inventory after template creation: %w", err)
+		}
+	}
 
 	// Ensure AGI firewall exists (AWS/GCP only)
 	var agiFirewallName string
@@ -536,6 +577,8 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	// Mark as successful (don't vacuum)
@@ -847,11 +890,11 @@ func (c *AgiCreateCmd) checkAndRestoreVolumeSettings(system *System, inventory *
 	}
 	if backendType == "aws" && c.AWS.InstanceType == "" {
 		if v, ok := vol.Tags["agiinstance"]; ok && v != "" {
-			c.AWS.InstanceType = v
+			c.AWS.InstanceType = guiInstanceType(v)
 		}
 	} else if backendType == "gcp" && c.GCP.InstanceType == "" {
 		if v, ok := vol.Tags["agiinstance"]; ok && v != "" {
-			c.GCP.InstanceType = v
+			c.GCP.InstanceType = guiInstanceType(v)
 		}
 	}
 	if vol.Tags["aginodim"] == "true" {
@@ -1047,15 +1090,15 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update EFS tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   c.AWS.InstanceType,
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
-				"agisubnet":     c.AWS.SubnetID,
-				"agisecgroup":   c.AWS.SecurityGroupID,
-				"agiefsexpire":  c.AWS.EFSExpires.String(),
+			"agiinstance":   string(c.AWS.InstanceType),
+			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
+			"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
+			"aerolab7agiav": c.AerospikeVersion,
+			"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
+			"agisubnet":     c.AWS.SubnetID,
+			"agisecgroup":   c.AWS.SecurityGroupID,
+			"agiefsexpire":  c.AWS.EFSExpires.String(),
 				"agiLabel":      agiLabelB64,
 				"agiSrcLocal":   sourceStringLocalB64,
 				"agiSrcSftp":    sourceStringSftpB64,
@@ -1133,13 +1176,13 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update GCP volume tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   c.GCP.InstanceType,
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
-				"agizone":       c.GCP.Zone,
+			"agiinstance":   string(c.GCP.InstanceType),
+			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
+			"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
+			"aerolab7agiav": c.AerospikeVersion,
+			"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
+			"agizone":       string(c.GCP.Zone),
 				"agivolexpire":  c.GCP.VolExpires.String(),
 				"agiLabel":      agiLabelB64,
 				"agiSrcLocal":   sourceStringLocalB64,
@@ -1158,7 +1201,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 	var awsInstanceType, gcpInstanceType string
 	switch backendType {
 	case "aws":
-		awsInstanceType = c.AWS.InstanceType
+		awsInstanceType = string(c.AWS.InstanceType)
 		if awsInstanceType == "" {
 			if arch.String() == "arm64" {
 				awsInstanceType = "r7g.xlarge"
@@ -1173,7 +1216,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			}
 		}
 	case "gcp":
-		gcpInstanceType = c.GCP.InstanceType
+		gcpInstanceType = string(c.GCP.InstanceType)
 	}
 
 	// Determine exposed port
@@ -1240,7 +1283,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			ImageID:          templateName,
 			Expire:           c.AWS.Expires,
 			NetworkPlacement: system.Opts.Config.Backend.Region,
-			InstanceType:     awsInstanceType,
+			InstanceType:     guiInstanceType(awsInstanceType),
 			Disks:            []string{fmt.Sprintf("type=gp2,size=%s", c.AWS.Ebs)},
 			Firewalls:        []string{agiFirewallName},
 			SpotInstance:     c.AWS.SpotInstance,
@@ -1250,7 +1293,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			ImageName:    templateName,
 			Expire:       c.GCP.Expires,
 			Zone:         c.GCP.Zone,
-			InstanceType: gcpInstanceType,
+			InstanceType: guiInstanceType(gcpInstanceType),
 			Disks:        c.GCP.Disks,
 			Firewalls:    append([]string{agiFirewallName}, c.GCP.Tags...),
 			SpotInstance: c.GCP.SpotInstance,
@@ -1346,6 +1389,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		err = volumes.Attach(instance, &backends.VolumeAttachShared{
@@ -1383,6 +1428,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if len(outputs) > 0 && outputs[0].Output.Err != nil && os.Getenv("AEROLAB_DEBUG") != "1" {
 			// Failed to restore template files - AGI instance won't work properly
@@ -1485,7 +1532,7 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 		tags["termonpow"] = fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff)
 		tags["isspot"] = fmt.Sprintf("%t", c.GCP.SpotInstance)
 		tags["agifips"] = fmt.Sprintf("%t", c.GCP.VolFips)
-		tags["agizone"] = c.GCP.Zone
+		tags["agizone"] = string(c.GCP.Zone)
 		tags["agiexpire"] = c.GCP.Expires.String()
 		tags["agifirewall"] = agiFirewallName
 
@@ -1521,6 +1568,8 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if len(outputs) == 0 {
@@ -1889,6 +1938,8 @@ func (c *AgiCreateCmd) uploadAerolabBinary(instance backends.InstanceList, logge
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -1922,6 +1973,8 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -2014,6 +2067,8 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 					Username:        "root",
 					ConnectTimeout:  30 * time.Second,
 					ParallelThreads: 1,
+					MaxRetries:      c.MaxRetries,
+					RetrySleep:      c.RetrySleep,
 				})
 			}
 		}
@@ -2076,6 +2131,8 @@ func (c *AgiCreateCmd) uploadLocalSource(instance backends.InstanceList, logger 
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -2093,6 +2150,8 @@ func (c *AgiCreateCmd) uploadLocalSource(instance backends.InstanceList, logger 
 				Username:        "root",
 				ConnectTimeout:  30 * time.Second,
 				ParallelThreads: 1,
+				MaxRetries:      c.MaxRetries,
+				RetrySleep:      c.RetrySleep,
 			})
 			if len(outputs) > 0 && outputs[0].Output.Err != nil {
 				return fmt.Errorf("failed to create input directory: %w", outputs[0].Output.Err)
@@ -2184,6 +2243,8 @@ func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSiz
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -2228,6 +2289,8 @@ func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSiz
 				Username:        "root",
 				ConnectTimeout:  30 * time.Second,
 				ParallelThreads: 1,
+				MaxRetries:      c.MaxRetries,
+				RetrySleep:      c.RetrySleep,
 			})
 
 			// Check if copy succeeded
@@ -2347,12 +2410,29 @@ fi
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	var errs []string
 	for _, o := range outputs {
 		if o.Output.Err != nil {
-			errs = append(errs, fmt.Sprintf("%v (stderr: %s)", o.Output.Err, o.Output.Stderr))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				o.Instance.ClusterName,
+				o.Instance.NodeNo,
+				"start-services.sh",
+				[]byte(script),
+				o.Output.Stdout,
+				o.Output.Stderr,
+				o.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				errs = append(errs, fmt.Sprintf("%v (stderr: %s) (failed to save logs: %v)", o.Output.Err, o.Output.Stderr, saveErr))
+			} else {
+				errs = append(errs, scriptlog.FormatError(logPath, o.Instance.ClusterName, o.Instance.NodeNo, o.Output.Err))
+			}
 		}
 	}
 
@@ -2459,6 +2539,8 @@ func (c *AgiCreateCmd) getLogsFromCluster(system *System, inventory *backends.In
 		}
 
 		for _, conf := range confs {
+			conf.MaxRetries = c.MaxRetries
+			conf.RetrySleep = c.RetrySleep
 			cli, err := sshexec.NewSftp(conf)
 			if err != nil {
 				logger.Warn("Could not create SFTP client for node %d: %s", inst.NodeNo, err)
@@ -2476,6 +2558,8 @@ func (c *AgiCreateCmd) getLogsFromCluster(system *System, inventory *backends.In
 					Username:        "root",
 					ConnectTimeout:  30 * time.Second,
 					ParallelThreads: 1,
+					MaxRetries:      c.MaxRetries,
+					RetrySleep:      c.RetrySleep,
 				})
 				if len(outputs) > 0 && outputs[0].Output.Err == nil {
 					os.WriteFile(fmt.Sprintf("%s/aerospike.log", nodeDir), outputs[0].Output.Stdout, 0644)
@@ -2513,6 +2597,8 @@ func (c *AgiCreateCmd) getLogLocation(inst *backends.Instance) string {
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {

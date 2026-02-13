@@ -506,7 +506,21 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			outl.Unlock()
 			return
 		}
+		// Determine whether to use docker exec or SSH.
+		// Use docker exec only for true custom images (no systemd/SSH).
+		// If port 22 is mapped, the instance was built from a systemd image
+		// and should always use SSH, even if incorrectly tagged as custom.
+		useDockerExec := false
 		if d, ok := i.Tags["aerolab.custom.image"]; ok && d == "true" {
+			useDockerExec = true
+			for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
+				if x.PrivatePort == 22 {
+					useDockerExec = false
+					break
+				}
+			}
+		}
+		if useDockerExec {
 			cli, err := s.getDockerClient(i.ZoneName)
 			if err != nil {
 				outl.Lock()
@@ -581,6 +595,8 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				Username:       e.Username,
 				PrivateKey:     nKey,
 				ConnectTimeout: e.ConnectTimeout,
+				MaxRetries:     e.MaxRetries,
+				RetrySleep:     e.RetrySleep,
 			}
 			execInput := &sshexec.ExecInput{
 				ClientConf: clientConf,
@@ -1529,7 +1545,9 @@ func ExecWithCLI(
 	if tty {
 		sshexec.AddRestoreRequest()
 		defer sshexec.RestoreTerminal()
-		term.MakeRaw(os.Stdin.Fd())
+		if term.IsTerminal(os.Stdin.Fd()) {
+			term.MakeRaw(os.Stdin.Fd())
+		}
 	}
 	go func() {
 		io.Copy(stdout, resp.Reader)

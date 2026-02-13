@@ -23,6 +23,8 @@ type XdrConnectCmd struct {
 	Namespaces              string          `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect" default:"test"`
 	CustomDestinationPort   int             `short:"P" long:"destination-port" description:"Optionally specify a custom destination port for the xdr connection"`
 	ParallelThreads         int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries              int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep              time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help                    HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -50,6 +52,25 @@ func (c *XdrConnectCmd) connect(system *System, inventory *backends.Inventory, l
 
 	namespaces := strings.Split(c.Namespaces, ",")
 	destinations := strings.Split(c.DestinationClusterNames.String(), ",")
+
+	// Validate source cluster exists
+	_, err := c.SourceClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
+	// Pre-validate all destination clusters exist before processing
+	if len(destinations) > 1 {
+		for _, destination := range destinations {
+			if inventory.Instances.WithClusterName(destination).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return fmt.Errorf("destination cluster %s not found or has no running instances", destination)
+			}
+		}
+	} else {
+		_, err := c.DestinationClusterNames.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Get source cluster
 	sourceCluster := inventory.Instances.WithClusterName(c.SourceClusterName.String()).WithState(backends.LifeCycleStateRunning)
@@ -100,6 +121,8 @@ func (c *XdrConnectCmd) connect(system *System, inventory *backends.Inventory, l
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: failed to create XDR directory: %w", inst.ClusterName, inst.NodeNo, output.Output.Err))
@@ -164,6 +187,8 @@ func (c *XdrConnectCmd) configureXdrOnNode(inst *backends.Instance, destIpList m
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	client, err := sshexec.NewSftp(conf)
 	if err != nil {

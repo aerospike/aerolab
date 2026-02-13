@@ -17,6 +17,8 @@ type AerospikeStatusCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -54,9 +56,15 @@ func (c *AerospikeStatusCmd) StatusAerospike(system *System, inventory *backends
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			inst, err := c.StatusAerospike(system, inventory, logger, args, action)
@@ -66,10 +74,12 @@ func (c *AerospikeStatusCmd) StatusAerospike(system *System, inventory *backends
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -102,6 +112,8 @@ func (c *AerospikeStatusCmd) StatusAerospike(system *System, inventory *backends
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: c.Threads,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	var errs error

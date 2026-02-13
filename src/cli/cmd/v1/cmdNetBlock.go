@@ -9,6 +9,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -23,6 +24,8 @@ type NetBlockCmd struct {
 	StatisticMode          TypeNetStatisticMode `short:"M" long:"statistic-mode" description:"for partial packet loss, supported are: random | nth. Not set: drop all packets." default:""`
 	StatisticProbability   string               `short:"P" long:"probability" description:"for partial packet loss mode random. Supported values are between 0.0 and 1.0 (0% to 100%)" default:"0.5"`
 	StatisticEvery         string               `short:"E" long:"every" description:"for partial packet loss mode nth. Match one every nth packet. Default: 2 (50% loss)" default:"2"`
+	MaxRetries             int                  `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep             time.Duration        `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help                   HelpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -54,6 +57,16 @@ func (c *NetBlockCmd) blockUnblock(system *System, inventory *backends.Inventory
 		inventory = system.Backend.GetInventory()
 	}
 
+	// Validate source cluster exists
+	_, err := c.SourceClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
+	// Validate destination cluster exists
+	_, err = c.DestinationClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	// Get source and destination clusters
 	sourceCluster := inventory.Instances.WithClusterName(c.SourceClusterName.String()).WithState(backends.LifeCycleStateRunning)
 	if sourceCluster.Count() == 0 {
@@ -182,11 +195,28 @@ func (c *NetBlockCmd) blockUnblock(system *System, inventory *backends.Inventory
 				Username:        "root",
 				ConnectTimeout:  30 * time.Second,
 				ParallelThreads: 1,
+				MaxRetries:      c.MaxRetries,
+				RetrySleep:      c.RetrySleep,
 			})
 
 			if output.Output.Err != nil {
-				logger.Error("ERROR running iptables on cluster %s node %d: %s: %s: %s",
-					instance.ClusterName, instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
+				// Save script failure to local machine for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					instance.ClusterName,
+					instance.NodeNo,
+					"iptables-commands.sh",
+					[]byte(strings.Join(commands, ";")),
+					output.Output.Stdout,
+					output.Output.Stderr,
+					output.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					logger.Error("ERROR running iptables on cluster %s node %d: %s: %s: %s (also failed to save logs: %v)",
+						instance.ClusterName, instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr)
+				} else {
+					logger.Error("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
+				}
 				lock.Lock()
 				isErr = true
 				lock.Unlock()

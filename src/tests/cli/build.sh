@@ -3,12 +3,14 @@
 export CGO_ENABLED=0
 
 set -e
+
 if [ "$1" = "all" ]; then
   echo "$(date) Running go generate..."
-  pushd ../../cli/
+  pushd ../../
   go generate ./...
   popd
 fi
+
 rm -rf ./aerolab ./aerolab-linux-amd64 ./aerolab-linux-arm64
 echo "$(date) Building aerolab..."
 GOOS=darwin GOARCH=amd64 go build -o ./aerolab -ldflags="-s -w" -trimpath ../../cli/.

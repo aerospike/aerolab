@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/docker/docker/api/types/strslice"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
@@ -27,6 +28,7 @@ type ClientCreateGraphCmd struct {
 	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
 	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
 	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
 	SeedClusterName    TypeClusterName          `short:"C" long:"cluster-name" description:"Cluster name to seed from" default:"mydc"`
 	Seed               string                   `long:"seed" description:"Specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
 	Namespace          string                   `short:"m" long:"namespace" description:"Namespace name to configure graph to use" default:"test"`
@@ -41,7 +43,12 @@ type ClientCreateGraphCmd struct {
 	JustDoIt           bool                     `long:"confirm" description:"Confirm any warning questions without being asked" webdisable:"true" webset:"true"`
 	TypeOverride       string                   `long:"type-override" description:"Override the client type label"`
 	ParallelSSHThreads int                      `long:"threads" description:"Number of threads to use for the execution" default:"10"`
-	Help               HelpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
+	// Retry configuration
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
+	CapacityRetries    int           `long:"capacity-retries" description:"Maximum retries for capacity errors (AWS/GCP only)" default:"0" simplemode:"false"`
+	CapacityRetrySleep time.Duration `long:"capacity-retry-sleep" description:"Sleep duration between capacity retries" default:"60s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // GraphConfigParams holds parameters for generating graph configuration
@@ -267,18 +274,26 @@ func (c *ClientCreateGraphCmd) createGraphOnDocker(system *System, inventory *ba
 
 	logger.Info("Pulling and running dockerized aerospike-graph, this may take a while...")
 
+	// Build tags list with system tags and custom labels
+	graphTags := []string{"aerolab.old.type=client", "aerolab.client.type=graph"}
+	graphTags = append(graphTags, c.Tags...)
+
 	// Create instances using InstancesCreateCmd with custom docker image
 	instancesCmd := InstancesCreateCmd{
 		ClusterName:        c.ClientName.String(),
 		Count:              c.ClientCount,
 		Owner:              c.Owner,
 		Type:               c.TypeOverride,
-		Tags:               []string{"aerolab.old.type=client", "aerolab.client.type=graph"},
+		Tags:               graphTags,
 		OS:                 "ubuntu",
 		Version:            "24.04",
 		Arch:               "amd64",
 		Docker:             c.Docker,
 		ParallelSSHThreads: c.ParallelSSHThreads,
+		MaxRetries:         c.MaxRetries,
+		RetrySleep:         c.RetrySleep,
+		CapacityRetries:    c.CapacityRetries,
+		CapacityRetrySleep: c.CapacityRetrySleep,
 	}
 
 	// We need special handling for custom docker image in docker backend
@@ -319,6 +334,10 @@ func (c *ClientCreateGraphCmd) createGraphOnCloud(system *System, inventory *bac
 		Arch:               "amd64",
 		TypeOverride:       c.TypeOverride,
 		ParallelSSHThreads: c.ParallelSSHThreads,
+		MaxRetries:         c.MaxRetries,
+		RetrySleep:         c.RetrySleep,
+		CapacityRetries:    c.CapacityRetries,
+		CapacityRetrySleep: c.CapacityRetrySleep,
 	}}
 	clients, err := baseCmd.createBaseClient(system, inventory, logger, args, isGrow)
 	if err != nil {
@@ -374,6 +393,8 @@ func (c *ClientCreateGraphCmd) installGraphOnInstance(client *backends.Instance,
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	sftpClient, err := sshexec.NewSftp(conf)
@@ -393,8 +414,9 @@ func (c *ClientCreateGraphCmd) installGraphOnInstance(client *backends.Instance,
 	}
 
 	// Upload install script
+	scriptPath := "/opt/aerolab/scripts/install-graph.sh"
 	err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/tmp/install-graph.sh",
+		DestPath:    scriptPath,
 		Source:      bytes.NewReader(installScript),
 		Permissions: 0755,
 	})
@@ -414,7 +436,7 @@ func (c *ClientCreateGraphCmd) installGraphOnInstance(client *backends.Instance,
 	}
 
 	execDetail := sshexec.ExecDetail{
-		Command:        []string{"bash", "/tmp/install-graph.sh"},
+		Command:        []string{"bash", scriptPath},
 		SessionTimeout: 30 * time.Minute,
 		Terminal:       terminal,
 	}
@@ -428,11 +450,27 @@ func (c *ClientCreateGraphCmd) installGraphOnInstance(client *backends.Instance,
 		ExecDetail:     execDetail,
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
-		return fmt.Errorf("install script failed: %w (stdout: %s, stderr: %s)",
-			output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			scriptPath,
+			installScript,
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("install script failed: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)",
+				output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	logger.Info("Successfully installed graph on %s:%d", client.ClusterName, client.NodeNo)

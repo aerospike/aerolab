@@ -17,6 +17,8 @@ type ClusterStartCmd struct {
 	NoFixMesh   bool            `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh" simplemode:"false"`
 	NoStart     bool            `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -56,11 +58,17 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateStopped).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.StartCluster(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -68,8 +76,14 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 			instances = append(instances, inst...)
 		}
 		return instances, nil
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateStopped)
+		if err != nil {
+			return nil, err
+		}
 	}
-	cluster, err := c.FilterForCluster(inventory, logger)
+	cluster, err := c.FilterForCluster(cluster, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +124,6 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 		out := cluster.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
 				Command:        []string{"systemctl", "start", "aerospike"},
-				Stdin:          nil,
-				Stdout:         nil,
-				Stderr:         nil,
 				SessionTimeout: time.Minute,
 				Env:            []*sshexec.Env{},
 				Terminal:       false,
@@ -120,6 +131,8 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.Threads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		for _, o := range out {
 			if o.Output.Err != nil {
@@ -130,11 +143,7 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 	return cluster.Describe(), errs
 }
 
-func (c *ClusterStartCmd) FilterForCluster(inventory *backends.Inventory, logger *logger.Logger) (backends.Instances, error) {
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
-	}
+func (c *ClusterStartCmd) FilterForCluster(cluster backends.Instances, logger *logger.Logger) (backends.Instances, error) {
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {

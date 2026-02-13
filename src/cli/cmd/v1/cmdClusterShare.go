@@ -20,6 +20,8 @@ type ClusterShareCmd struct {
 	ParallelThreads int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
 	ConnectTimeout  time.Duration   `short:"C" long:"connect-timeout" description:"Connect timeout" default:"10s"`
 	KeyFile         flags.Filename  `short:"f" long:"pubkey" description:"Path to a pubkey to import to cluster nodes"`
+	MaxRetries      int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -63,20 +65,28 @@ func (c *ClusterShareCmd) ShareCluster(system *System, inventory *backends.Inven
 		return fmt.Errorf("key file %s does not look like an ssh public key", string(c.KeyFile))
 	}
 
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			err := c.ShareCluster(system, inventory, args)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -100,6 +110,8 @@ func (c *ClusterShareCmd) ShareCluster(system *System, inventory *backends.Inven
 			logger.Error("Failed to get sftp config for node %s: %s", node.Name, err)
 			return
 		}
+		s.MaxRetries = c.MaxRetries
+		s.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(s)
 		if err != nil {
 			logger.Error("Failed to create sftp client for node %s: %s", node.Name, err)

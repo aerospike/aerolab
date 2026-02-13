@@ -237,7 +237,7 @@ func (c *AgiMonitorListenCmd) Execute(args []string) error {
 
 	// Create monitor instance with system reference
 	monitor := &agiMonitor{
-		cmd:        c,
+		cmd:        &c.AgiMonitorConfigCmd,
 		system:     system,
 		cache:      &inventoryCache{},
 		banTracker: newIPBanTracker(),
@@ -281,10 +281,12 @@ func (c *AgiMonitorListenCmd) Execute(args []string) error {
 
 // agiMonitor holds the monitor state and references.
 type agiMonitor struct {
-	cmd        *AgiMonitorListenCmd
-	system     *System
-	cache      *inventoryCache
-	banTracker *ipBanTracker
+	cmd               *AgiMonitorConfigCmd
+	system            *System
+	cache             *inventoryCache
+	banTracker        *ipBanTracker
+	sizingState       *agiSizingStateMap // non-nil when embedded in WebUI; tracks active sizing for inventory display
+	onRefreshCallback func()             // called after every ForceRefreshInventory (e.g. to reschedule expiry timer)
 }
 
 // startServer starts the HTTP/HTTPS server based on configuration.
@@ -636,6 +638,11 @@ func (m *agiMonitor) getInventory(forceRefresh bool) *backends.Inventory {
 		}
 		m.cache.inventory = m.system.Backend.GetInventory()
 		m.cache.expiry = time.Now().Add(10 * time.Second)
+
+		// Notify the WebUI (if embedded) so it can reschedule expiry timers etc.
+		if m.onRefreshCallback != nil {
+			m.onRefreshCallback()
+		}
 	}
 	return m.cache.inventory
 }
@@ -772,6 +779,21 @@ func (m *agiMonitor) getDeploymentJSON(uuid string, event *ingest.NotifyEvent, d
 	return true
 }
 
+// setSizingState marks an AGI instance as being sized (if the embedded sizing
+// state tracker is available). The caller should defer clearSizingState.
+func (m *agiMonitor) setSizingState(name, action string) {
+	if m.sizingState != nil {
+		m.sizingState.set(name, action)
+	}
+}
+
+// clearSizingState removes the sizing marker for an AGI instance.
+func (m *agiMonitor) clearSizingState(name string) {
+	if m.sizingState != nil {
+		m.sizingState.clear(name)
+	}
+}
+
 // handleCapacity handles spot instance capacity rotation to on-demand.
 // It destroys the spot instance and uses agiStart to reattach the volume as on-demand.
 func (m *agiMonitor) handleCapacity(uuid string, event *ingest.NotifyEvent) {
@@ -780,6 +802,9 @@ func (m *agiMonitor) handleCapacity(uuid string, event *ingest.NotifyEvent) {
 
 	shutdown.AddJob()
 	defer shutdown.DoneJob()
+
+	m.setSizingState(event.AGIName, "sizing-capacity")
+	defer m.clearSizingState(event.AGIName)
 
 	// CRITICAL: Validate AGIName is not empty before proceeding
 	// If empty, the destroy filter would match ALL AGI instances instead of just one
@@ -1172,6 +1197,9 @@ func (m *agiMonitor) handleSizingDisk(uuid string, event *ingest.NotifyEvent, ne
 	shutdown.AddJob()
 	defer shutdown.DoneJob()
 
+	m.setSizingState(event.AGIName, "sizing-disk")
+	defer m.clearSizingState(event.AGIName)
+
 	createCmd := &AgiCreateCmd{}
 	if !m.getDeploymentJSON(uuid, event, createCmd) {
 		return
@@ -1201,6 +1229,9 @@ func (m *agiMonitor) handleSizingRAM(uuid string, event *ingest.NotifyEvent, new
 	shutdown.AddJob()
 	defer shutdown.DoneJob()
 
+	m.setSizingState(event.AGIName, "sizing-ram")
+	defer m.clearSizingState(event.AGIName)
+
 	createCmd := &AgiCreateCmd{}
 	if !m.getDeploymentJSON(uuid, event, createCmd) {
 		return
@@ -1229,6 +1260,9 @@ func (m *agiMonitor) handleSizingDiskAndRAM(uuid string, event *ingest.NotifyEve
 
 	shutdown.AddJob()
 	defer shutdown.DoneJob()
+
+	m.setSizingState(event.AGIName, "sizing-disk-ram")
+	defer m.clearSizingState(event.AGIName)
 
 	createCmd := &AgiCreateCmd{}
 	if !m.getDeploymentJSON(uuid, event, createCmd) {

@@ -10,6 +10,11 @@ fi
 # set -u # if variable is not set, error
 # set -o pipefail # die if any command in a pipeline fails, not just last one
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 # if apt - disable unattended-upgrades, and handle conflicts for configuration files
 if command -v apt &> /dev/null; then
 # unattended upgrades
@@ -78,15 +83,15 @@ if [ ${#TO_INSTALL[@]} -gt 0 ]; then
     if command -v apt &> /dev/null; then
         if [ ! -e /etc/localtime ]; then ln -fs /usr/share/zoneinfo/UTC /etc/localtime; fi
         set -e
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "${TO_INSTALL[@]}"
+        retry_cmd apt-get update && DEBIAN_FRONTEND=noninteractive retry_cmd apt-get install -y "${TO_INSTALL[@]}"
         set +e
     elif command -v dnf &> /dev/null; then
         set -e
-        dnf install -y "${TO_INSTALL[@]}"
+        retry_cmd dnf install -y "${TO_INSTALL[@]}"
         set +e
     elif command -v yum &> /dev/null; then
         set -e
-        yum install -y "${TO_INSTALL[@]}"
+        retry_cmd yum install -y "${TO_INSTALL[@]}"
         set +e
     else
         echo "Could not find package manager to install dependencies"

@@ -8,21 +8,21 @@ import (
 )
 
 type InstancesCmd struct {
-	Create          InstancesCreateCmd          `command:"create" subcommands-optional:"true" description:"Create a new instance cluster" webicon:"fas fa-plus"`
-	Grow            InstancesGrowCmd            `command:"grow" subcommands-optional:"true" description:"Grow an existing instance cluster" webicon:"fas fa-plus"`
-	Apply           InstancesApplyCmd           `command:"apply" subcommands-optional:"true" description:"Apply a state to an instance cluster: automatically create, grow, destroy to match cluster size" webicon:"fas fa-plus"`
+	Create          InstancesCreateCmd          `command:"create" subcommands-optional:"true" description:"Create a new instance cluster" webicon:"fas fa-plus" invwebforce:"true"`
+	Grow            InstancesGrowCmd            `command:"grow" subcommands-optional:"true" description:"Grow an existing instance cluster" webicon:"fas fa-plus" invwebforce:"true"`
+	Apply           InstancesApplyCmd           `command:"apply" subcommands-optional:"true" description:"Apply a state to an instance cluster: automatically create, grow, destroy to match cluster size" webicon:"fas fa-plus" invwebforce:"true"`
 	List            InstancesListCmd            `command:"list" subcommands-optional:"true" description:"List instances" webicon:"fas fa-list"`
 	Attach          InstancesAttachCmd          `command:"attach" subcommands-optional:"true" description:"Attach to an instance or cluster" webicon:"fas fa-terminal"`
-	Start           InstancesStartCmd           `command:"start" subcommands-optional:"true" description:"Start an instance or cluster" webicon:"fas fa-play"`
-	Stop            InstancesStopCmd            `command:"stop" subcommands-optional:"true" description:"Stop an instance or cluster" webicon:"fas fa-stop"`
-	Restart         InstancesRestartCmd         `command:"restart" subcommands-optional:"true" description:"Restart an instance or cluster" webicon:"fas fa-sync"`
+	Start           InstancesStartCmd           `command:"start" subcommands-optional:"true" description:"Start an instance or cluster" webicon:"fas fa-play" invwebforce:"true"`
+	Stop            InstancesStopCmd            `command:"stop" subcommands-optional:"true" description:"Stop an instance or cluster" webicon:"fas fa-stop" invwebforce:"true"`
+	Restart         InstancesRestartCmd         `command:"restart" subcommands-optional:"true" description:"Restart an instance or cluster" webicon:"fas fa-sync" invwebforce:"true"`
 	UpdateHostsFile InstancesUpdateHostsFileCmd `command:"update-hosts-file" subcommands-optional:"true" description:"Update the hosts file on the instances" webicon:"fas fa-file-alt"`
 	AddTags         InstancesAddTagsCmd         `command:"add-tags" subcommands-optional:"true" description:"Add tags to instances" webicon:"fas fa-tags"`
 	RemoveTags      InstancesRemoveTagsCmd      `command:"remove-tags" subcommands-optional:"true" description:"Remove tags from instances" webicon:"fas fa-tags"`
 	AssignFirewalls InstancesAssignFirewallsCmd `command:"assign-firewalls" subcommands-optional:"true" description:"Assign firewalls to instances" webicon:"fas fa-firewall"`
 	RemoveFirewalls InstancesRemoveFirewallsCmd `command:"remove-firewalls" subcommands-optional:"true" description:"Remove firewalls from instances" webicon:"fas fa-firewall"`
 	ChangeExpiry    InstancesChangeExpiryCmd    `command:"change-expiry" subcommands-optional:"true" description:"Change the expiry of instances" webicon:"fas fa-calendar-alt"`
-	Destroy         InstancesDestroyCmd         `command:"destroy" subcommands-optional:"true" description:"Destroy an instance or cluster" webicon:"fas fa-trash"`
+	Destroy         InstancesDestroyCmd         `command:"destroy" subcommands-optional:"true" description:"Destroy an instance or cluster" webicon:"fas fa-trash" invwebforce:"true"`
 	Help            HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

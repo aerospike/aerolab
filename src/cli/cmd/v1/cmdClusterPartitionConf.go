@@ -17,6 +17,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/bestmethod/inslice"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	"github.com/rglonek/logger"
@@ -35,6 +36,8 @@ type ClusterPartitionConfCmd struct {
 	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% space to use for configurating partition-tree-sprigs for pi-flash; this also sets mounts-budget accordingly" default:"90"`
 	ConfigPath         string          `short:"c" long:"config-path" description:"path to a custom aerospike config file to use for the configuration" default:"/etc/aerospike/aerospike.conf"`
 	ParallelThreads    int             `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries         int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help               HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -101,11 +104,17 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		}
 		filterDiskCount = len(disksFilter)
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output []*backends.ExecOutput
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.PartitionConfCluster(system, inventory, args, stdin, stdout, stderr, logger)
 			if err != nil {
 				return nil, err
@@ -113,13 +122,15 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 			output = append(output, inst...)
 		}
 		return output, nil
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
-	}
-	// Filter by Running state first, before checking node numbers
 	cluster = cluster.WithState(backends.LifeCycleStateRunning)
+	// Filter by Running state first, before checking node numbers
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -163,6 +174,8 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -349,13 +362,13 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 					return
 				}
 			case "allflash", "pi-flash":
-				err = assignFlashIndexDevice(&namespace, "index-type", device, isv7, c.MountsSizeLimitPct, c.ClusterName.String(), inst, &totalFsSizeBytes)
+				err = assignFlashIndexDevice(&namespace, "index-type", device, isv7, c.MountsSizeLimitPct, c.ClusterName.String(), inst, &totalFsSizeBytes, c.MaxRetries, c.RetrySleep)
 				if err != nil {
 					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 					return
 				}
 			case "si-flash":
-				err = assignFlashIndexDevice(&namespace, "sindex-type", device, isv7, c.MountsSizeLimitPct, c.ClusterName.String(), inst, &totalFsSizeBytes)
+				err = assignFlashIndexDevice(&namespace, "sindex-type", device, isv7, c.MountsSizeLimitPct, c.ClusterName.String(), inst, &totalFsSizeBytes, c.MaxRetries, c.RetrySleep)
 				if err != nil {
 					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 					return
@@ -457,7 +470,7 @@ func assignStorageEngineDevice(namespace *aeroconf.Stanza, deviceType string, de
 	return deviceStanza.SetValues("device", vals)
 }
 
-func assignFlashIndexDevice(namespace *aeroconf.Stanza, indexType string, device BlockDevice, is7 bool, mountsSizeLimitPct float64, clusterName string, inst *backends.Instance, totalFsSizeBytes *int) error {
+func assignFlashIndexDevice(namespace *aeroconf.Stanza, indexType string, device BlockDevice, is7 bool, mountsSizeLimitPct float64, clusterName string, inst *backends.Instance, totalFsSizeBytes *int, maxRetries int, retrySleep time.Duration) error {
 	if namespace == nil {
 		return fmt.Errorf("namespace stanza is nil")
 	}
@@ -507,9 +520,10 @@ func assignFlashIndexDevice(namespace *aeroconf.Stanza, indexType string, device
 		}
 		// Need to get the device size from the node directly
 	} else {
+		cmd := []string{"blockdev", "--getsize64", device.Path}
 		detail := sshexec.ExecDetail{
-			Command:        []string{"blockdev", "--getsize64", device.Path},
-			SessionTimeout: 0,
+			Command:        cmd,
+			SessionTimeout: 30 * time.Second,
 			Env:            []*sshexec.Env{},
 			Terminal:       true,
 		}
@@ -518,14 +532,31 @@ func assignFlashIndexDevice(namespace *aeroconf.Stanza, indexType string, device
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      maxRetries,
+			RetrySleep:      retrySleep,
 		})
-		if eout.Output.Err == nil {
-			if len(eout.Output.Stdout) != 1 {
-				err = fmt.Errorf("expected out string from one command, got %d", len(eout.Output.Stdout))
-			} else {
-				fsSize := strings.Trim(string(eout.Output.Stdout[0]), "\r\t\n")
-				fsSizeI, err = strconv.Atoi(fsSize)
+		if eout.Output.Err != nil {
+			// Save command failure for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				clusterName,
+				inst.NodeNo,
+				"inline:blockdev",
+				[]byte(strings.Join(cmd, " ")),
+				eout.Output.Stdout,
+				eout.Output.Stderr,
+				eout.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("could not determine the size of %s on node %d: %v (stdout: %s, stderr: %s) (also failed to save logs: %v)", device.Path, inst.NodeNo, eout.Output.Err, string(eout.Output.Stdout), string(eout.Output.Stderr), saveErr)
 			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, clusterName, inst.NodeNo, eout.Output.Err))
+		}
+		if len(eout.Output.Stdout) != 1 {
+			err = fmt.Errorf("expected out string from one command, got %d", len(eout.Output.Stdout))
+		} else {
+			fsSize := strings.Trim(string(eout.Output.Stdout[0]), "\r\t\n")
+			fsSizeI, err = strconv.Atoi(fsSize)
 		}
 		if err != nil {
 			return fmt.Errorf("could not determine the size of %s on node %d: %v", device.Path, inst.NodeNo, err)

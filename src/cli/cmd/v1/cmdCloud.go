@@ -7,6 +7,7 @@ type CloudCmd struct {
 	ListInstanceTypes CloudListInstanceTypesCmd `command:"list-instance-types" subcommands-optional:"true" description:"List instance types" webicon:"fas fa-list"`
 	Secrets           CloudSecretsCmd           `command:"secrets" subcommands-optional:"true" description:"Secrets operations" webicon:"fas fa-key"`
 	Clusters          CloudClustersCmd          `command:"clusters" subcommands-optional:"true" description:"Clusters operations" webicon:"fas fa-database"`
+	Auth              CloudAuthCmd              `command:"auth" subcommands-optional:"true" description:"Authentication operations" webicon:"fas fa-lock"`
 	GenConfTemplates  CloudGenConfTemplatesCmd  `command:"gen-conf-templates" subcommands-optional:"true" description:"Generate configuration templates from OpenAPI spec" webicon:"fas fa-file-code"`
 	Help              HelpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -26,6 +27,8 @@ type ClusterPartitionMkfsCmd struct {
 	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
 	MountOpts        string          `short:"o" long:"mount-options" description:"additional mount options to pass, ex: noatime,noexec" default:""`
 	ParallelThreads  int             `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries       int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help             HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -87,11 +90,17 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 		filterDiskCount = len(disksFilter)
 	}
 
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output []*backends.ExecOutput
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.PartitionMkfsCluster(system, inventory, args, stdin, stdout, stderr, logger)
 			if err != nil {
 				return nil, err
@@ -99,13 +108,15 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 			output = append(output, inst...)
 		}
 		return output, nil
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
-	}
-	// Filter by Running state first, before checking node numbers
 	cluster = cluster.WithState(backends.LifeCycleStateRunning)
+	// Filter by Running state first, before checking node numbers
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -216,6 +227,8 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -223,9 +236,10 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 		}
 		defer client.Close()
 		now := time.Now().Format("20060102150405")
+		scriptPath := "/opt/aerolab/scripts/partition-mkfs." + now + ".sh"
 		err = client.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install.sh." + now,
-			Source:      strings.NewReader(string(installScript)),
+			DestPath:    scriptPath,
+			Source:      strings.NewReader(installScript),
 			Permissions: 0755,
 		})
 		if err != nil {
@@ -233,7 +247,7 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 			return
 		}
 		detail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install.sh." + now},
+			Command:        []string{"bash", scriptPath},
 			SessionTimeout: 5 * time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -252,9 +266,26 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr)))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				inst.ClusterName,
+				inst.NodeNo,
+				scriptPath,
+				[]byte(installScript),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (stdout: %s, stderr: %s) (also failed to save logs: %v)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr))
+			} else {
+				hasErr = errors.Join(hasErr, fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, output.Output.Err)))
+			}
 		}
 	})
 	if hasErr != nil {

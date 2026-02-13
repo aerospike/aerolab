@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
@@ -22,6 +23,8 @@ type ConfAdjustCmd struct {
 	Key             string            `short:"k" long:"key" description:"the key to work on; eg 'namespace bar.storage-engine device.write-block-size'" webrequired:"true"`
 	Values          []string          `short:"v" long:"value" description:"value to set a key to when using set option; can be specified multiple times"`
 	ParallelThreads int               `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries      int               `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration     `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            ConfAdjustHelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -81,6 +84,10 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+	_, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
 	}
 	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
@@ -147,6 +154,8 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 			hasErr = true
 			return
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
 			logger.Error("Failed to adjust configuration for node %s: %s", i.Name, err)

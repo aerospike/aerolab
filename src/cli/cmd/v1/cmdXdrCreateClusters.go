@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/rglonek/logger"
 )
 
@@ -39,18 +41,79 @@ func (c *XdrCreateClustersCmd) Execute(args []string) error {
 func (c *XdrCreateClustersCmd) createClusters(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
 	destinations := strings.Split(c.DestinationClusterNames.String(), ",")
 
-	// Check if any clusters already exist
-	for _, dest := range destinations {
-		existing := inventory.Instances.WithClusterName(dest)
-		if existing != nil && existing.Count() > 0 {
-			return fmt.Errorf("cluster %s already exists", dest)
+	// Track if interactive choices were made
+	madeInteractiveChoices := false
+
+	// Check if source cluster exists
+	srcCluster := inventory.Instances.WithClusterName(c.ClusterName.String()).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
+	if srcCluster != nil && srcCluster.Count() > 0 {
+		if IsInteractive() {
+			selectedChoice, quitting, err := choice.Choice(fmt.Sprintf("Source cluster %s already exists (%d nodes). What do you want to do?", c.ClusterName.String(), srcCluster.Count()), choice.Items{
+				choice.Item("Destroy and recreate"),
+				choice.Item("Exit"),
+			})
+			if err != nil {
+				return err
+			}
+			if quitting || selectedChoice == "Exit" {
+				return errors.New("aborted")
+			}
+			madeInteractiveChoices = true
+			// Destroy the existing source cluster
+			logger.Info("Destroying existing source cluster %s", c.ClusterName.String())
+			destroyCmd := &ClusterDestroyCmd{
+				ClusterName: c.ClusterName,
+				Force:       true,
+			}
+			_, err = destroyCmd.DestroyCluster(system, inventory, logger, args, "destroy")
+			if err != nil {
+				return fmt.Errorf("failed to destroy existing source cluster: %w", err)
+			}
+			// Refresh inventory after destroy
+			inventory = system.Backend.GetInventory()
+		} else {
+			return fmt.Errorf("source cluster %s already exists", c.ClusterName.String())
 		}
 	}
 
-	// Check if source cluster exists
-	srcCluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if srcCluster != nil && srcCluster.Count() > 0 {
-		return fmt.Errorf("source cluster %s already exists", c.ClusterName.String())
+	// Check if any destination clusters already exist
+	for _, dest := range destinations {
+		existing := inventory.Instances.WithClusterName(dest).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
+		if existing != nil && existing.Count() > 0 {
+			if IsInteractive() {
+				selectedChoice, quitting, err := choice.Choice(fmt.Sprintf("Destination cluster %s already exists (%d nodes). What do you want to do?", dest, existing.Count()), choice.Items{
+					choice.Item("Destroy and recreate"),
+					choice.Item("Exit"),
+				})
+				if err != nil {
+					return err
+				}
+				if quitting || selectedChoice == "Exit" {
+					return errors.New("aborted")
+				}
+				madeInteractiveChoices = true
+				// Destroy the existing destination cluster
+				logger.Info("Destroying existing destination cluster %s", dest)
+				destroyCmd := &ClusterDestroyCmd{
+					ClusterName: TypeClusterName(dest),
+					Force:       true,
+				}
+				_, err = destroyCmd.DestroyCluster(system, inventory, logger, args, "destroy")
+				if err != nil {
+					return fmt.Errorf("failed to destroy existing destination cluster %s: %w", dest, err)
+				}
+				// Refresh inventory after destroy
+				inventory = system.Backend.GetInventory()
+			} else {
+				return fmt.Errorf("cluster %s already exists", dest)
+			}
+		}
+	}
+
+	// Print equivalent command line if interactive choices were made
+	if madeInteractiveChoices {
+		cmdLine := ReconstructCommandLine([]string{"xdr", "create-clusters"}, c, false)
+		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
 	}
 
 	// Create source cluster

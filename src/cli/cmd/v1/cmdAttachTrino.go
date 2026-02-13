@@ -11,7 +11,7 @@ import (
 )
 
 type AttachTrinoCmd struct {
-	ClusterName    TypeClusterName        `short:"n" long:"name" description:"Client name" default:"client"`
+	ClusterName    TypeClientName         `short:"n" long:"name" description:"Trino name" default:"trino"`
 	Node           TypeNodesPlusAllOption `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
 	Namespace      string                 `short:"N" long:"namespace" description:"Namespace to use" default:"test"`
 	Env            []string               `short:"e" long:"env" description:"Environment variables to set, as k=v"`
@@ -54,6 +54,11 @@ func (c *AttachTrinoCmd) AttachTrino(system *System, inventory *backends.Invento
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+	// Validate trino client exists (with interactive selection if not found)
+	_, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
 	}
 	parallelThreads := 1
 	node := c.Node.String()

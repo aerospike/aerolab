@@ -876,6 +876,8 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			Username:       e.Username,
 			PrivateKey:     nKey,
 			ConnectTimeout: e.ConnectTimeout,
+			MaxRetries:     e.MaxRetries,
+			RetrySleep:     e.RetrySleep,
 		}
 		execInput := &sshexec.ExecInput{
 			ClientConf: clientConf,
@@ -1656,8 +1658,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		if backendSpecificParams.MinCpuPlatform != "" {
 			minCpuPlatform = proto.String(backendSpecificParams.MinCpuPlatform)
 		}
-		// Create instance
-		op, err := client.Insert(context.Background(), &computepb.InsertInstanceRequest{
+		// Create instance with capacity retry logic
+		insertRequest := &computepb.InsertInstanceRequest{
 			Project: s.credentials.Project,
 			Zone:    zone,
 			InstanceResource: &computepb.Instance{
@@ -1695,9 +1697,41 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					},
 				},
 			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, err)
+		}
+
+		// Get retry configuration from input
+		retryCfg := input.RetryConfig
+		capacityRetries := retryCfg.CapacityRetries
+		capacityRetrySleep := retryCfg.CapacityRetrySleep
+		if capacityRetrySleep == 0 {
+			capacityRetrySleep = 60 * time.Second
+		}
+
+		var op *compute.Operation
+		var lastErr error
+		for attempt := 0; attempt <= capacityRetries; attempt++ {
+			op, err = client.Insert(context.Background(), insertRequest)
+			if err == nil {
+				break
+			}
+			lastErr = err
+
+			// Check if this is a capacity error that should be retried
+			if backends.IsCapacityError(err) && attempt < capacityRetries {
+				log.Detail("Capacity error creating instance %d (attempt %d/%d): %v, retrying in %v...",
+					i+1, attempt+1, capacityRetries+1, err, capacityRetrySleep)
+				time.Sleep(capacityRetrySleep)
+				continue
+			}
+
+			// Not a capacity error or no more retries
+			break
+		}
+		if lastErr != nil && op == nil {
+			if backends.IsCapacityError(lastErr) {
+				return nil, backends.NewCapacityError(backends.BackendTypeGCP, "", fmt.Sprintf("failed to create instance %d after %d attempts due to capacity: %v", i+1, capacityRetries+1, lastErr), lastErr)
+			}
+			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, lastErr)
 		}
 		ops = append(ops, op)
 	}

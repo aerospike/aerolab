@@ -154,6 +154,7 @@ If you're upgrading from AeroLab v7.x, see the **[Migration Guide](migration-gui
 ## Reference
 
 - **[Environment Variables](reference/environment-variables.md)** - All available environment variables
+- **[WebUI Parameter Overrides](webui-config.md)** - Customize WebUI form defaults, choices, and visibility via YAML config file
 
 ## Quick Start Example
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
@@ -72,6 +74,8 @@ type System struct {
 	LogBuffer chan string
 	// log buffer truncated
 	LogBufferTruncated bool
+	// simple mode configuration (loaded from AEROLAB_SIMPLE_MODE env var)
+	SimpleModeConfig *SimpleModeConfig
 }
 
 type Init struct {
@@ -81,10 +85,12 @@ type Init struct {
 	Backend            *InitBackend        // backend configuration; optional, if not specified, will be auto-filled
 	ExistingInventory  *backends.Inventory // existing inventory, if requested to be set by the caller
 	AllBackendsHelp    bool                // if true, show help for all backends, not just the selected one
+	SkipArgsParsing    bool                // if true, skip CLI argument parsing - use this when using aerolab as a library
 }
 
 type InitBackend struct {
 	PollInventoryHourly bool                 // whether the backend(s) should refresh inventory hourly - this is useful if running the project as a long-running service instead of CLI app
+	PollInterval        time.Duration        // custom poll interval for inventory refresh; 0 means use the default (1 hour)
 	UseCache            bool                 // whether to use local cache for the backend inventory - only use if not sharing the GCP/AWS project/account with other users
 	LogMillisecond      bool                 // whether to log milliseconds - whether to enable millisecond logging
 	ListAllProjects     bool                 // whether to list all projects - set to list all GCP projects in the backend inventory
@@ -136,6 +142,15 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	// telemetry sender
 	TelemetrySend(s.Logger.WithPrefix("TELEMETRY-SHIP: "))
 
+	// Start background cleanup of old scriptlog entries (30 days)
+	go func() {
+		if err := scriptlog.CleanupOldFailures(30 * 24 * time.Hour); err != nil {
+			// Log but don't fail - cleanup is best-effort
+			log.Printf("Warning: scriptlog cleanup failed: %s", err)
+		}
+	}()
+
+	// If no args provided, fallback to os.Args[1:] (CLI use)
 	if len(args) == 0 {
 		args = os.Args[1:]
 	}
@@ -186,6 +201,12 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 		return s, err
 	}
 
+	// load simple mode configuration from AEROLAB_SIMPLE_MODE / AEROLAB_FORCE_SIMPLE_MODE
+	s.SimpleModeConfig, err = LoadSimpleModeConfig()
+	if err != nil {
+		return s, err
+	}
+
 	if !i.RunExecuteFunction {
 		// the init is called from within an execute function, do not run any additional command logic
 		s.Parser.CommandHandler = func(command flags.Commander, args []string) error {
@@ -202,10 +223,43 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 		ShowHideBackend(s.Parser, []string{s.Opts.Config.Backend.Type})
 	}
 
-	// parse the command line
-	s.Tail, err = s.Parser.ParseArgs(args)
-	if err != nil {
-		return s, err
+	// Hide commands/options blocked by simple mode from CLI help output.
+	// This must happen before ParseArgs since help is rendered during parsing.
+	if s.SimpleModeConfig != nil && s.SimpleModeConfig.ForceEnabled {
+		s.SimpleModeConfig.HideBlockedCommands(s.Parser)
+	}
+
+	// When RunExecuteFunction is true, go-flags' ParseArgs calls command.Execute()
+	// directly via the CommandHandler. We wrap it to enforce simple mode restrictions
+	// BEFORE the command runs (post-parse enforcement would be too late).
+	// We capture the raw args so we can scan them for blocked flags; this is more
+	// reliable than IsSet() which also returns true for struct-tag defaults.
+	if s.SimpleModeConfig != nil && s.SimpleModeConfig.ForceEnabled && i.RunExecuteFunction {
+		smConfig := s.SimpleModeConfig
+		sParser := s.Parser
+		rawArgs := args // capture for the closure
+		s.Parser.CommandHandler = func(command flags.Commander, cmdArgs []string) error {
+			cmdPath := getActiveCommandPath(sParser)
+			if cmdPath != "" {
+				// Check if the command is allowed
+				if err := smConfig.CheckCommandAllowed(cmdPath); err != nil {
+					return err
+				}
+				// Check if any blocked parameters were explicitly set by user
+				if err := smConfig.checkParsedParameters(sParser, rawArgs); err != nil {
+					return err
+				}
+			}
+			return command.Execute(cmdArgs)
+		}
+	}
+
+	// parse the command line (skip if using aerolab as a library)
+	if !i.SkipArgsParsing {
+		s.Tail, err = s.Parser.ParseArgs(args)
+		if err != nil {
+			return s, err
+		}
 	}
 
 	// backend gets initialized later, as main() calls this always WITHOUT InitBackend, and the Execute functions can choose to initialize it after parsing args
@@ -306,6 +360,24 @@ func (s *System) GetBackend(pollInventoryHourly bool) error {
 }
 
 func (i *Init) backend(s *System, pollInventoryHourly bool) error {
+	// If no ExistingInventory was provided, check whether the parent webui
+	// process wrote an inventory snapshot file for us. This avoids hitting
+	// cloud APIs on every subprocess startup.
+	if i.ExistingInventory == nil {
+		if invFile := os.Getenv("AEROLAB_INVENTORY_FILE"); invFile != "" {
+			data, err := os.ReadFile(invFile)
+			if err != nil {
+				log.Printf("WARNING: could not read inventory file %s: %s (falling back to normal init)", invFile, err)
+			} else {
+				var inv backends.Inventory
+				if err := json.Unmarshal(data, &inv); err != nil {
+					log.Printf("WARNING: could not unmarshal inventory file %s: %s (falling back to normal init)", invFile, err)
+				} else {
+					i.ExistingInventory = &inv
+				}
+			}
+		}
+	}
 	if i.Backend == nil {
 		i.Backend = &InitBackend{
 			PollInventoryHourly: pollInventoryHourly,
@@ -373,6 +445,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 		AerolabVersion:   aver,
 		ListAllProjects:  i.Backend.ListAllProjects,
 		CustomSSHKeyPath: string(s.Opts.Config.Backend.SshKeyPath),
+		PollInterval:     i.Backend.PollInterval,
 	}
 	b, err := backend.New(project, config, i.Backend.PollInventoryHourly, backendList, i.ExistingInventory)
 	if err != nil {

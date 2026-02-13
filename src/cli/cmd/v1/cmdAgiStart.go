@@ -13,6 +13,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/agi"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -28,10 +29,12 @@ import (
 //
 //	aerolab agi start -n myagi
 type AgiStartCmd struct {
-	Name    TypeAgiClusterName `short:"n" long:"name" description:"AGI instance name" default:"agi"`
-	NoWait  bool               `short:"w" long:"no-wait" description:"Do not wait for the instance to start"`
-	DryRun  bool               `short:"d" long:"dry-run" description:"Print what would be done but don't do it"`
-	Threads int                `short:"t" long:"threads" description:"Threads to use for service start" default:"1"`
+	Name       TypeAgiClusterName `short:"n" long:"name" description:"AGI instance name" default:"agi"`
+	NoWait     bool               `short:"w" long:"no-wait" description:"Do not wait for the instance to start"`
+	DryRun     bool               `short:"d" long:"dry-run" description:"Print what would be done but don't do it"`
+	Threads    int                `short:"t" long:"threads" description:"Threads to use for service start" default:"1"`
+	MaxRetries int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 
 	Reattach Reattach `group:"Reattach" namespace:"reattach" description:"reattach options"`
 
@@ -172,7 +175,14 @@ func (c *AgiStartCmd) StartAGI(system *System, inventory *backends.Inventory, lo
 			}
 		}
 
-		return nil, fmt.Errorf("AGI instance %s not found (no stopped instance or persistent volume)", c.Name)
+		instances, err := c.Name.GetInstanceList(inventory, backends.LifeCycleStateStopped)
+		if err != nil {
+			return nil, err
+		}
+		instances = instances.WithState(backends.LifeCycleStateStopped)
+		if instances.Count() == 0 {
+			return nil, fmt.Errorf("Stopped AGI instance and persistent volume %s not found", c.Name)
+		}
 	}
 
 	if c.DryRun {
@@ -225,12 +235,29 @@ fi
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: c.Threads,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	var errs []string
 	for _, o := range outputs {
 		if o.Output.Err != nil {
-			errs = append(errs, fmt.Sprintf("%v (stderr: %s)", o.Output.Err, o.Output.Stderr))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				o.Instance.ClusterName,
+				o.Instance.NodeNo,
+				"start-services.sh",
+				[]byte(script),
+				o.Output.Stdout,
+				o.Output.Stderr,
+				o.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				errs = append(errs, fmt.Sprintf("%v (stderr: %s) (failed to save logs: %v)", o.Output.Err, o.Output.Stderr, saveErr))
+			} else {
+				errs = append(errs, scriptlog.FormatError(logPath, o.Instance.ClusterName, o.Instance.NodeNo, o.Output.Err))
+			}
 		}
 	}
 
@@ -408,7 +435,7 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 		DistroVersion:     "latest", // Default, used if template needs to be created
 		Owner:             owner,
 		AWS: AgiCreateCmdAws{
-			InstanceType:        instanceType,
+			InstanceType:        guiInstanceType(instanceType),
 			Ebs:                 ebs,
 			WithEFS:             true,
 			EFSName:             efsName, // Use local var with default applied
@@ -597,14 +624,14 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 		DistroVersion:     "latest", // Default, used if template needs to be created
 		Owner:             owner,
 		GCP: AgiCreateCmdGcp{
-			InstanceType:        instanceType,
+			InstanceType:        guiInstanceType(instanceType),
 			Disks:               disks,
 			WithVol:             true,
 			VolName:             volName, // Use local var with default applied
 			VolFips:             volFips,
 			TerminateOnPoweroff: terminateOnPoweroff,
 			SpotInstance:        spotInstance,
-			Zone:                zone,
+			Zone:                guiZone(zone),
 			Expires:             expireDuration,
 			VolExpires:          volExpireDuration,
 		},
@@ -650,6 +677,8 @@ func (c *AgiStartCmd) regenerateSSLIfMissing(instances backends.InstanceList, lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {
@@ -677,6 +706,8 @@ func (c *AgiStartCmd) regenerateSSLIfMissing(instances backends.InstanceList, lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) > 0 && outputs[0].Output.Err != nil {
@@ -702,6 +733,8 @@ func (c *AgiStartCmd) readDeploymentJSON(instances backends.InstanceList) (*AgiC
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {

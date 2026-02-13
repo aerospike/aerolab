@@ -11,6 +11,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 )
@@ -37,6 +38,8 @@ type DataDeleteCmd struct {
 	AerolabVersion   string            `long:"aerolab-version" description:"Aerolab version to install on remote node if not present" default:"latest"`
 	Prerelease       bool              `long:"aerolab-prerelease" description:"Install prerelease version of aerolab"`
 	RunJson          string            `long:"run-json" hidden:"true"`
+	MaxRetries       int               `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration     `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help             HelpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -125,6 +128,11 @@ func (c *DataDeleteCmd) delete(system *System, inventory *backends.Inventory, lo
 }
 
 func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, logger *logger.Logger, cmd string, data []byte) error {
+	// Validate cluster exists
+	_, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	// Get the instance to run on
 	cluster := inventory.Instances.WithClusterName(c.ClusterName.String()).WithState(backends.LifeCycleStateRunning)
 	if cluster.Count() == 0 {
@@ -146,6 +154,8 @@ func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	aerolabInstalled := checkOutput.Output.Err == nil
@@ -173,6 +183,8 @@ func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, lo
 		if err != nil {
 			return fmt.Errorf("failed to get SFTP config: %w", err)
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 
 		client, err := sshexec.NewSftp(conf)
 		if err != nil {
@@ -193,20 +205,40 @@ func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, lo
 
 		// Execute install script
 		logger.Info("Running aerolab installer on %s:%d", inst.ClusterName, inst.NodeNo)
+		execDetail := sshexec.ExecDetail{
+			Command:        []string{"bash", scriptPath},
+			SessionTimeout: 10 * time.Minute,
+		}
+		if system.logLevel >= 5 {
+			execDetail.Stdout = os.Stdout
+			execDetail.Stderr = os.Stderr
+		}
 		installOutput := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", scriptPath},
-				Stdout:         os.Stdout,
-				Stderr:         os.Stderr,
-				SessionTimeout: 10 * time.Minute,
-			},
+			ExecDetail:      execDetail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if installOutput.Output.Err != nil {
-			return fmt.Errorf("failed to install aerolab: %w", installOutput.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				inst.ClusterName,
+				inst.NodeNo,
+				scriptPath,
+				installScript,
+				installOutput.Output.Stdout,
+				installOutput.Output.Stderr,
+				installOutput.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to install aerolab: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)",
+					installOutput.Output.Err, installOutput.Output.Stdout, installOutput.Output.Stderr, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, installOutput.Output.Err))
 		}
 	} else {
 		logger.Info("Aerolab already installed on %s:%d", inst.ClusterName, inst.NodeNo)
@@ -217,6 +249,8 @@ func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, lo
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	client, err := sshexec.NewSftp(conf)
 	if err != nil {
@@ -251,6 +285,8 @@ func (c *DataDeleteCmd) unpack(system *System, inventory *backends.Inventory, lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {

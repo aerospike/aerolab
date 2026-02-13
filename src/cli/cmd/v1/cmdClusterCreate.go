@@ -8,8 +8,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +16,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
@@ -46,7 +45,12 @@ type ClusterCreateCmd struct {
 	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
 	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
 	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
-	Help                  HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	// Retry configuration
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
+	CapacityRetries    int           `long:"capacity-retries" description:"Maximum retries for capacity errors (AWS/GCP only)" default:"0" simplemode:"false"`
+	CapacityRetrySleep time.Duration `long:"capacity-retry-sleep" description:"Sleep duration between capacity retries" default:"60s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type ClusterCreateCmdAws struct {
@@ -111,92 +115,6 @@ type ClusterCreateCmdDocker struct {
 
 type ClusterGrowCmd struct {
 	ClusterCreateCmd
-}
-
-type guiZone string
-
-func (g guiZone) String() string {
-	return string(g)
-}
-
-// List returns a list of available zones for the web UI zone picker
-func (g guiZone) List(system *System) ([][]string, string, error) {
-	zones, err := system.Backend.ListAvailableZones(backends.BackendType(system.Opts.Config.Backend.Type))
-	if err != nil {
-		return nil, "", err
-	}
-	z := [][]string{}
-	for _, zone := range zones {
-		z = append(z, []string{zone, zone})
-	}
-	def := ""
-	if string(g) != "" {
-		def = string(g)
-	} else if len(zones) > 0 {
-		def = zones[0]
-	}
-	return z, def, nil
-}
-
-type guiInstanceType string
-
-func (g guiInstanceType) String() string {
-	return string(g)
-}
-
-// returns a list of instance types, and the default instance type; if chosen instance type exists, returns that instead of default
-func (g guiInstanceType) List(system *System) ([][]string, string, error) {
-	instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
-	if err != nil {
-		return nil, "", err
-	}
-	var itypes backends.InstanceTypeList
-	def := ""
-	for _, it := range instanceTypes {
-		if it.Region != system.Opts.Config.Backend.Region {
-			continue
-		}
-		if len(it.Arch) == 0 {
-			continue
-		}
-		if it.Name == string(g) {
-			def = it.Name
-		}
-		itypes = append(itypes, it)
-	}
-	sep := "."
-	if system.Opts.Config.Backend.Type == "gcp" {
-		sep = "-"
-	}
-	sort.Slice(itypes, func(i, j int) bool {
-		ni := strings.Split(itypes[i].Name, sep)[0]
-		nj := strings.Split(itypes[j].Name, sep)[0]
-		if ni < nj {
-			return true
-		}
-		if ni > nj {
-			return false
-		}
-		if itypes[i].CPUs != itypes[j].CPUs {
-			return itypes[i].CPUs < itypes[j].CPUs
-		}
-		return itypes[i].MemoryGiB < itypes[j].MemoryGiB
-	})
-	types := [][]string{}
-	for _, nType := range itypes {
-		arch := "amd64"
-		if slices.Contains(nType.Arch, backends.ArchitectureARM64) {
-			arch = "arm64"
-		}
-		types = append(types, []string{nType.Name, fmt.Sprintf("%s (ARCH:%s CPUs:%d RamGB:%0.2f NVMe:%d/%dG on-demand:$%0.2f/hr spot:$%0.2f/hr)", nType.Name, arch, nType.CPUs, nType.MemoryGiB, nType.NvmeCount, nType.NvmeTotalSizeGiB, nType.PricePerHour.OnDemand, nType.PricePerHour.Spot)})
-	}
-	if def == "" {
-		def = "e2-standard-4"
-		if system.Opts.Config.Backend.Type == "aws" {
-			def = "t3a.xlarge"
-		}
-	}
-	return types, def, nil
 }
 
 func (c *ClusterCreateCmd) Execute(args []string) error {
@@ -321,9 +239,9 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	case "ubuntu":
 		versionList = []string{"24.04", "22.04", "20.04", "18.04"}
 	case "centos":
-		versionList = []string{"9", "8", "7"}
+		versionList = []string{"10", "9", "8", "7"}
 	case "rocky":
-		versionList = []string{"9", "8"}
+		versionList = []string{"10", "9", "8"}
 	case "debian":
 		versionList = []string{"13", "12", "11", "10", "9", "8"}
 	case "amazon":
@@ -416,7 +334,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		AWS: InstancesCreateCmdAws{
 			Expire:             c.Aws.Expires,
 			NetworkPlacement:   c.Aws.SubnetID,
-			InstanceType:       c.Aws.InstanceType.String(),
+			InstanceType:       c.Aws.InstanceType,
 			Disks:              c.Aws.Disk,
 			Firewalls:          c.Aws.SecGroupName,
 			SpotInstance:       c.Aws.SpotInstance,
@@ -426,8 +344,8 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		},
 		GCP: InstancesCreateCmdGcp{
 			Expire:             c.Gcp.Expires,
-			Zone:               c.Gcp.Zone.String(),
-			InstanceType:       c.Gcp.InstanceType.String(),
+			Zone:               c.Gcp.Zone,
+			InstanceType:       c.Gcp.InstanceType,
 			Disks:              c.Gcp.Disk,
 			Firewalls:          c.Gcp.FirewallName,
 			SpotInstance:       c.Gcp.SpotInstance,
@@ -451,8 +369,12 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			SwapLimit:          c.Docker.SwapLimit,
 			AdvancedConfigPath: "",
 		},
-		NoInstallExpiry: false,
-		DryRun:          false,
+		NoInstallExpiry:    false,
+		MaxRetries:         c.MaxRetries,
+		RetrySleep:         c.RetrySleep,
+		CapacityRetries:    c.CapacityRetries,
+		CapacityRetrySleep: c.CapacityRetrySleep,
+		DryRun:             false,
 	}
 	oldInst := backends.InstanceList{}
 	if action == "grow" {
@@ -533,7 +455,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 						NoInstallExpiry: false,
 						GCP: VolumesCreateCmdGcp{
 							SizeGiB:    c.Gcp.VolSize,
-							Zone:       c.Gcp.Zone.String(),
+							Zone:       c.Gcp.Zone,
 							DiskType:   "pd-ssd",
 							Iops:       0,
 							Throughput: 0,
@@ -574,6 +496,8 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		if err != nil {
 			return nil, err
 		}
+		sftp.MaxRetries = c.MaxRetries
+		sftp.RetrySleep = c.RetrySleep
 		instances = append(instances, instanceList{
 			inst:  i,
 			sftp:  sftp,
@@ -586,6 +510,8 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		if err != nil {
 			return nil, err
 		}
+		sftp.MaxRetries = c.MaxRetries
+		sftp.RetrySleep = c.RetrySleep
 		instances = append(instances, instanceList{
 			inst:  i,
 			sftp:  sftp,
@@ -820,9 +746,10 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			errs = append(errs, err)
 			return
 		}
+		scriptPath := "/opt/aerolab/scripts/cluster-create.sh"
 		outputs := i.inst.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command: []string{"bash", "/opt/aerolab/scripts/cluster-create.sh"},
+				Command: []string{"bash", scriptPath},
 			},
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
@@ -833,7 +760,22 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			return
 		}
 		if outputs.Output.Err != nil {
-			errs = append(errs, fmt.Errorf("%s\n%s\n%s", outputs.Output.Err.Error(), string(outputs.Output.Stdout), string(outputs.Output.Stderr)))
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				i.inst.ClusterName,
+				i.inst.NodeNo,
+				scriptPath,
+				[]byte(deployScript),
+				outputs.Output.Stdout,
+				outputs.Output.Stderr,
+				outputs.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				errs = append(errs, fmt.Errorf("script failed on %s:%d: %s (also failed to save logs: %v)", i.inst.ClusterName, i.inst.NodeNo, outputs.Output.Err, saveErr))
+			} else {
+				errs = append(errs, fmt.Errorf("%s", scriptlog.FormatError(logPath, i.inst.ClusterName, i.inst.NodeNo, outputs.Output.Err)))
+			}
 			return
 		}
 	})

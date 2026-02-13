@@ -5,14 +5,14 @@ package cmd
 // (aerospike, grafana, plugin, proxy, ingest tools), enabling fast instance creation.
 type AgiCmd struct {
 	Template  AgiTemplateCmd  `command:"template" subcommands-optional:"true" description:"AGI template management" webicon:"fas fa-file-image"`
-	Create    AgiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-plus"`
+	Create    AgiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-plus" invwebforce:"true"`
 	List      AgiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances" webicon:"fas fa-list"`
-	Start     AgiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance" webicon:"fas fa-play"`
-	Stop      AgiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance" webicon:"fas fa-stop"`
+	Start     AgiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance" webicon:"fas fa-play" invwebforce:"true"`
+	Stop      AgiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance" webicon:"fas fa-stop" invwebforce:"true"`
 	Status    AgiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show AGI status" webicon:"fas fa-info-circle"`
 	Details   AgiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show ingest details" webicon:"fas fa-magnifying-glass"`
-	Destroy   AgiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash"`
-	Delete    AgiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy instance and volume" webicon:"fas fa-trash-can"`
+	Destroy   AgiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash" invwebforce:"true"`
+	Delete    AgiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy instance and volume" webicon:"fas fa-trash-can" invwebforce:"true"`
 	Attach    AgiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to AGI shell" webicon:"fas fa-terminal"`
 	Open      AgiOpenCmd      `command:"open" subcommands-optional:"true" description:"Open AGI in browser" webicon:"fas fa-globe"`
 	AddToken  AgiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add auth token" webicon:"fas fa-key"`
@@ -44,13 +44,13 @@ func (c *AgiCmd) Execute(args []string) error {
 // - AgiRetriggerCmd is implemented in cmdAgiRetrigger.go
 // - AgiShareCmd is implemented in cmdAgiShare.go
 
-// Note: AgiMonitorCmd, AgiMonitorCreateCmd, and AgiMonitorListenCmd are defined in cmdAgiMonitor.go
+// Note: AgiMonitorCmd, AgiMonitorConfigCmd, AgiMonitorCreateCmd, and AgiMonitorListenCmd are defined in cmdAgiMonitor.go
 
 // AgiMonitorCmd is the AGI monitor system command structure.
 // It provides commands for creating monitor instances and running the monitor listener.
 // See cmdAgiMonitor.go for detailed struct definitions.
 type AgiMonitorCmd struct {
-	Create AgiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create monitor instance" webicon:"fas fa-plus"`
+	Create AgiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create monitor instance" webicon:"fas fa-plus" invwebforce:"true"`
 	Listen AgiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Start monitor listener" webicon:"fas fa-headphones"`
 	Help   HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }

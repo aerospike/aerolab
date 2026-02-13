@@ -111,6 +111,8 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 						if installedVersion < latestVersion {
 							toRemove = append(toRemove, region)
 							newZones = append(newZones, region)
+						} else {
+							log.Warn("Not installing, already installed in %s (version %s)", region, strings.Trim(expirySystem.Version, "\r\n\t "))
 						}
 					} else {
 						toRemove = append(toRemove, region)

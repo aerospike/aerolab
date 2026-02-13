@@ -1,0 +1,7 @@
+overrides:
+  agi/create:
+    source-s3-bucket:
+      choices:
+        - "prod-logs-bucket"
+        - "staging-logs-bucket"
+        - "dev-logs-bucket"

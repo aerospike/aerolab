@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
 	"github.com/aerospike/aerolab/pkg/utils/installers/eksctl"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -178,6 +180,8 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		if err != nil {
 			return fmt.Errorf("failed to get SFTP config: %w", err)
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 
 		sftpClient, err := sshexec.NewSftp(conf)
 		if err != nil {
@@ -188,7 +192,7 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		// 1. Upload and run eksctl installer
 		logger.Debug("Uploading eksctl installer to %s:%d", client.ClusterName, client.NodeNo)
 		err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install-eksctl.sh",
+			DestPath:    "/opt/aerolab/scripts/install-eksctl.sh",
 			Source:      bytes.NewReader(eksctlScript),
 			Permissions: 0755,
 		})
@@ -197,16 +201,33 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		}
 
 		logger.Debug("Installing eksctl on %s:%d", client.ClusterName, client.NodeNo)
+		eksctlScriptPath := "/opt/aerolab/scripts/install-eksctl.sh"
 		output := client.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install-eksctl.sh"},
+				Command:        []string{"bash", eksctlScriptPath},
 				SessionTimeout: 15 * time.Minute,
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to install eksctl: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				eksctlScriptPath,
+				eksctlScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to install eksctl: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
 		// 2. Upload bootstrap script
@@ -221,24 +242,46 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		}
 
 		// 3. Run bootstrap script with parameters
-		bootstrapCmd := []string{"/bin/bash", "/usr/local/bin/bootstrap", "-r", c.EksAwsRegion}
+		bootstrapScriptPath := "/usr/local/bin/bootstrap"
+		bootstrapCmd := []string{"/bin/bash", bootstrapScriptPath, "-r", c.EksAwsRegion}
 		if c.EksAwsKeyId != "" && c.EksAwsSecretKey != "" {
 			bootstrapCmd = append(bootstrapCmd, "-k", c.EksAwsKeyId, "-s", c.EksAwsSecretKey)
 		}
 
 		logger.Debug("Running bootstrap script on %s:%d", client.ClusterName, client.NodeNo)
+		execDetail := sshexec.ExecDetail{
+			Command:        bootstrapCmd,
+			SessionTimeout: 15 * time.Minute,
+		}
+		if system.logLevel >= 5 {
+			execDetail.Stdin = io.NopCloser(os.Stdin)
+			execDetail.Stdout = os.Stdout
+			execDetail.Stderr = os.Stderr
+			execDetail.Terminal = true
+		}
 		output = client.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        bootstrapCmd,
-				SessionTimeout: 15 * time.Minute,
-				Stdout:         os.Stdout,
-				Stderr:         os.Stderr,
-			},
+			ExecDetail:     execDetail,
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to run bootstrap script: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				bootstrapScriptPath,
+				bootstrapScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to run bootstrap script: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
 		// 4. Upload and install aerolab
@@ -256,7 +299,7 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		} else {
 			logger.Debug("Uploading aerolab installer to %s:%d", client.ClusterName, client.NodeNo)
 			err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-				DestPath:    "/tmp/install-aerolab.sh",
+				DestPath:    "/opt/aerolab/scripts/install-aerolab.sh",
 				Source:      bytes.NewReader(aerolabScript),
 				Permissions: 0755,
 			})
@@ -265,45 +308,96 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 			}
 
 			logger.Debug("Installing aerolab on %s:%d", client.ClusterName, client.NodeNo)
+			aerolabScriptPath := "/opt/aerolab/scripts/install-aerolab.sh"
 			output = client.Exec(&backends.ExecInput{
 				ExecDetail: sshexec.ExecDetail{
-					Command:        []string{"bash", "/tmp/install-aerolab.sh"},
+					Command:        []string{"bash", aerolabScriptPath},
 					SessionTimeout: 15 * time.Minute,
 				},
 				Username:       "root",
 				ConnectTimeout: 30 * time.Second,
+				MaxRetries:     c.MaxRetries,
+				RetrySleep:     c.RetrySleep,
 			})
 			if output.Output.Err != nil {
-				return fmt.Errorf("failed to install aerolab: %w", output.Output.Err)
+				// Save script failure to local machine for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					client.ClusterName,
+					client.NodeNo,
+					aerolabScriptPath,
+					aerolabScript,
+					output.Output.Stdout,
+					output.Output.Stderr,
+					output.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					return fmt.Errorf("failed to install aerolab: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+				}
+				return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 			}
 		}
 
 		// 5. Create eksexpiry symlink
 		logger.Debug("Creating eksexpiry symlink on %s:%d", client.ClusterName, client.NodeNo)
+		symlinkCmd := []string{"ln", "-sf", "/usr/local/bin/aerolab", "/usr/local/bin/eksexpiry"}
 		output = client.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"ln", "-sf", "/usr/local/bin/aerolab", "/usr/local/bin/eksexpiry"},
+				Command:        symlinkCmd,
 				SessionTimeout: 30 * time.Second,
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to create eksexpiry symlink: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:eksexpiry-symlink",
+				[]byte(strings.Join(symlinkCmd, " ")),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to create eksexpiry symlink: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
 		// 7. Create /root/eks directory
 		logger.Debug("Creating /root/eks directory on %s:%d", client.ClusterName, client.NodeNo)
+		mkdirCmd := []string{"mkdir", "-p", "/root/eks"}
 		output = client.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"mkdir", "-p", "/root/eks"},
+				Command:        mkdirCmd,
 				SessionTimeout: 30 * time.Second,
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to create /root/eks directory: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:mkdir-eks",
+				[]byte(strings.Join(mkdirCmd, " ")),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to create /root/eks directory: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
 		// 8. Upload EKS YAML templates

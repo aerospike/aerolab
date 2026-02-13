@@ -30,6 +30,8 @@ type TlsGenerateCmd struct {
 	NoMesh         bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
 	ChDir          string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to." default:"."`
 	Threads        int             `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries     int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep     time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help           HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -88,11 +90,19 @@ func (c *TlsGenerateCmd) GenerateTLS(system *System, inventory *backends.Invento
 		if c.ClusterName.String() == "" {
 			return nil, fmt.Errorf("cluster name is required")
 		}
+		var cluster backends.Instances
 		if strings.Contains(c.ClusterName.String(), ",") {
 			clusters := strings.Split(c.ClusterName.String(), ",")
 			var allInstances backends.InstanceList
-			for _, cluster := range clusters {
-				c.ClusterName = TypeClusterName(cluster)
+			// Pre-validation loop - check ALL clusters exist before processing any
+			for _, clusterName := range clusters {
+				if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+					return nil, fmt.Errorf("cluster %s not found", clusterName)
+				}
+			}
+			// Processing loop - actually perform the operation
+			for _, clusterName := range clusters {
+				c.ClusterName = TypeClusterName(clusterName)
 				inst, err := c.GenerateTLS(system, inventory, logger, args, action)
 				if err != nil {
 					return nil, err
@@ -100,11 +110,12 @@ func (c *TlsGenerateCmd) GenerateTLS(system *System, inventory *backends.Invento
 				allInstances = append(allInstances, inst...)
 			}
 			return allInstances, nil
-		}
-
-		cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-		if cluster == nil {
-			return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+		} else {
+			var err error
+			cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if c.Nodes.String() != "" {
@@ -258,6 +269,8 @@ func (c *TlsGenerateCmd) uploadCertificates(instances backends.InstanceList, log
 
 	tasks := make([]uploadTask, len(confs))
 	for i, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		tasks[i] = uploadTask{
 			conf:     conf,
 			instance: instances.Describe()[i],
@@ -277,6 +290,8 @@ func (c *TlsGenerateCmd) uploadCertificates(instances backends.InstanceList, log
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {
@@ -334,6 +349,8 @@ func (c *TlsGenerateCmd) fixMeshConfig(instances backends.InstanceList, logger *
 
 	tasks := make([]meshTask, len(confs))
 	for i, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		tasks[i] = meshTask{
 			conf:     conf,
 			instance: instances.Describe()[i],

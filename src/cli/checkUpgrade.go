@@ -90,19 +90,7 @@ func defaultHomeLogic() {
 			}
 		}
 	} else {
-		// No old home exists
-		if isAerolab8 {
-			// Running as aerolab8 intentionally, just initialize new home
-			os.MkdirAll(newHome, 0700)
-			os.WriteFile(path.Join(newHome, "v8"), []byte(""), 0644)
-			return
-		} else {
-			// Accidental install, perform rollback
-			if rollbackTo79(newHome) {
-				os.Exit(1)
-			}
-			return
-		}
+		return // no old home exists, new fresh install, we are good
 	}
 }
 

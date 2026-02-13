@@ -6,8 +6,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -37,7 +39,12 @@ type ClusterApplyCmd struct {
 	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
 	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
 	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
-	Help                  HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	// Retry configuration
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
+	CapacityRetries    int           `long:"capacity-retries" description:"Maximum retries for capacity errors (AWS/GCP only)" default:"0" simplemode:"false"`
+	CapacityRetrySleep time.Duration `long:"capacity-retry-sleep" description:"Sleep duration between capacity retries" default:"60s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *ClusterApplyCmd) Execute(args []string) error {
@@ -129,6 +136,39 @@ func (c *ClusterApplyCmd) ApplyCluster(system *System, inventory *backends.Inven
 
 	logger.Info("Current cluster size: %d, desired size: %d, action: %s", currentCount, c.Count, actionType)
 
+	// Track if interactive choices were made
+	madeInteractiveChoices := false
+
+	// Interactive confirmation for destructive or significant actions
+	if IsInteractive() && actionType != "noop" {
+		var confirmMessage string
+		switch actionType {
+		case "create":
+			confirmMessage = fmt.Sprintf("About to CREATE cluster %s with %d nodes. Continue?", c.ClusterName.String(), c.Count)
+		case "grow":
+			confirmMessage = fmt.Sprintf("About to GROW cluster %s from %d to %d nodes (+%d). Continue?", c.ClusterName.String(), currentCount, c.Count, c.Count-currentCount)
+		case "shrink":
+			confirmMessage = fmt.Sprintf("About to SHRINK cluster %s from %d to %d nodes (-%d). Continue?", c.ClusterName.String(), currentCount, c.Count, currentCount-c.Count)
+		}
+		selectedChoice, quitting, err := choice.Choice(confirmMessage, choice.Items{
+			choice.Item("Yes"),
+			choice.Item("No"),
+		})
+		if err != nil {
+			return nil, err
+		}
+		if quitting || selectedChoice == "No" {
+			return nil, errors.New("aborted")
+		}
+		madeInteractiveChoices = true
+	}
+
+	// Print equivalent command line if interactive choices were made
+	if madeInteractiveChoices {
+		cmdLine := ReconstructCommandLine([]string{"cluster", "apply"}, c, false)
+		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
+	}
+
 	var instances backends.InstanceList
 	var err error
 
@@ -192,6 +232,10 @@ func (c *ClusterApplyCmd) createCluster(system *System, inventory *backends.Inve
 		Aws:                         c.Aws,
 		Gcp:                         c.Gcp,
 		Docker:                      c.Docker,
+		MaxRetries:                  c.MaxRetries,
+		RetrySleep:                  c.RetrySleep,
+		CapacityRetries:             c.CapacityRetries,
+		CapacityRetrySleep:          c.CapacityRetrySleep,
 	}
 
 	instances, err := createCmd.CreateCluster(system, inventory, logger, args, "create")
@@ -228,6 +272,10 @@ func (c *ClusterApplyCmd) growCluster(system *System, inventory *backends.Invent
 			Aws:                         c.Aws,
 			Gcp:                         c.Gcp,
 			Docker:                      c.Docker,
+			MaxRetries:                  c.MaxRetries,
+			RetrySleep:                  c.RetrySleep,
+			CapacityRetries:             c.CapacityRetries,
+			CapacityRetrySleep:          c.CapacityRetrySleep,
 		},
 	}
 

@@ -17,13 +17,15 @@ import (
 // This allows other users to SSH into the AGI instance for administration.
 type AgiShareCmd struct {
 	ClusterName     TypeAgiClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
-	KeyFile         flags.Filename  `short:"f" long:"pubkey" description:"Path to a pubkey to import to AGI instance"`
-	Key             string          `short:"k" long:"key" description:"SSH public key content to add (alternative to --pubkey)"`
-	Remove          bool            `short:"r" long:"remove" description:"Remove the specified key instead of adding it"`
-	List            bool            `short:"l" long:"list" description:"List all authorized keys on the AGI instance"`
-	ParallelThreads int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use" default:"10"`
-	ConnectTimeout  time.Duration   `short:"C" long:"connect-timeout" description:"Connect timeout" default:"10s"`
-	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	KeyFile         flags.Filename     `short:"f" long:"pubkey" description:"Path to a pubkey to import to AGI instance"`
+	Key             string             `short:"k" long:"key" description:"SSH public key content to add (alternative to --pubkey)"`
+	Remove          bool               `short:"r" long:"remove" description:"Remove the specified key instead of adding it"`
+	List            bool               `short:"l" long:"list" description:"List all authorized keys on the AGI instance"`
+	ParallelThreads int                `short:"p" long:"parallel-threads" description:"Number of parallel threads to use" default:"10"`
+	ConnectTimeout  time.Duration      `short:"C" long:"connect-timeout" description:"Connect timeout" default:"10s"`
+	MaxRetries      int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help            HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi share.
@@ -70,9 +72,13 @@ func (c *AgiShareCmd) Share(system *System, inventory *backends.Inventory, logge
 	}
 
 	// Get AGI instance
-	instance := inventory.Instances.WithClusterName(string(c.ClusterName)).WithState(backends.LifeCycleStateRunning)
+	instance, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
+	instance = instance.WithState(backends.LifeCycleStateRunning)
 	if instance.Count() == 0 {
-		return fmt.Errorf("AGI instance %s not found or not running", c.ClusterName)
+		return fmt.Errorf("AGI instance %s not running", c.ClusterName)
 	}
 	inst := instance.Describe()[0]
 
@@ -83,7 +89,6 @@ func (c *AgiShareCmd) Share(system *System, inventory *backends.Inventory, logge
 
 	// Determine the key to add/remove
 	var pubkey []byte
-	var err error
 
 	if c.KeyFile != "" {
 		pubkey, err = os.ReadFile(string(c.KeyFile))
@@ -121,6 +126,8 @@ func (c *AgiShareCmd) listKeys(inst *backends.Instance, logger *logger.Logger) e
 		Username:        "root",
 		ConnectTimeout:  c.ConnectTimeout,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) > 0 {
@@ -141,6 +148,8 @@ func (c *AgiShareCmd) addKey(inst *backends.Instance, key string, logger *logger
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("failed to create SFTP client: %w", err)
@@ -211,6 +220,8 @@ func (c *AgiShareCmd) removeKey(inst *backends.Instance, key string, logger *log
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("failed to create SFTP client: %w", err)

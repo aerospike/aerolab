@@ -34,6 +34,6 @@ bash new-expiry-version.sh
 bash new-agi-version.sh
 
 # regenerate the main app dependencies
-pushd ../src/cli
+pushd ../src/
 go generate ./...
 popd

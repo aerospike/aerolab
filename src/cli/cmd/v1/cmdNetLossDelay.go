@@ -12,6 +12,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/easytc"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -30,6 +31,8 @@ type NetLossDelayCmd struct {
 	SrcPort                int               `short:"P" long:"src-port" description:"only apply the rule to a specific source port"`
 	Verbose                bool              `short:"v" long:"verbose" description:"run easytc in verbose mode"`
 	Threads                int               `short:"t" long:"threads" description:"Number of parallel threads" default:"10"`
+	MaxRetries             int               `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep             time.Duration     `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help                   HelpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -61,12 +64,24 @@ func (c *NetLossDelayCmd) lossDelay(system *System, inventory *backends.Inventor
 		inventory = system.Backend.GetInventory()
 	}
 
+	// Validate source cluster exists
+	_, err := c.SourceClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
+	// For reset/show, destination is optional
+	requiresDest := c.Action.String() == "set" || c.Action.String() == "del"
+	if requiresDest || c.DestinationClusterName.String() != "" {
+		// Validate destination cluster exists
+		_, err = c.DestinationClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
+	}
 	// Get source and destination clusters
 	sourceCluster := inventory.Instances.WithClusterName(c.SourceClusterName.String()).WithState(backends.LifeCycleStateRunning).Describe()
 	var destCluster backends.InstanceList
 
-	// For reset/show, destination is optional
-	requiresDest := c.Action.String() == "set" || c.Action.String() == "del"
 	if requiresDest || c.DestinationClusterName.String() != "" {
 		destCluster = inventory.Instances.WithClusterName(c.DestinationClusterName.String()).WithState(backends.LifeCycleStateRunning).Describe()
 		if destCluster.Count() == 0 {
@@ -169,6 +184,8 @@ func (c *NetLossDelayCmd) checkAndInstallEasytc(inst *backends.Instance, logger 
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	// If easytc exists, no need to install
@@ -190,6 +207,8 @@ func (c *NetLossDelayCmd) checkAndInstallEasytc(inst *backends.Instance, logger 
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	client, err := sshexec.NewSftp(conf)
 	if err != nil {
@@ -198,7 +217,7 @@ func (c *NetLossDelayCmd) checkAndInstallEasytc(inst *backends.Instance, logger 
 	defer client.Close()
 
 	err = client.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/tmp/install-easytc.sh",
+		DestPath:    "/opt/aerolab/scripts/install-easytc.sh",
 		Source:      strings.NewReader(string(installScript)),
 		Permissions: 0755,
 	})
@@ -207,18 +226,35 @@ func (c *NetLossDelayCmd) checkAndInstallEasytc(inst *backends.Instance, logger 
 	}
 
 	// Execute installation script
+	scriptPath := "/opt/aerolab/scripts/install-easytc.sh"
 	installOutput := inst.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"/bin/bash", "/tmp/install-easytc.sh"},
+			Command:        []string{"/bin/bash", scriptPath},
 			SessionTimeout: 5 * time.Minute,
 		},
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if installOutput.Output.Err != nil {
-		return fmt.Errorf("failed to install easytc: %s: %s: %s", installOutput.Output.Err, string(installOutput.Output.Stdout), string(installOutput.Output.Stderr))
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			inst.ClusterName,
+			inst.NodeNo,
+			scriptPath,
+			installScript,
+			installOutput.Output.Stdout,
+			installOutput.Output.Stderr,
+			installOutput.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to install easytc: %s: %s: %s (also failed to save logs: %v)", installOutput.Output.Err, string(installOutput.Output.Stdout), string(installOutput.Output.Stderr), saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, installOutput.Output.Err))
 	}
 
 	logger.Debug("Successfully installed easytc on %s:%d", inst.ClusterName, inst.NodeNo)
@@ -320,6 +356,8 @@ func (c *NetLossDelayCmd) execEasytc(inst *backends.Instance, script string, ipM
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	client, err := sshexec.NewSftp(conf)
 	if err != nil {
@@ -327,8 +365,9 @@ func (c *NetLossDelayCmd) execEasytc(inst *backends.Instance, script string, ipM
 	}
 	defer client.Close()
 
+	scriptPath := "/opt/aerolab/scripts/runtc.sh"
 	err = client.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/tmp/runtc.sh",
+		DestPath:    scriptPath,
 		Source:      strings.NewReader(script),
 		Permissions: 0755,
 	})
@@ -339,16 +378,32 @@ func (c *NetLossDelayCmd) execEasytc(inst *backends.Instance, script string, ipM
 	// Execute script
 	output := inst.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"/bin/bash", "/tmp/runtc.sh"},
+			Command:        []string{"/bin/bash", scriptPath},
 			SessionTimeout: 5 * time.Minute,
 		},
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
-		return fmt.Errorf("(%s:%d) %s: %s: %s", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			inst.ClusterName,
+			inst.NodeNo,
+			scriptPath,
+			[]byte(script),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("(%s:%d) %s: %s: %s (also failed to save logs: %v)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, inst.ClusterName, inst.NodeNo, output.Output.Err))
 	}
 
 	// Process and display output

@@ -16,6 +16,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/installers/grafana"
 	"github.com/aerospike/aerolab/pkg/utils/installers/prometheus"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
@@ -132,8 +133,7 @@ func (c *ClientCreateAMSCmd) createAMSClient(system *System, inventory *backends
 	for _, client := range clients.Describe() {
 		err := c.installAMS(system, client, logger, clusterNodes, clientNodes, customDashboards)
 		if err != nil {
-			logger.Warn("Failed to install AMS on %s:%d: %s", client.ClusterName, client.NodeNo, err)
-			continue
+			return fmt.Errorf("failed to install AMS on %s:%d: %w", client.ClusterName, client.NodeNo, err)
 		}
 
 		logger.Info("Successfully installed AMS on %s:%d", client.ClusterName, client.NodeNo)
@@ -240,6 +240,8 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	sftpClient, err := sshexec.NewSftp(conf)
 	if err != nil {
@@ -247,7 +249,7 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 	}
 
 	err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-		DestPath:    "/tmp/install-ams-complete.sh",
+		DestPath:    "/opt/aerolab/scripts/install-ams-complete.sh",
 		Source:      strings.NewReader(fullScript),
 		Permissions: 0755,
 	})
@@ -269,21 +271,42 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 		terminal = true
 	}
 
+	scriptPath := "/opt/aerolab/scripts/install-ams-complete.sh"
+	execDetail := sshexec.ExecDetail{
+		Command:        []string{"bash", scriptPath},
+		SessionTimeout: 30 * time.Minute,
+		Terminal:       terminal,
+	}
+	if system.logLevel >= 5 {
+		execDetail.Stdin = stdin
+		execDetail.Stdout = stdout
+		execDetail.Stderr = stderr
+	}
+
 	output := client.Exec(&backends.ExecInput{
-		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install-ams-complete.sh"},
-			Stdin:          stdin,
-			Stdout:         stdout,
-			Stderr:         stderr,
-			SessionTimeout: 30 * time.Minute,
-			Terminal:       terminal,
-		},
+		ExecDetail:     execDetail,
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
-		return fmt.Errorf("installation failed: %w (stdout: %s, stderr: %s)", output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			scriptPath,
+			[]byte(fullScript),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("installation failed: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)", output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	// Step 4: Install dashboards (parallel downloads for speed)
@@ -295,17 +318,34 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 
 	// Step 5: Final service restart in ONE call
 	logger.Info("Starting services on %s:%d", client.ClusterName, client.NodeNo)
+	serviceRestartCmd := "systemctl daemon-reload; systemctl restart prometheus; systemctl restart grafana-server; sleep 3; systemctl restart loki"
 	output = client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "systemctl daemon-reload; systemctl restart prometheus; systemctl restart grafana-server; sleep 3; systemctl restart loki"},
+			Command:        []string{"bash", "-c", serviceRestartCmd},
 			SessionTimeout: 2 * time.Minute,
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
-		return fmt.Errorf("failed to start services: %w", output.Output.Err)
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			"inline:service-restart",
+			[]byte(serviceRestartCmd),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to start services: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	return nil
@@ -381,8 +421,8 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 func (c *ClientCreateAMSCmd) buildPrometheusConfig(clusterNodes, clientNodes map[string][]string) string {
 	var script bytes.Buffer
 
-	// Download aerospike rules
-	script.WriteString("wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml\n")
+	// Download aerospike rules (with retry)
+	script.WriteString("(wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml || { sleep 1; wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml; })\n")
 	script.WriteString("sed -i.bak -E 's/^rule_files:/rule_files:\\n  - \"\\/etc\\/prometheus\\/aerospike_rules.yaml\"/g' /etc/prometheus/prometheus.yml\n")
 	script.WriteString("sed -i.bak -E 's/- job_name: node/- job_name: nodelocal/g' /etc/prometheus/prometheus.yml\n")
 
@@ -439,8 +479,8 @@ chmod 755 /var/lib/grafana /var/log/grafana /run/grafana
 grafana-cli plugins install camptocamp-prometheus-alertmanager-datasource
 grafana-cli plugins install grafana-polystat-panel
 
-# Configure datasources
-wget -q -O /etc/grafana/provisioning/datasources/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/datasources/all.yaml
+# Configure datasources (with retry)
+(wget -q -O /etc/grafana/provisioning/datasources/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/datasources/all.yaml || { sleep 1; wget -q -O /etc/grafana/provisioning/datasources/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/datasources/all.yaml; })
 echo -e '  - name: Loki\n    type: loki\n    access: proxy\n    url: http://localhost:3100\n    jsonData:\n      maxLines: 1000\n' >> /etc/grafana/provisioning/datasources/all.yaml
 sed -i.bak 's/prometheus:9090/127.0.0.1:9090/g' /etc/grafana/provisioning/datasources/all.yaml
 `
@@ -455,12 +495,12 @@ func (c *ClientCreateAMSCmd) buildLokiInstall(client *backends.Instance) string 
 
 	return fmt.Sprintf(`# Install Loki
 cd /root
-wget -q https://github.com/grafana/loki/releases/download/v3.3.0/loki-linux-%s.zip
-unzip -q loki-linux-%s.zip
-mv loki-linux-%s /usr/bin/loki
-wget -q https://github.com/grafana/loki/releases/download/v3.3.0/logcli-linux-%s.zip
-unzip -q logcli-linux-%s.zip
-mv logcli-linux-%s /usr/bin/logcli
+(wget -q https://github.com/grafana/loki/releases/download/v3.3.0/loki-linux-%[1]s.zip || { sleep 1; wget -q https://github.com/grafana/loki/releases/download/v3.3.0/loki-linux-%[1]s.zip; })
+unzip -q loki-linux-%[1]s.zip
+mv loki-linux-%[1]s /usr/bin/loki
+(wget -q https://github.com/grafana/loki/releases/download/v3.3.0/logcli-linux-%[1]s.zip || { sleep 1; wget -q https://github.com/grafana/loki/releases/download/v3.3.0/logcli-linux-%[1]s.zip; })
+unzip -q logcli-linux-%[1]s.zip
+mv logcli-linux-%[1]s /usr/bin/logcli
 chmod 755 /usr/bin/logcli /usr/bin/loki
 mkdir -p /etc/loki /data-logs/loki
 
@@ -515,22 +555,39 @@ WantedBy=multi-user.target
 LOKISVCEOF
 
 systemctl daemon-reload
-`, arch, arch, arch, arch, arch, arch)
+`, arch)
 }
 
 // installDashboards downloads and installs Grafana dashboards
 func (c *ClientCreateAMSCmd) installDashboards(system *System, client *backends.Instance, customDashboards []CustomAMSDashboard, logger *logger.Logger) error {
 	// Create base directories in ONE call
+	dashboardSetupCmd := "wget -q -O /etc/grafana/provisioning/dashboards/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml && mkdir -p /var/lib/grafana/dashboards"
 	output := client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "wget -q -O /etc/grafana/provisioning/dashboards/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml && mkdir -p /var/lib/grafana/dashboards"},
+			Command:        []string{"bash", "-c", dashboardSetupCmd},
 			SessionTimeout: 2 * time.Minute,
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 	if output.Output.Err != nil {
-		return fmt.Errorf("failed to setup dashboard directories: %w", output.Output.Err)
+		// Save script failure to local machine for debugging
+		failure := scriptlog.NewScriptFailureWithPath(
+			client.ClusterName,
+			client.NodeNo,
+			"inline:dashboard-setup",
+			[]byte(dashboardSetupCmd),
+			output.Output.Stdout,
+			output.Output.Stderr,
+			output.Output.Err,
+		)
+		logPath, saveErr := scriptlog.SaveFailure(failure)
+		if saveErr != nil {
+			return fmt.Errorf("failed to setup dashboard directories: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+		}
+		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 	}
 
 	// Install default dashboards if not disabled
@@ -574,16 +631,33 @@ func (c *ClientCreateAMSCmd) installDefaultDashboards(client *backends.Instance,
 		for _, mkdir := range mkdirs {
 			mkdirCmds = append(mkdirCmds, strings.Join(mkdir, " "))
 		}
+		mkdirScript := strings.Join(mkdirCmds, " && ")
 		output := client.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "-c", strings.Join(mkdirCmds, " && ")},
+				Command:        []string{"bash", "-c", mkdirScript},
 				SessionTimeout: time.Minute,
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to create dashboard directories: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:dashboard-mkdir",
+				[]byte(mkdirScript),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to create dashboard directories: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 	}
 
@@ -601,6 +675,8 @@ func (c *ClientCreateAMSCmd) installDefaultDashboards(client *backends.Instance,
 				},
 				Username:       "root",
 				ConnectTimeout: 30 * time.Second,
+				MaxRetries:     c.MaxRetries,
+				RetrySleep:     c.RetrySleep,
 			})
 			if output.Output.Err == nil {
 				return nil
@@ -677,16 +753,33 @@ func (c *ClientCreateAMSCmd) installCustomDashboards(client *backends.Instance, 
 		}
 	}
 	if len(dirCmds) > 0 {
+		dirScript := strings.Join(dirCmds, " && ")
 		output := client.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "-c", strings.Join(dirCmds, " && ")},
+				Command:        []string{"bash", "-c", dirScript},
 				SessionTimeout: 30 * time.Second,
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to create directories: %w", output.Output.Err)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:custom-dashboard-dirs",
+				[]byte(dirScript),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to create directories: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 	}
 
@@ -695,6 +788,8 @@ func (c *ClientCreateAMSCmd) installCustomDashboards(client *backends.Instance, 
 	if err != nil {
 		return err
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 	sftpClient, err := sshexec.NewSftp(conf)
 	if err != nil {
 		return err

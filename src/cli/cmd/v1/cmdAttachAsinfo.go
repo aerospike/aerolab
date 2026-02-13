@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -60,12 +61,22 @@ func (c *AttachAsinfoCmd) AttachAsinfo(system *System, inventory *backends.Inven
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists (with interactive selection if not found)
+	_, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	parallelThreads := c.ParallelThreads
 	if !c.Parallel {
 		parallelThreads = 1
 	}
 	if args == nil && c.Tail != nil {
 		args = c.Tail
+	}
+	// If non-interactive and no asinfo parameters specified, fail early - an interactive
+	// asinfo session cannot work without a terminal
+	if len(args) == 0 && !IsInteractive() {
+		return fmt.Errorf("interactive mode is disabled (AEROLAB_NONINTERACTIVE is set or no TTY detected); specify asinfo parameters using '-- <asinfo-parameters>' syntax")
 	}
 	node := c.Node.String()
 	if node == "all" {

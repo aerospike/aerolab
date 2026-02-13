@@ -574,4 +574,89 @@ func (c *AerospikeExampleCmd) ExampleOperation(system *System, inventory *backen
 }
 ```
 
+## Dynamic Web UI Dropdowns (webchoice)
+
+The web UI supports rendering command parameters as searchable dropdown selects populated with dynamically-fetched options. This is powered by the `webchoice` struct tag and custom Go types with a `List()` method.
+
+### When to Use
+
+Use `guiInstanceType` / `guiZone` (or create a new dynamic-choice type) when:
+- A parameter has a large set of valid values that can be queried from the backend (instance types, zones, regions, etc.)
+- The web UI should show a dropdown instead of a free-text input
+- The choices depend on the current backend configuration (AWS vs GCP, current region, etc.)
+
+Do NOT use dynamic-choice types for:
+- Filter fields in list/query commands (these are free-text search inputs)
+- Override fields where the user is providing an arbitrary string
+- Parameters specific to Aerospike Cloud API (different data source)
+
+### Existing Dynamic-Choice Types (defined in `types.go`)
+
+- `guiInstanceType` - Fetches instance types from `system.Backend.GetInstanceTypes()`, sorted by family/CPUs/RAM, with pricing info in the display label
+- `guiZone` - Fetches available zones from `system.Backend.ListAvailableZones()`
+
+### How to Use an Existing Type
+
+1. Change the field type from `string` to the GUI type (e.g. `guiInstanceType`)
+2. Add `webchoice:"method::List"` to the struct tag
+
+```go
+// Before:
+InstanceType string `long:"instance" description:"Instance type to use"`
+
+// After:
+InstanceType guiInstanceType `long:"instance" description:"Instance type to use" webchoice:"method::List"`
+```
+
+3. Where the field value is passed to functions expecting `string`, add `string(field)` conversions
+4. Where a `string` value is assigned back to the field, add type conversions like `guiInstanceType(v)`
+
+### How to Create a New Dynamic-Choice Type
+
+1. Define a custom string type in `types.go`:
+
+```go
+type guiMyParam string
+
+func (g guiMyParam) String() string {
+    return string(g)
+}
+```
+
+2. Implement the `List` method with this exact signature:
+
+```go
+func (g guiMyParam) List(system *System) ([][]string, string, error) {
+    // Fetch options from system.Backend or other source
+    choices := [][]string{}
+    for _, item := range items {
+        // Each inner slice: [value, displayLabel]
+        choices = append(choices, []string{item.ID, item.Description})
+    }
+    def := "" // default selection
+    if string(g) != "" {
+        def = string(g)
+    }
+    return choices, def, nil
+}
+```
+
+3. Use the type on struct fields with `webchoice:"method::List"` tag
+
+### Static Choices (Alternative)
+
+For a fixed set of choices that don't need dynamic fetching, use the static form:
+
+```go
+Mode string `long:"mode" description:"Operation mode" webchoice:"fast,balanced,thorough"`
+```
+
+### How It Works (Data Flow)
+
+1. `BuildCommandTree()` in `cmdWebUIReflect.go` extracts `webchoice` from struct tags via reflection
+2. `webchoice:"method::List"` sets `ParameterInfo.ChoicesMethod = "List"`
+3. When the frontend requests command info (`GET /api/commands/{path}`), `ResolveDynamicChoices()` finds the field on the command struct, calls `List(system)` via reflection
+4. The returned `[][]string` populates `ParameterInfo.Choices` (using first element of each inner slice)
+5. The frontend `SelectInput` component renders a searchable dropdown from `param.choices`
+
 This document provides comprehensive guidance for creating new Aerolab commands while maintaining consistency with established patterns and best practices.

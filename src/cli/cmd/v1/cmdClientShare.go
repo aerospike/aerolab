@@ -14,10 +14,10 @@ import (
 )
 
 type ClientShareCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Client name" default:"client"`
-	KeyFile         flags.Filename  `short:"f" long:"pubkey" description:"Path to a pubkey to import to client nodes"`
-	ParallelThreads int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
-	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName      TypeClientName `short:"n" long:"name" description:"Client name" default:"client"`
+	KeyFile         flags.Filename `short:"f" long:"pubkey" description:"Path to a pubkey to import to client nodes"`
+	ParallelThreads int            `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	Help            HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *ClientShareCmd) Execute(args []string) error {
@@ -50,12 +50,16 @@ func (c *ClientShareCmd) shareClient(system *System, inventory *backends.Invento
 	}
 
 	// Get client instances
+	_, err = c.ClientName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	clients := inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).
-		WithClusterName(c.ClusterName.String()).
+		WithClusterName(c.ClientName.String()).
 		WithState(backends.LifeCycleStateRunning)
 
 	if clients.Count() == 0 {
-		return fmt.Errorf("client %s not found or has no running instances", c.ClusterName.String())
+		return fmt.Errorf("client %s not found or has no running instances", c.ClientName.String())
 	}
 
 	clientList := clients.Describe()
@@ -86,4 +90,3 @@ func (c *ClientShareCmd) shareClient(system *System, inventory *backends.Invento
 
 	return hasErr
 }
-

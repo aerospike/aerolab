@@ -21,13 +21,13 @@ var osTestList = make(chan *osTestDef, 100)
 * AWS:
   - amazon: 2023, 2
   - ubuntu: 24.04, 22.04, 20.04, 18.04
-  - rocky: 9, 8
+  - rocky: 10, 9, 8
   - centos: 10, 9
   - debian: 12, 11, 10
 * GCP:
   - ubuntu: 24.04, 22.04, 20.04, 18.04
-  - rocky: 9, 8
-  - centos: 9, 8
+  - rocky: 10, 9, 8
+  - centos: 10, 9, 8
   - debian: 12, 11, 10
 */
 
@@ -64,6 +64,10 @@ func fillOsTestList() {
 	}
 	osTestList <- &osTestDef{
 		name:    "rocky",
+		version: "10",
+	}
+	osTestList <- &osTestDef{
+		name:    "rocky",
 		version: "9",
 	}
 	osTestList <- &osTestDef{
@@ -84,11 +88,9 @@ func fillOsTestList() {
 			version: "10",
 		}
 	}
-	if cloud == "aws" {
-		osTestList <- &osTestDef{
-			name:    "centos",
-			version: "10",
-		}
+	osTestList <- &osTestDef{
+		name:    "centos",
+		version: "10",
 	}
 	osTestList <- &osTestDef{
 		name:    "centos",

@@ -20,7 +20,7 @@ type CloudClustersCreateCmd struct {
 	AvailabilityZoneCount int      `short:"a" long:"availability-zone-count" description:"Number of availability zones (1-3)" default:"2"`
 	ClusterSize           int      `short:"s" long:"cluster-size" description:"Number of nodes in cluster"`
 	DataStorage           string   `short:"d" long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)"`
-	Credentials           string   `short:"C" long:"credentials" description:"Create cluster credentials in format USER:PASSWORD. If not specified, credentials must be created manually."`
+	Credentials           string   `short:"C" long:"credentials" description:"Create read-write role cluster credentials in format USER:PASSWORD. If not specified, credentials must be created manually."`
 	VPCID                 string   `short:"v" long:"vpc-id" description:"VPC ID to peer the cluster to" default:"default"`
 	ForceRouteCreation    bool     `short:"f" long:"force-route-creation" description:"Force route creation even if it already exists"`
 	DataResiliency        string   `long:"data-resiliency" description:"Data resiliency (local-disk, network-storage)"`

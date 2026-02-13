@@ -2,6 +2,11 @@
 
 ## source this file to install golang and set $PATH in running shell
 
+# Retry helper: try once, sleep 1s, retry once
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 GOVERSION="{{.GoVersion}}"
 if ! command -v curl &> /dev/null; then
     if command -v apt &> /dev/null; then
@@ -21,7 +26,7 @@ if [ "$(uname -m)" == "aarch64" ] || [ "$(uname -m)" == "arm64" ]; then
 fi
 
 set -e
-curl -L -o ${GOVERSION}.linux-${ARCH}.tar.gz https://go.dev/dl/${GOVERSION}.linux-${ARCH}.tar.gz
+retry_cmd curl -L -o ${GOVERSION}.linux-${ARCH}.tar.gz https://go.dev/dl/${GOVERSION}.linux-${ARCH}.tar.gz
 rm -rf /usr/local/go && tar -C /usr/local -xzf ${GOVERSION}.linux-${ARCH}.tar.gz
 set +e
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -24,6 +25,8 @@ type AerospikeIsStableCmd struct {
 	NotClusterKey    string          `short:"c" long:"not-cluster-key" description:"If specified, then if this cluster key is matched, it will be ignored and treated as no-match"`
 	Verbose          bool            `short:"v" long:"verbose" description:"Enable verbose logging"`
 	Threads          int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries       int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help             HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -79,7 +82,12 @@ func (c *AerospikeIsStableCmd) IsStable(system *System, inventory *backends.Inve
 		inventory = system.Backend.GetInventory()
 	}
 
-	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+	instances, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return false, err
+	}
+
+	instances = inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
 		return false, fmt.Errorf("no running instances found for cluster %s", c.ClusterName.String())
 	}
@@ -149,6 +157,8 @@ exit 1
 			instance := nodeInstances[0]
 
 			var cmd []string
+			var scriptContent string
+			scriptPath := ""
 			if c.Wait {
 				// Upload wait script via SFTP
 				conf, err := instance.GetSftpConfig("root")
@@ -157,6 +167,8 @@ exit 1
 					hasErr = true
 					continue
 				}
+				conf.MaxRetries = c.MaxRetries
+				conf.RetrySleep = c.RetrySleep
 				client, err := sshexec.NewSftp(conf)
 				if err != nil {
 					logger.Error("Failed to create SFTP client for node %d: %s", node, err)
@@ -165,8 +177,10 @@ exit 1
 				}
 				defer client.Close()
 
+				scriptPath = "/opt/aerolab/scripts/is-stable.sh"
+				scriptContent = waitScript
 				err = client.WriteFile(true, &sshexec.FileWriter{
-					DestPath:    "/opt/is-stable.sh",
+					DestPath:    scriptPath,
 					Source:      strings.NewReader(waitScript),
 					Permissions: 0755,
 				})
@@ -175,18 +189,16 @@ exit 1
 					hasErr = true
 					continue
 				}
-				cmd = []string{"/bin/bash", "/opt/is-stable.sh"}
+				cmd = []string{"/bin/bash", scriptPath}
 			} else {
 				cmd = []string{"asinfo", "-v", fmt.Sprintf("cluster-stable:size=%d;ignore-migrations=%t;namespace=%s", len(nodes), c.IgnoreMigrations, c.Namespace)}
+				scriptContent = strings.Join(cmd, " ")
 			}
 
 			// Run command
 			output := instance.Exec(&backends.ExecInput{
 				ExecDetail: sshexec.ExecDetail{
 					Command:        cmd,
-					Stdin:          nil,
-					Stdout:         nil,
-					Stderr:         nil,
 					SessionTimeout: time.Minute,
 					Env:            []*sshexec.Env{},
 					Terminal:       false,
@@ -194,10 +206,30 @@ exit 1
 				Username:        "root",
 				ConnectTimeout:  30 * time.Second,
 				ParallelThreads: 1,
+				MaxRetries:      c.MaxRetries,
+				RetrySleep:      c.RetrySleep,
 			})
 
 			if output.Output.Err != nil {
-				logger.Error("Node %d returned error: %s", node, output.Output.Err)
+				// Save script/command failure for debugging
+				if scriptPath == "" {
+					scriptPath = "inline:asinfo"
+				}
+				failure := scriptlog.NewScriptFailureWithPath(
+					instance.ClusterName,
+					instance.NodeNo,
+					scriptPath,
+					[]byte(scriptContent),
+					output.Output.Stdout,
+					output.Output.Stderr,
+					output.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					logger.Error("Node %d returned error: %s (stdout: %s, stderr: %s) (also failed to save logs: %v)", node, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr)
+				} else {
+					logger.Error("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
+				}
 				hasErr = true
 				continue
 			}

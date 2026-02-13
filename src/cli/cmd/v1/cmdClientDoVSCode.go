@@ -10,6 +10,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/compilers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/vscode"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -136,6 +137,8 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 			logger.Warn("Failed to get SFTP config for %s:%d: %s", client.ClusterName, client.NodeNo, err)
 			continue
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 
 		sftpClient, err := sshexec.NewSftp(conf)
 		if err != nil {
@@ -144,7 +147,7 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 		}
 
 		err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install-vscode-full.sh",
+			DestPath:    "/opt/aerolab/scripts/install-vscode-full.sh",
 			Source:      strings.NewReader(fullScript),
 			Permissions: 0755,
 		})
@@ -167,8 +170,9 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 			stdin = io.NopCloser(os.Stdin)
 			terminal = true
 		}
+		scriptPath := "/opt/aerolab/scripts/install-vscode-full.sh"
 		execDetail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install-vscode-full.sh"},
+			Command:        []string{"bash", scriptPath},
 			SessionTimeout: 30 * time.Minute,
 			Terminal:       terminal,
 		}
@@ -182,12 +186,27 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 			ExecDetail:     execDetail,
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {
-			logger.Warn("Failed to install VSCode on %s:%d: %s", client.ClusterName, client.NodeNo, output.Output.Err)
-			logger.Warn("stdout: %s", output.Output.Stdout)
-			logger.Warn("stderr: %s", output.Output.Stderr)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				scriptPath,
+				[]byte(fullScript),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				logger.Warn("Failed to install VSCode on %s:%d: %s (also failed to save logs: %v)", client.ClusterName, client.NodeNo, output.Output.Err, saveErr)
+			} else {
+				logger.Warn("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
+			}
 		} else {
 			logger.Info("Successfully installed VSCode on %s:%d", client.ClusterName, client.NodeNo)
 
@@ -329,7 +348,7 @@ fi
 if command -v java &> /dev/null; then
     if ! command -v mvn &> /dev/null; then
         cd /tmp
-        wget -q https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz || true
+        (wget -q https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz || { sleep 1; wget -q https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz; }) || true
         if [ -f apache-maven-3.9.9-bin.tar.gz ]; then
             tar xzf apache-maven-3.9.9-bin.tar.gz
             mkdir -p /usr/share/maven

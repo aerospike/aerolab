@@ -22,6 +22,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/rglonek/go-flags"
@@ -51,7 +52,12 @@ type InstancesCreateCmd struct {
 	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
 	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
 	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Help               HelpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
+	// Retry configuration
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
+	CapacityRetries    int           `long:"capacity-retries" description:"Maximum retries for capacity errors (AWS/GCP only)" default:"0" simplemode:"false"`
+	CapacityRetrySleep time.Duration `long:"capacity-retry-sleep" description:"Sleep duration between capacity retries" default:"60s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type InstanceDNS struct {
@@ -77,20 +83,20 @@ type InstancesCreateCmdAws struct {
 	ImageID            string        `long:"image" description:"Custom image ID to use for the instances; ignores OS, Version, Arch"`
 	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
 	NetworkPlacement   string        `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
-	InstanceType       string        `long:"instance" description:"Instance type to use for the instances"`
-	Disks              []string      `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
-	Firewalls          []string      `long:"firewall" description:"Extra security group names to assign to the instances"`
-	SpotInstance       bool          `long:"spot" description:"Create spot instances"`
-	DisablePublicIP    bool          `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
-	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
-	CustomDNS          InstanceDNS   `group:"Automated Custom Route53 DNS" namespace:"dns" description:"backend-aws"`
+	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
+	Disks              []string        `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
+	Firewalls          []string        `long:"firewall" description:"Extra security group names to assign to the instances"`
+	SpotInstance       bool            `long:"spot" description:"Create spot instances"`
+	DisablePublicIP    bool            `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
+	IAMInstanceProfile string          `long:"instance-profile" description:"IAM instance profile to use for the instances"`
+	CustomDNS          InstanceDNS     `group:"Automated Custom Route53 DNS" namespace:"dns" description:"backend-aws"`
 }
 
 type InstancesCreateCmdGcp struct {
-	ImageName          string        `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch; format: projects/<project>/global/images/<image>"`
-	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
-	Zone               string        `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region"`
-	InstanceType       string        `long:"instance" description:"Instance type to use for the instances"`
+	ImageName          string          `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch; format: projects/<project>/global/images/<image>"`
+	Expire             time.Duration   `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	Zone               guiZone         `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region" webchoice:"method::List"`
+	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string      `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
 	Firewalls          []string      `long:"firewall" description:"Extra firewall names to assign to the instances"`
 	SpotInstance       bool          `long:"spot" description:"Create spot instances"`
@@ -171,6 +177,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		inventory = system.Backend.GetInventory()
 	}
 
+	// Track if any interactive choices were made
+	madeInteractiveChoices := false
+
 	if c.Count < 1 {
 		return nil, errors.New("count must be at least 1")
 	}
@@ -193,6 +202,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if quitting {
 					return nil, errors.New("aborted")
 				}
+				madeInteractiveChoices = true
 				switch choice {
 				case "Destroy":
 					system.Logger.Info("Destroying instance %s", c.Name)
@@ -241,6 +251,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if quitting {
 					return nil, errors.New("aborted")
 				}
+				madeInteractiveChoices = true
 				switch choice {
 				case "Destroy":
 					system.Logger.Info("Destroying cluster %s and creating new one", c.ClusterName)
@@ -280,6 +291,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if quitting {
 					return nil, errors.New("aborted")
 				}
+				madeInteractiveChoices = true
 				switch choice {
 				case "Create":
 					system.Logger.Info("Creating cluster %s", c.ClusterName)
@@ -292,7 +304,6 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			}
 		}
 	}
-
 	// sanity-check cluster name and name, must match regex ^[a-zA-Z0-9][a-zA-Z0-9-]*$
 	if !regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`).MatchString(c.ClusterName) {
 		return nil, errors.New("cluster name must match regex ^[a-zA-Z0-9][a-zA-Z0-9-]*$ (only letters, numbers and dashes)")
@@ -360,9 +371,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
-		itype = c.AWS.InstanceType
+		itype = string(c.AWS.InstanceType)
 	case "gcp":
-		itype = c.GCP.InstanceType
+		itype = string(c.GCP.InstanceType)
 	}
 
 	if system.Opts.Config.Backend.Type != "docker" {
@@ -478,17 +489,25 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if err != nil {
 					return nil, err
 				}
-				choice, quitting, err := choice.ChoiceWithHeight("Instance type is required, pick one:", choice.StringSliceToItems(itypeList), termHeight-2)
+				selectedChoice, quitting, err := choice.ChoiceWithHeight("Instance type is required, pick one:", choice.StringSliceToItems(itypeList), termHeight-2)
 				if err != nil {
 					return nil, err
 				}
 				if quitting {
 					return nil, errors.New("aborted")
 				}
-				if choice == "" {
+				if selectedChoice == "" {
 					return nil, errors.New("aborted")
 				}
-				itype = itypes[choice]
+				itype = itypes[selectedChoice]
+				madeInteractiveChoices = true
+				// Update the struct field so ReconstructCommandLine can pick it up
+			switch system.Opts.Config.Backend.Type {
+			case "aws":
+				c.AWS.InstanceType = guiInstanceType(itype)
+			case "gcp":
+				c.GCP.InstanceType = guiInstanceType(itype)
+			}
 			} else {
 				return nil, errors.New("instance type is required")
 			}
@@ -566,14 +585,48 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 	case "gcp":
 		if c.GCP.Zone == "" {
-			c.GCP.Zone = system.Opts.Config.Backend.Region + "-a"
-			system.Logger.Info("Using default zone %s", c.GCP.Zone)
+			if IsInteractive() {
+				// Fetch available zones for the configured region
+				zones, err := system.Backend.ListAvailableZones(backends.BackendType(system.Opts.Config.Backend.Type))
+				if err != nil {
+					return nil, fmt.Errorf("failed to list available zones: %w", err)
+				}
+				// Filter zones that match the configured region
+				var regionZones []string
+				for _, z := range zones {
+					if strings.HasPrefix(z, system.Opts.Config.Backend.Region+"-") {
+						regionZones = append(regionZones, z)
+					}
+				}
+				if len(regionZones) == 0 {
+					return nil, fmt.Errorf("no zones available in region %s", system.Opts.Config.Backend.Region)
+				}
+				sort.Strings(regionZones)
+				// Get terminal height for the choice display
+				_, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
+				if err != nil {
+					termHeight = 20 // fallback height
+				}
+				selectedZone, quitting, err := choice.ChoiceWithHeight(fmt.Sprintf("GCP zone is required for region %s, pick one:", system.Opts.Config.Backend.Region), choice.StringSliceToItems(regionZones), termHeight-2)
+				if err != nil {
+					return nil, err
+				}
+				if quitting || selectedZone == "" {
+					return nil, errors.New("aborted")
+				}
+			c.GCP.Zone = guiZone(selectedZone)
+			madeInteractiveChoices = true
+			system.Logger.Info("Selected zone %s", c.GCP.Zone)
+		} else {
+			c.GCP.Zone = guiZone(system.Opts.Config.Backend.Region + "-a")
+				system.Logger.Info("Using default zone %s", c.GCP.Zone)
+			}
 		}
 		regions, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
 		if err != nil {
 			return nil, err
 		}
-		zoneTest := c.GCP.Zone
+		zoneTest := string(c.GCP.Zone)
 		if strings.Count(zoneTest, "-") == 2 {
 			zoneTest = zoneTest[:strings.LastIndex(zoneTest, "-")]
 		}
@@ -785,6 +838,12 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		Description:        c.Description,
 		TerminateOnStop:    c.TerminateOnStop,
 		ParallelSSHThreads: c.ParallelSSHThreads,
+		RetryConfig: backends.RetryConfig{
+			MaxRetries:         c.MaxRetries,
+			RetrySleep:         c.RetrySleep,
+			CapacityRetries:    c.CapacityRetries,
+			CapacityRetrySleep: c.CapacityRetrySleep,
+		},
 		BackendSpecificParams: map[backends.BackendType]interface{}{
 			"aws": &baws.CreateInstanceParams{
 				Image:              nil,
@@ -800,7 +859,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			},
 			"gcp": &bgcp.CreateInstanceParams{
 				Image:              nil,
-				NetworkPlacement:   c.GCP.Zone,
+				NetworkPlacement:   string(c.GCP.Zone),
 				InstanceType:       itype,
 				Disks:              c.GCP.Disks,
 				Firewalls:          c.GCP.Firewalls,
@@ -966,7 +1025,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				continue
 			}
 			for _, p := range pl {
-				if system.Opts.Config.Backend.Type == "gcp" && !strings.HasPrefix(c.GCP.Zone, p.Region) {
+				if system.Opts.Config.Backend.Type == "gcp" && !strings.HasPrefix(string(c.GCP.Zone), p.Region) {
 					continue
 				}
 				if system.Opts.Config.Backend.Type == "aws" && !strings.HasPrefix(awsRegion, p.Region) {
@@ -983,6 +1042,12 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		system.Logger.Info("  Instance cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costPPH*100)/100, math.Ceil(costPPH*24*100)/100, math.Ceil(costPPH*24*30*100)/100)
 		system.Logger.Info("  Storage cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costGB*100)/100, math.Ceil(costGB*24*100)/100, math.Ceil(costGB*24*30*100)/100)
 	}
+	// Print equivalent command line if interactive choices were made
+	if madeInteractiveChoices {
+		cmdLine := ReconstructCommandLine([]string{"instances", action}, c, false)
+		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
+	}
+
 	if c.DryRun {
 		system.Logger.Info("Dry run, not creating instances")
 		return nil, nil
@@ -1003,7 +1068,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				}
 			}
 			if system.Opts.Config.Backend.Type == "gcp" {
-				instanceRegion = c.GCP.Zone
+				instanceRegion = string(c.GCP.Zone)
 				if strings.Count(instanceRegion, "-") == 2 {
 					instanceRegion = instanceRegion[:strings.LastIndex(instanceRegion, "-")]
 				}
@@ -1026,12 +1091,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 		// Skip hostname command for Docker containers as hostname is set at container creation
 		if system.Opts.Config.Backend.Type != "docker" {
+			cmd := []string{"hostname", hostname}
 			output := instance.Exec(&backends.ExecInput{
 				ExecDetail: sshexec.ExecDetail{
-					Command:        []string{"hostname", hostname},
-					Stdin:          nil,
-					Stdout:         nil,
-					Stderr:         nil,
+					Command:        cmd,
 					SessionTimeout: 30 * time.Second,
 					Env:            []*sshexec.Env{},
 					Terminal:       false,
@@ -1039,9 +1102,26 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				Username:        "root",
 				ConnectTimeout:  15 * time.Second,
 				ParallelThreads: 1,
+				MaxRetries:      c.MaxRetries,
+				RetrySleep:      c.RetrySleep,
 			})
 			if output.Output.Err != nil {
-				system.Logger.Warn("Failed to set hostname on node %d: %s: %s: %s", instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
+				// Save command failure for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					instance.ClusterName,
+					instance.NodeNo,
+					"inline:hostname",
+					[]byte(strings.Join(cmd, " ")),
+					output.Output.Stdout,
+					output.Output.Stderr,
+					output.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					system.Logger.Warn("Failed to set hostname on node %d: %s: %s: %s (also failed to save logs: %v)", instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr), saveErr)
+				} else {
+					system.Logger.Warn("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
+				}
 			}
 		} else {
 			system.Logger.Debug("Skipping hostname command for Docker container %d (hostname set at creation)", instance.NodeNo)
@@ -1050,6 +1130,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		if err != nil {
 			return
 		}
+		cfg.MaxRetries = c.MaxRetries
+		cfg.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(cfg)
 		if err != nil {
 			return

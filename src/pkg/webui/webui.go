@@ -1,197 +1,88 @@
+// Package webui provides the embedded web UI assets and HTTP handlers for serving
+// the AeroLab Web UI. The assets are built from web/webui/ and embedded at compile time.
 package webui
 
 import (
+	"embed"
+	"io/fs"
+	"net/http"
 	"strings"
 )
 
-const TruncateTimestampCookieName = "aerolab_history_truncate"
+//go:generate bash -c "cd ../../../web && ./build.sh"
 
-const (
-	ContentTypeForm  = "form"
-	ContentTypeTable = "table"
-)
+// WebUIFS contains the embedded web UI assets built from web/webui/
+// The dist/ directory contains the Vite build output.
+//
+//go:embed dist/*
+var WebUIFS embed.FS
 
-type Page struct {
-	PageTitle                               string
-	FixedFooter                             bool
-	FixedNavbar                             bool
-	PendingActionsShowAllUsersToggle        bool
-	PendingActionsShowAllUsersToggleChecked bool
-	WebRoot                                 string
-	FormCommandTitle                        string
-	IsForm                                  bool
-	IsInventory                             bool
-	IsError                                 bool
-	ErrorString                             string
-	ErrorTitle                              string
-	Navigation                              *Nav
-	Menu                                    *MainMenu
-	FormItems                               []*FormItem
-	Inventory                               map[string]*InventoryItem
-	Backend                                 string
-	BetaTag                                 bool
-	CurrentUser                             string
-	ShortSwitches                           bool
-	ShowDefaults                            bool
-	FormDownload                            bool
-	ShowSimpleModeButton                    bool
-	SimpleMode                              bool
-	HideInventory                           HideInventory
+// GetFileSystem returns an fs.FS rooted at dist/
+// This removes the "dist/" prefix from paths.
+func GetFileSystem() (fs.FS, error) {
+	return fs.Sub(WebUIFS, "dist")
 }
 
-type HideInventory struct {
-	Clusters  bool
-	Clients   bool
-	AGI       bool
-	Templates bool
-	Volumes   bool
-	Firewalls bool
-	Expiry    bool
-	Subnets   bool
-}
-
-type InventoryItem struct {
-	Fields []*InventoryItemField
-}
-
-type InventoryItemField struct {
-	Name         string
-	FriendlyName string
-	Backend      string
-}
-
-type FormItem struct {
-	Type      FormItemType
-	Input     FormItemInput
-	Toggle    FormItemToggle
-	Select    FormItemSelect
-	Separator FormItemSeparator
-}
-
-type FormItemSeparator struct {
-	Name string
-}
-
-type FormItemType struct {
-	Input     bool
-	Toggle    bool
-	Select    bool
-	Separator bool
-}
-
-type FormItemInput struct {
-	Name        string
-	Description string
-	ID          string
-	Type        string
-	Default     string
-	Tags        bool
-	Required    bool
-	Optional    bool
-	IsFile      bool
-	Disabled    bool
-	Mask        string
-}
-
-type FormItemSelect struct {
-	Name        string
-	Description string
-	ID          string
-	Multiple    bool
-	Required    bool
-	Items       []*FormItemSelectItem
-	Optional    bool
-}
-
-type FormItemSelectItem struct {
-	Name     string
-	Value    string
-	Selected bool
-}
-
-type FormItemToggle struct {
-	Name        string
-	Description string
-	ID          string
-	On          bool
-	Disabled    bool
-	Optional    bool
-}
-
-type Nav struct {
-	Top []*NavTop
-}
-
-type NavTop struct {
-	Name   string
-	Href   string
-	Target string
-}
-
-type MainMenu struct {
-	Items MenuItems
-}
-
-type MenuItems []*MenuItem
-
-const (
-	BadgeTypeWarning = "badge-warning"
-	BadgeTypeSuccess = "badge-success"
-	BadgeTypeDanger  = "badge-danger"
-)
-
-const (
-	ActiveColorWhite = " bg-white"
-	ActiveColorBlue  = " bg-blue"
-)
-
-type MenuItem struct {
-	HasChildren   bool
-	Icon          string
-	Name          string
-	Href          string
-	IsActive      bool
-	ActiveColor   string
-	Badge         MenuItemBadge
-	Items         MenuItems
-	Tooltip       string
-	DrawSeparator bool
-}
-
-type MenuItemBadge struct {
-	Show bool
-	Type string
-	Text string
-}
-
-func (m MenuItems) Set(path string, webroot string) {
-	m.SetTemplate()
-	m.MakeActive(path, webroot)
-}
-
-func (m MenuItems) SetTemplate() {
-	for i := range m {
-		m[i].IsActive = false
-		if len(m[i].Items) == 0 {
-			m[i].ActiveColor = ActiveColorBlue
-			m[i].HasChildren = false
-			continue
-		}
-		m[i].ActiveColor = ActiveColorWhite
-		m[i].HasChildren = true
-		m[i].Items.SetTemplate()
+// GetHTTPFileSystem returns an http.FileSystem rooted at dist/
+func GetHTTPFileSystem() (http.FileSystem, error) {
+	subFS, err := GetFileSystem()
+	if err != nil {
+		return nil, err
 	}
+	return http.FS(subFS), nil
 }
 
-func (m MenuItems) MakeActive(path string, webroot string) {
-	for i := range m {
-		if m[i].Href == path {
-			m[i].IsActive = true
-			return
-		}
-		if m[i].Href != webroot && strings.HasPrefix(path, strings.TrimSuffix(m[i].Href, "/")+"/") {
-			m[i].IsActive = true
-			m[i].Items.MakeActive(path, webroot)
-		}
+// NewFileServer creates an http.Handler that serves the embedded files.
+func NewFileServer() (http.Handler, error) {
+	fsys, err := GetHTTPFileSystem()
+	if err != nil {
+		return nil, err
 	}
+	return http.FileServer(fsys), nil
+}
+
+// SPAHandler wraps a file server to handle SPA routing.
+// - Serves static files if they exist (js, css, images, etc.)
+// - Falls back to index.html for all other routes (SPA client routing)
+type SPAHandler struct {
+	FileServer http.Handler
+	FileSystem http.FileSystem
+}
+
+// ServeHTTP implements http.Handler for SPA routing.
+func (h *SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// Clean the path
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	// Try to serve the file directly
+	if f, err := h.FileSystem.Open(path); err == nil {
+		f.Close()
+		h.FileServer.ServeHTTP(w, r)
+		return
+	}
+
+	// Fall back to index.html for SPA routing
+	r.URL.Path = "/"
+	h.FileServer.ServeHTTP(w, r)
+}
+
+// NewSPAHandler creates a handler for serving the SPA with client-side routing.
+func NewSPAHandler() (*SPAHandler, error) {
+	fsys, err := GetHTTPFileSystem()
+	if err != nil {
+		return nil, err
+	}
+	return &SPAHandler{
+		FileServer: http.FileServer(fsys),
+		FileSystem: fsys,
+	}, nil
+}
+
+// ReadIndexHTML reads the index.html file from the embedded filesystem.
+func ReadIndexHTML() ([]byte, error) {
+	return WebUIFS.ReadFile("dist/index.html")
 }

@@ -73,6 +73,17 @@ func (c *AgiDestroyCmd) DestroyAGI(system *System, inventory *backends.Inventory
 		inventory = system.Backend.GetInventory()
 	}
 
+	instances := inventory.Instances
+
+	if !strings.Contains(c.Name.String(), ",") {
+		// single cluster, try to see if it exists, or otherwise go interactive
+		var err error
+		instances, err = c.Name.GetInstanceList(inventory)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Handle comma-separated names
 	names := strings.Split(c.Name.String(), ",")
 	var allInstances backends.InstanceList
@@ -84,7 +95,7 @@ func (c *AgiDestroyCmd) DestroyAGI(system *System, inventory *backends.Inventory
 		}
 
 		// Find AGI instance(s)
-		instances := inventory.Instances.WithTags(map[string]string{
+		instances := instances.WithTags(map[string]string{
 			"aerolab.type": "agi",
 		}).WithClusterName(name).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Describe()
 

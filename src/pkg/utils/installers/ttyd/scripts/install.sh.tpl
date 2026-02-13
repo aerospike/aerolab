@@ -1,5 +1,10 @@
 # shellcheck disable=SC2148
 
+# Retry helper: try once, sleep 1s, retry once
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 DEST_PATH="{{.DestPath}}"
 DOWNLOAD_URL_ARM64="{{.DownloadURLARM64}}"
 DOWNLOAD_URL_AMD64="{{.DownloadURLAMD64}}"
@@ -13,7 +18,7 @@ fi
 
 set -e
 echo "Installing ttyd from ${DOWNLOAD_URL}..."
-curl -L -o "${DEST_PATH}" "${DOWNLOAD_URL}"
+retry_cmd curl -L -o "${DEST_PATH}" "${DOWNLOAD_URL}"
 chmod 0755 "${DEST_PATH}"
 
 # Create systemd service file

@@ -22,6 +22,7 @@ type Config struct {
 	AerolabVersion   string              `yaml:"aerolabVersion" json:"aerolabVersion"`
 	ListAllProjects  bool                `yaml:"listAllProjects" json:"listAllProjects"`
 	CustomSSHKeyPath string              `yaml:"customSSHKeyPath" json:"customSSHKeyPath"`
+	PollInterval     time.Duration       `yaml:"pollInterval" json:"pollInterval"` // interval for periodic inventory refresh; 0 or unset defaults to time.Hour
 }
 
 type cacheMetadata struct {
@@ -90,9 +91,13 @@ func (b *backend) ListAvailableZones(backendType BackendType) (zones []string, e
 
 func (b *backend) pollTimer() {
 	log := b.log.WithPrefix("pollTimer")
+	interval := b.config.PollInterval
+	if interval <= 0 {
+		interval = time.Hour
+	}
 	for {
-		log.Debug("Sleeping for 1 hour")
-		sleepEnd := time.Now().Add(time.Hour)
+		log.Debug("Sleeping for %s", interval)
+		sleepEnd := time.Now().Add(interval)
 		for {
 			time.Sleep(time.Second)
 			if time.Now().After(sleepEnd) {

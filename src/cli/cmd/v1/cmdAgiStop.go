@@ -17,12 +17,14 @@ import (
 //
 //	aerolab agi stop -n myagi
 type AgiStopCmd struct {
-	Name    TypeAgiClusterName `short:"n" long:"name" description:"AGI instance name" default:"agi"`
-	Force   bool               `short:"f" long:"force" description:"Force stop without waiting for services"`
-	NoWait  bool               `short:"w" long:"no-wait" description:"Do not wait for the instance to stop"`
-	DryRun  bool               `short:"d" long:"dry-run" description:"Print what would be done but don't do it"`
-	Threads int                `short:"t" long:"threads" description:"Threads to use for service stop" default:"1"`
-	Help    HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name       TypeAgiClusterName `short:"n" long:"name" description:"AGI instance name" default:"agi"`
+	Force      bool               `short:"f" long:"force" description:"Force stop without waiting for services"`
+	NoWait     bool               `short:"w" long:"no-wait" description:"Do not wait for the instance to stop"`
+	DryRun     bool               `short:"d" long:"dry-run" description:"Print what would be done but don't do it"`
+	Threads    int                `short:"t" long:"threads" description:"Threads to use for service stop" default:"1"`
+	MaxRetries int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help       HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi stop.
@@ -83,7 +85,14 @@ func (c *AgiStopCmd) StopAGI(system *System, inventory *backends.Inventory, logg
 		if stopped.Count() > 0 {
 			return stopped, fmt.Errorf("AGI instance %s is already stopped", c.Name)
 		}
-		return nil, fmt.Errorf("AGI instance %s not found or not in running state", c.Name)
+		instancesx, err := c.Name.GetInstanceList(inventory, backends.LifeCycleStateStopped)
+		if err != nil {
+			return nil, err
+		}
+		if instancesx.Count() == 0 {
+			return nil, fmt.Errorf("Stopped AGI instance %s not found", c.Name)
+		}
+		instances = instancesx.Describe()
 	}
 
 	if c.DryRun {
@@ -108,6 +117,8 @@ sync
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.Threads,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 	}
 

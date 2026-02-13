@@ -10,6 +10,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -90,28 +91,27 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 	for _, client := range clients.Describe() {
 		conf, err := client.GetSftpConfig("root")
 		if err != nil {
-			logger.Warn("Failed to get SFTP config for %s:%d: %s", client.ClusterName, client.NodeNo, err)
-			continue
+			return nil, fmt.Errorf("failed to get SFTP config for %s:%d: %w", client.ClusterName, client.NodeNo, err)
 		}
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 
 		sftpClient, err := sshexec.NewSftp(conf)
 		if err != nil {
-			logger.Warn("Failed to create SFTP client for %s:%d: %s", client.ClusterName, client.NodeNo, err)
-			continue
+			return nil, fmt.Errorf("failed to create SFTP client for %s:%d: %w", client.ClusterName, client.NodeNo, err)
 		}
 
 		err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install-base.sh",
+			DestPath:    "/opt/aerolab/scripts/install-base.sh",
 			Source:      strings.NewReader(string(installScript)),
 			Permissions: 0755,
 		})
 		sftpClient.Close()
 		if err != nil {
-			logger.Warn("Failed to upload install script to %s:%d: %s", client.ClusterName, client.NodeNo, err)
-			continue
+			return nil, fmt.Errorf("failed to upload install script to %s:%d: %w", client.ClusterName, client.NodeNo, err)
 		}
 
-		// If debug level is selected, output to stdout/stderr and enable terminal mode
+		// If debug level is selected, output to stdout/stderr
 		var stdout, stderr *os.File
 		var stdin io.ReadCloser
 		terminal := false
@@ -121,8 +121,9 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 			stdin = io.NopCloser(os.Stdin)
 			terminal = true
 		}
+		scriptPath := "/opt/aerolab/scripts/install-base.sh"
 		execDetail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install-base.sh"},
+			Command:        []string{"bash", scriptPath},
 			SessionTimeout: 30 * time.Minute,
 			Terminal:       terminal,
 		}
@@ -136,12 +137,26 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 			ExecDetail:     execDetail,
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {
-			logger.Warn("Failed to run install script on %s:%d: %s", client.ClusterName, client.NodeNo, output.Output.Err)
-			logger.Warn("stdout: %s", output.Output.Stdout)
-			logger.Warn("stderr: %s", output.Output.Stderr)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				scriptPath,
+				installScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return nil, fmt.Errorf("failed to run install script on %s:%d: %w (also failed to save logs: %v)", client.ClusterName, client.NodeNo, output.Output.Err, saveErr)
+			}
+			return nil, fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 	}
 

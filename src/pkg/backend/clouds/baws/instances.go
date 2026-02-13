@@ -922,6 +922,8 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			Username:       e.Username,
 			PrivateKey:     nKey,
 			ConnectTimeout: e.ConnectTimeout,
+			MaxRetries:     e.MaxRetries,
+			RetrySleep:     e.RetrySleep,
 		}
 		execInput := &sshexec.ExecInput{
 			ClientConf: clientConf,
@@ -1848,8 +1850,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Key:   aws.String(TAG_NAME),
 			Value: aws.String(name),
 		})
-		// Create instance
-		runResult, err := cli.RunInstances(context.Background(), &ec2.RunInstancesInput{
+		// Create instance with capacity retry logic
+		var runResult *ec2.RunInstancesOutput
+		runInstancesInput := &ec2.RunInstancesInput{
 			ImageId:                           aws.String(backendSpecificParams.Image.ImageId),
 			InstanceType:                      types.InstanceType(backendSpecificParams.InstanceType),
 			MinCount:                          aws.Int32(1),
@@ -1877,9 +1880,40 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			},
 			BlockDeviceMappings: blockDeviceMappings,
 			UserData:            aws.String(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(string(userData), string(publicKeyBytes))))),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, err)
+		}
+
+		// Get retry configuration from input
+		retryCfg := input.RetryConfig
+		capacityRetries := retryCfg.CapacityRetries
+		capacityRetrySleep := retryCfg.CapacityRetrySleep
+		if capacityRetrySleep == 0 {
+			capacityRetrySleep = 60 * time.Second
+		}
+
+		var lastErr error
+		for attempt := 0; attempt <= capacityRetries; attempt++ {
+			runResult, err = cli.RunInstances(context.Background(), runInstancesInput)
+			if err == nil {
+				break
+			}
+			lastErr = err
+
+			// Check if this is a capacity error that should be retried
+			if backends.IsCapacityError(err) && attempt < capacityRetries {
+				log.Detail("Capacity error creating instance %d (attempt %d/%d): %v, retrying in %v...",
+					i+1, attempt+1, capacityRetries+1, err, capacityRetrySleep)
+				time.Sleep(capacityRetrySleep)
+				continue
+			}
+
+			// Not a capacity error or no more retries
+			break
+		}
+		if lastErr != nil && runResult == nil {
+			if backends.IsCapacityError(lastErr) {
+				return nil, backends.NewCapacityError(backends.BackendTypeAWS, "", fmt.Sprintf("failed to create instance %d after %d attempts due to capacity: %v", i+1, capacityRetries+1, lastErr), lastErr)
+			}
+			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, lastErr)
 		}
 
 		runResults = append(runResults, runResult.Instances[0])

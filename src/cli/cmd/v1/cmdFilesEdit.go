@@ -16,6 +16,8 @@ type FilesEditCmd struct {
 	Node        TypeNode        `short:"l" long:"node" description:"Node number" default:"1"`
 	Editor      string          `short:"e" long:"editor" description:"Editor command; must be present on the node" default:"vi"`
 	Path        FilesSingleCmd  `positional-args:"true"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -57,6 +59,11 @@ func (c *FilesEditCmd) Edit(system *System, inventory *backends.Inventory, args 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists
+	_, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	instances := inventory.Instances.WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
@@ -84,6 +91,8 @@ func (c *FilesEditCmd) Edit(system *System, inventory *backends.Inventory, args 
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 	return out[0].Output.Err
 }

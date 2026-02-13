@@ -19,6 +19,33 @@ type Sftp struct {
 }
 
 func NewSftp(i *ClientConf) (*Sftp, error) {
+	maxRetries := i.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	retrySleep := i.RetrySleep
+	if retrySleep <= 0 {
+		retrySleep = 5 * time.Second
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		o, err := newSftpInternal(i)
+		if err == nil {
+			return o, nil
+		}
+		lastErr = err
+		if attempt < maxRetries {
+			time.Sleep(retrySleep)
+		}
+	}
+	if maxRetries > 0 {
+		return &Sftp{ClientConf: *i}, fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+	}
+	return &Sftp{ClientConf: *i}, lastErr
+}
+
+func newSftpInternal(i *ClientConf) (*Sftp, error) {
 	o := &Sftp{
 		ClientConf: *i,
 	}
@@ -108,6 +135,33 @@ func (i *Sftp) Mkdir(path string, perm os.FileMode) error {
 // write a file to remote
 // if mkdir is set, will check if directory exists; if it doesn't, one will be created
 func (i *Sftp) WriteFile(mkdir bool, f *FileWriter) error {
+	maxRetries := i.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	retrySleep := i.RetrySleep
+	if retrySleep <= 0 {
+		retrySleep = 5 * time.Second
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		err := i.writeFileInternal(mkdir, f)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt < maxRetries {
+			time.Sleep(retrySleep)
+		}
+	}
+	if maxRetries > 0 {
+		return fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+	}
+	return lastErr
+}
+
+func (i *Sftp) writeFileInternal(mkdir bool, f *FileWriter) error {
 	if mkdir {
 		dir, _ := path.Split(f.DestPath)
 		if _, err := i.client.Stat(dir); err != nil && os.IsNotExist(err) {
@@ -137,16 +191,40 @@ func (i *Sftp) WriteFile(mkdir bool, f *FileWriter) error {
 
 // read a file from remote
 func (i *Sftp) ReadFile(f *FileReader) error {
+	maxRetries := i.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	retrySleep := i.RetrySleep
+	if retrySleep <= 0 {
+		retrySleep = 5 * time.Second
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		err := i.readFileInternal(f)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt < maxRetries {
+			time.Sleep(retrySleep)
+		}
+	}
+	if maxRetries > 0 {
+		return fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastErr)
+	}
+	return lastErr
+}
+
+func (i *Sftp) readFileInternal(f *FileReader) error {
 	fh, err := i.client.Open(f.SourcePath)
 	if err != nil {
 		return err
 	}
 	defer fh.Close()
 	_, err = fh.WriteTo(f.Destination)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // upload files recursively to remote

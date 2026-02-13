@@ -90,7 +90,9 @@
         "iam:GetPolicy",
         "iam:CreatePolicy",
         "iam:DeletePolicy",
-        "iam:ListPolicyVersions"
+        "iam:ListPolicyVersions",
+        "iam:ListRolePolicies",
+        "iam:DeletePolicyVersion"
       ],
       "Effect": "Allow",
       "Resource": [
@@ -111,6 +113,43 @@
       "Resource": [
         "arn:aws:iam::%s:role/*"
       ]
+    },
+    {
+      "Sid": "AllowLambdaToListOIDCProviders",
+      "Action": [
+        "iam:ListOpenIDConnectProviders"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaEksStackCleanupIam",
+      "Action": [
+        "iam:DetachRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:DeleteRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:ListPolicyVersions",
+        "iam:GetPolicy"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaEksLogCleanup",
+      "Action": [
+        "logs:DeleteLogGroup",
+        "logs:DescribeLogGroups"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
     },
     {
       "Sid": "AllowLambdaToCreateServiceLinkedRole",

@@ -27,6 +27,8 @@ type AgiStatusCmd struct {
 	Output     string             `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq)" default:"table"`
 	TableTheme string             `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	Pager      bool               `short:"p" long:"pager" description:"Use a pager to display the output"`
+	MaxRetries int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help       HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -204,7 +206,7 @@ echo "SERVICES_START"
 for svc in $services; do
     # Try systemctl is-active first (works on AWS/GCP)
     status=$(systemctl is-active "$svc" 2>/dev/null || true)
-    if [ -n "$status" ] && [ "$status" != "Unknown command" ]; then
+    if [ -n "$status" ] && [[ "$status" != "Unknown command"* ]]; then
         echo "$svc:$status"
     else
         # Fallback for Docker: parse systemctl status output
@@ -253,6 +255,8 @@ echo "INGEST_END"
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {

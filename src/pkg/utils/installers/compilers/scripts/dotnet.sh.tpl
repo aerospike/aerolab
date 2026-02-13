@@ -1,6 +1,11 @@
 #!/bin/bash
 # shellcheck source=/dev/null
 
+# Retry helper: try once, sleep 1s, retry once
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 DOTNET_VERSION="{{.DotnetVersion}}" #ex: 9.0
 
 # Check if Ubuntu or Debian
@@ -20,7 +25,7 @@ if [ -f /etc/os-release ]; then
             ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
         fi
         apt update && DEBIAN_FRONTEND=noninteractive apt -y install curl
-        curl -L -o /tmp/packages-microsoft-prod.deb https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
+        retry_cmd curl -L -o /tmp/packages-microsoft-prod.deb https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
         dpkg -i /tmp/packages-microsoft-prod.deb
         apt-get update
         DEBIAN_FRONTEND=noninteractive apt-get -y install dotnet-sdk-$DOTNET_VERSION aspnetcore-runtime-$DOTNET_VERSION dotnet-runtime-$DOTNET_VERSION

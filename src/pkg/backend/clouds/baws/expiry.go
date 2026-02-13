@@ -159,6 +159,8 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 					if !esys.InstallationSuccess || esysVersion < expiryVersion {
 						delZones = append(delZones, zone)
 						newZones = append(newZones, zone)
+					} else {
+						log.Warn("Not installing, already installed in %s (version %s)", zone, strings.Trim(esys.Version, "\n \t\r"))
 					}
 					break
 				}
@@ -176,6 +178,8 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		if err != nil {
 			return err
 		}
+		log.Detail("Sleeping for 60 seconds to allow previous expiry systems to be removed")
+		time.Sleep(60 * time.Second)
 	}
 	log.Detail("Installing new expiry systems in zones: " + strings.Join(zones, ", "))
 

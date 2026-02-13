@@ -46,9 +46,24 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		return Error(err, system, []string{"config", "backend"}, c, args)
 	}
 
-	// if we are not forcing --aws-nopublic-ip, set AWSNoPublicIps to false
-	if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
-		c.AWSNoPublicIps = false
+	// Determine which parameters were explicitly provided.
+	// In WebUI subprocess mode, params come via JSON and their keys are tracked
+	// in the AEROLAB_WEBUI_EXEC_PARAMS env var. In CLI mode, check os.Args.
+	webParamsRaw, isWebExecMode := os.LookupEnv("AEROLAB_WEBUI_EXEC_PARAMS")
+	var webParams []string
+	if isWebExecMode && webParamsRaw != "" {
+		webParams = strings.Split(webParamsRaw, ",")
+	}
+
+	// Clear aws-nopublic-ip unless explicitly provided
+	if isWebExecMode {
+		if !slices.Contains(webParams, "aws-nopublic-ip") {
+			c.AWSNoPublicIps = false
+		}
+	} else {
+		if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
+			c.AWSNoPublicIps = false
+		}
 	}
 
 	if c.Type == "gcp" && c.Project == "" {
@@ -64,12 +79,21 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	}
 
 	// check if we are setting the backend type
-	for _, i := range os.Args {
-		if inslice.HasString([]string{"-t", "--type"}, i) || strings.HasPrefix(i, "--type=") {
+	if isWebExecMode {
+		if slices.Contains(webParams, "type") {
 			c.typeSet = "yes"
 		}
-		if inslice.HasString([]string{"-r", "--region"}, i) || strings.HasPrefix(i, "--region=") {
+		if slices.Contains(webParams, "region") {
 			c.regionSet = "yes"
+		}
+	} else {
+		for _, i := range os.Args {
+			if inslice.HasString([]string{"-t", "--type"}, i) || strings.HasPrefix(i, "--type=") {
+				c.typeSet = "yes"
+			}
+			if inslice.HasString([]string{"-r", "--region"}, i) || strings.HasPrefix(i, "--region=") {
+				c.regionSet = "yes"
+			}
 		}
 	}
 
@@ -179,30 +203,70 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	}
 
 	// handle bools - sticky flags
-	if !slices.Contains(os.Args, "--check-access") {
-		c.CheckAccess = false
-	}
-	if !slices.Contains(os.Args, "--inventory-cache") {
-		c.InventoryCache = false
-	}
-	if !slices.Contains(os.Args, "--aws-nopublic-ip") {
-		c.AWSNoPublicIps = false
-	}
-	if !slices.Contains(os.Args, "--gcp-no-browser") && !slices.Contains(os.Args, "-b") {
-		c.GCPNoBrowser = false
+	// Clear bools that weren't explicitly provided (prevents saved config values
+	// from being treated as user input). In WebUI mode, check the env var;
+	// in CLI mode, check os.Args.
+	webParamsRaw, isWebExecMode := os.LookupEnv("AEROLAB_WEBUI_EXEC_PARAMS")
+	if isWebExecMode {
+		var webParams []string
+		if webParamsRaw != "" {
+			webParams = strings.Split(webParamsRaw, ",")
+		}
+		if !slices.Contains(webParams, "check-access") {
+			c.CheckAccess = false
+		}
+		if !slices.Contains(webParams, "inventory-cache") {
+			c.InventoryCache = false
+		}
+		if !slices.Contains(webParams, "aws-nopublic-ip") {
+			c.AWSNoPublicIps = false
+		}
+		if !slices.Contains(webParams, "gcp-no-browser") {
+			c.GCPNoBrowser = false
+		}
+	} else {
+		if !slices.Contains(os.Args, "--check-access") {
+			c.CheckAccess = false
+		}
+		if !slices.Contains(os.Args, "--inventory-cache") {
+			c.InventoryCache = false
+		}
+		if !slices.Contains(os.Args, "--aws-nopublic-ip") {
+			c.AWSNoPublicIps = false
+		}
+		if !slices.Contains(os.Args, "--gcp-no-browser") && !slices.Contains(os.Args, "-b") {
+			c.GCPNoBrowser = false
+		}
 	}
 
 	// force (re)initialize the backend
 	system.Opts.Config.Backend = *c
 
+	// Save config FIRST so that even if backend initialization fails the user
+	// is not stuck in a deadlock with a broken saved config.
+	err := writeConfigFile(system)
+	if err != nil {
+		log.Printf("ERROR: Could not save config file: %s", err)
+	}
+
 	// Skip backend initialization for "none" type
 	if c.Type == "none" {
 		system.Logger.Info("Backend type set to 'none' - no backend will be initialized")
-		err := writeConfigFile(system)
-		if err != nil {
-			log.Printf("ERROR: Could not save file: %s", err)
-		}
 		return nil
+	}
+
+	// Clear stale region state for the target backend. A previous (possibly
+	// buggy) run may have written regions from another backend type into this
+	// backend's regions.json. Since we are about to reconfigure regions from
+	// scratch, remove the file so backend.New doesn't try to poll stale regions.
+	rootDir, rootErr := AerolabRootDir()
+	if rootErr == nil {
+		project := os.Getenv("AEROLAB_PROJECT")
+		if project == "" {
+			project = "default"
+		}
+		staleRegionsFile := path.Join(rootDir, "projects", project, "config", c.Type, "regions.json")
+		os.Remove(staleRegionsFile) // best-effort; ignore errors
 	}
 
 	system.Logger.Info("Initializing backend")
@@ -216,16 +280,12 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		GCPClientID:         c.GCPClientID,
 		GCPClientSecret:     c.GCPClientSecret,
 	}
-	err := system.GetBackend(false)
+	err = system.GetBackend(false)
 	if err != nil {
 		return err
 	}
 
 	system.Logger.Info("Backend initialized")
-	err = writeConfigFile(system)
-	if err != nil {
-		log.Printf("ERROR: Could not save file: %s", err)
-	}
 	UpdateDiskCacheNow(system)
 	return nil
 }

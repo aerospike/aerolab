@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
@@ -22,6 +23,8 @@ type FilesDownloadCmd struct {
 	Nodes           TypeNodes            `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	ParallelThreads int                  `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"10"`
 	Progress        bool                 `short:"p" long:"progress" description:"Show download progress with TUI display"`
+	MaxRetries      int                  `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration        `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Files           FilesRestDownloadCmd `positional-args:"true"`
 	Help            HelpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -64,6 +67,11 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists
+	_, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return err
+	}
 	instances := inventory.Instances.WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
@@ -104,6 +112,8 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 
 	downloads := make([]downloadItem, len(confs))
 	for i, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		downloads[i] = downloadItem{
 			conf:     conf,
 			instance: instances.Describe()[i],

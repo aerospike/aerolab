@@ -24,6 +24,8 @@ type RosterApplyCmd struct {
 	NoRecluster bool            `short:"c" long:"no-recluster" description:"if set, will not apply recluster command after roster-set"`
 	Quiet       bool            `long:"quiet" description:"Do not print the roster after applying"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -74,21 +76,30 @@ func (c *RosterApplyCmd) ApplyRoster(system *System, inventory *backends.Invento
 	if c.ClusterName.String() == "" {
 		return fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		// Pre-validation loop - check ALL clusters exist before processing any
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		// Processing loop - actually perform the operation
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			err := c.ApplyRoster(system, inventory, logger, args, action)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get node numbers
@@ -288,9 +299,6 @@ func (c *RosterApplyCmd) findNodesOnInstance(instance *backends.Instance, logger
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        []string{"asinfo", "-v", "roster:namespace=" + c.Namespace},
-			Stdin:          nil,
-			Stdout:         nil,
-			Stderr:         nil,
 			SessionTimeout: time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -298,6 +306,8 @@ func (c *RosterApplyCmd) findNodesOnInstance(instance *backends.Instance, logger
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
@@ -315,6 +325,8 @@ func (c *RosterApplyCmd) findNodesOnInstance(instance *backends.Instance, logger
 	rf := 0
 	conf, err := instance.GetSftpConfig("root")
 	if err == nil {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		client, err := sshexec.NewSftp(conf)
 		if err == nil {
 			defer client.Close()
@@ -391,9 +403,6 @@ func (c *RosterApplyCmd) applyRosterToNode(instance *backends.Instance, rosterCm
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        rosterCmd,
-			Stdin:          nil,
-			Stdout:         nil,
-			Stderr:         nil,
 			SessionTimeout: time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -401,6 +410,8 @@ func (c *RosterApplyCmd) applyRosterToNode(instance *backends.Instance, rosterCm
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	stdout := string(output.Output.Stdout)
@@ -460,9 +471,6 @@ func (c *RosterApplyCmd) applyReclusterToNode(instance *backends.Instance, reclu
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        reclusterCmd,
-			Stdin:          nil,
-			Stdout:         nil,
-			Stderr:         nil,
 			SessionTimeout: time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -470,6 +478,8 @@ func (c *RosterApplyCmd) applyReclusterToNode(instance *backends.Instance, reclu
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	stdout := string(output.Output.Stdout)

@@ -19,11 +19,13 @@ import (
 )
 
 type NetListCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
-	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
-	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum" default:"Source:asc,Destination:asc,Port:asc"`
-	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
-	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Output     string        `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
+	TableTheme string        `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
+	SortBy     []string      `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum" default:"Source:asc,Destination:asc,Port:asc"`
+	Pager      bool          `short:"p" long:"pager" description:"Use a pager to display the output"`
+	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help       HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type netRule struct {
@@ -91,6 +93,8 @@ func (c *NetListCmd) listRules(system *System, inventory *backends.Inventory, lo
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if output.Output.Err == nil {
@@ -109,6 +113,8 @@ func (c *NetListCmd) listRules(system *System, inventory *backends.Inventory, lo
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if output.Output.Err == nil {

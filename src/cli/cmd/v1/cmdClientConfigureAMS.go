@@ -7,6 +7,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -15,6 +16,8 @@ type ClientConfigureAMSCmd struct {
 	Machines        TypeMachines    `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" description:"Comma-separated list of clusters to configure as source for this AMS"`
 	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"Comma-separated list of (graph) clients to configure as source for this AMS"`
+	MaxRetries      int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -53,6 +56,10 @@ func (c *ClientConfigureAMSCmd) configureAMS(system *System, inventory *backends
 	}
 
 	// Get client instances (AMS instances to configure)
+	_, err := c.ClientName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	clients, err := getClientInstancesHelper(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {
 		return err
@@ -122,11 +129,27 @@ func (c *ClientConfigureAMSCmd) configureAMS(system *System, inventory *backends
 				},
 				Username:       "root",
 				ConnectTimeout: 30 * time.Second,
+				MaxRetries:     c.MaxRetries,
+				RetrySleep:     c.RetrySleep,
 			})
 
 			if output.Output.Err != nil {
-				return fmt.Errorf("failed to configure prometheus on %s:%d: %w (stdout: %s, stderr: %s)",
-					client.ClusterName, client.NodeNo, output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+				// Save script failure to local machine for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					client.ClusterName,
+					client.NodeNo,
+					"configure-prometheus.sh",
+					[]byte(fullCmd),
+					output.Output.Stdout,
+					output.Output.Stderr,
+					output.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					return fmt.Errorf("failed to configure prometheus on %s:%d: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)",
+						client.ClusterName, client.NodeNo, output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+				}
+				return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 			}
 		}
 
@@ -139,6 +162,8 @@ func (c *ClientConfigureAMSCmd) configureAMS(system *System, inventory *backends
 			},
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {

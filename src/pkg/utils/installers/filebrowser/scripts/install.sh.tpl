@@ -1,5 +1,10 @@
 # shellcheck disable=SC2148
 
+# Retry helper: try once, sleep 1s, retry once
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 DEST_PATH="{{.DestPath}}"
 DOWNLOAD_URL_ARM64="{{.DownloadURLARM64}}"
 DOWNLOAD_URL_AMD64="{{.DownloadURLAMD64}}"
@@ -16,7 +21,7 @@ fi
 set -e
 echo "Installing filebrowser from ${DOWNLOAD_URL}..."
 pushd /tmp
-curl -L -o filebrowser-linux-${ARCH}.tar.gz "${DOWNLOAD_URL}"
+retry_cmd curl -L -o filebrowser-linux-${ARCH}.tar.gz "${DOWNLOAD_URL}"
 tar -zxvf filebrowser-linux-${ARCH}.tar.gz filebrowser
 mv filebrowser "${DEST_PATH}"
 chmod 0755 "${DEST_PATH}"

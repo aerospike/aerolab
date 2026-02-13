@@ -28,6 +28,8 @@ type AgiAddTokenCmd struct {
 	Open        bool               `short:"o" long:"open" description:"Open the AGI URL in the default browser (implies --url)"`
 	Remove      bool               `short:"r" long:"remove" description:"Remove the token instead of adding it"`
 	List        bool               `short:"l" long:"list" description:"List all tokens for the AGI instance"`
+	MaxRetries  int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -79,10 +81,15 @@ func (c *AgiAddTokenCmd) AddToken(system *System, inventory *backends.Inventory,
 		return fmt.Errorf("minimum token size is 64 characters")
 	}
 
+	cluster, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
+
 	// Get AGI instance
-	instance := inventory.Instances.WithClusterName(string(c.ClusterName)).WithState(backends.LifeCycleStateRunning)
+	instance := cluster.WithState(backends.LifeCycleStateRunning)
 	if instance.Count() == 0 {
-		return fmt.Errorf("AGI instance %s not found or not running", c.ClusterName)
+		return fmt.Errorf("AGI instance %s not running", c.ClusterName)
 	}
 
 	inst := instance.Describe()[0]
@@ -130,6 +137,8 @@ func (c *AgiAddTokenCmd) AddToken(system *System, inventory *backends.Inventory,
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return fmt.Errorf("could not create SFTP client: %w", err)
@@ -160,6 +169,8 @@ func (c *AgiAddTokenCmd) AddToken(system *System, inventory *backends.Inventory,
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	for _, o := range outputs {
@@ -201,6 +212,8 @@ func (c *AgiAddTokenCmd) listTokens(inst *backends.Instance, logger *logger.Logg
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if len(outputs) > 0 {
@@ -229,6 +242,8 @@ func (c *AgiAddTokenCmd) removeToken(inst *backends.Instance, logger *logger.Log
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	for _, o := range outputs {
@@ -246,6 +261,8 @@ func (c *AgiAddTokenCmd) removeToken(inst *backends.Instance, logger *logger.Log
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	logger.Info("Token %s removed", c.TokenName)

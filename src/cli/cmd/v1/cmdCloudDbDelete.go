@@ -15,7 +15,7 @@ import (
 type CloudClustersDeleteCmd struct {
 	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	ClusterID string  `short:"c" long:"cluster-id" description:"Cluster ID"`
-	Wait      bool    `short:"w" long:"wait" description:"Wait until cluster status is decommissioned"`
+	NoWait    bool    `short:"n" long:"no-wait" description:"Do not wait until cluster status is decommissioned"`
 	Force     bool    `short:"f" long:"force" description:"Skip confirmation prompt"`
 }
 
@@ -68,7 +68,7 @@ func (c *CloudClustersDeleteCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	if c.Wait {
+	if !c.NoWait {
 		err = c.waitForClusterDecommissioned(client, c.ClusterID)
 		if err != nil {
 			return Error(err, system, cmd, c, args)

@@ -21,6 +21,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/installers/filebrowser"
 	"github.com/aerospike/aerolab/pkg/utils/installers/grafana"
 	"github.com/aerospike/aerolab/pkg/utils/installers/ttyd"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/go-flags"
@@ -54,6 +55,8 @@ type AgiTemplateCreateCmd struct {
 	DisablePublicIP  bool           `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
 	AerolabBinary    flags.Filename `short:"b" long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
 	WithEFS          bool           `short:"e" long:"with-efs" description:"AWS: Pre-install EFS utilities in template for faster AGI creation"`
+	MaxRetries       int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help             HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -175,9 +178,9 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		case "ubuntu":
 			versionList = []string{"24.04", "22.04", "20.04", "18.04"}
 		case "centos":
-			versionList = []string{"9", "8", "7"}
+			versionList = []string{"10", "9", "8", "7"}
 		case "rocky":
-			versionList = []string{"9", "8"}
+			versionList = []string{"10", "9", "8"}
 		case "debian":
 			versionList = []string{"13", "12", "11", "10", "9", "8"}
 		case "amazon":
@@ -312,7 +315,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			ImageID:            "",
 			Expire:             time.Duration(c.Timeout) * time.Minute,
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
-			InstanceType:       awsInstanceType,
+			InstanceType:       guiInstanceType(awsInstanceType),
 			Disks:              []string{"type=gp2,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
@@ -323,8 +326,8 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		GCP: InstancesCreateCmdGcp{
 			ImageName:          "",
 			Expire:             time.Duration(c.Timeout) * time.Minute,
-			Zone:               system.Opts.Config.Backend.Region + "-a",
-			InstanceType:       gcpInstanceType,
+			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
+			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
@@ -461,13 +464,15 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 	}
 
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		logger.Info("Uploading install script to instance %s", conf.Host)
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return "", fmt.Errorf("could not create sftp client: %w", err)
 		}
 		err = cli.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/agi-install.sh",
+			DestPath:    "/opt/aerolab/scripts/agi-install.sh",
 			Source:      bytes.NewReader(installScript),
 			Permissions: 0755,
 		})
@@ -521,7 +526,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		}
 
 		execDetail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/agi-install.sh"},
+			Command:        []string{"bash", "/opt/aerolab/scripts/agi-install.sh"},
 			Terminal:       terminal,
 			SessionTimeout: time.Duration(c.Timeout) * time.Minute,
 			Env:            env,
@@ -536,11 +541,14 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			execDetail.Stderr = stderr
 		}
 
+		scriptPath := "/opt/aerolab/scripts/agi-install.sh"
 		outputs := inst.Exec(&backends.ExecInput{
 			ExecDetail:      execDetail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if len(outputs) == 0 {
 			return "", fmt.Errorf("no output from install script")
@@ -550,7 +558,21 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 				if strings.Contains(o.Output.Err.Error(), "interrupted") {
 					return "", fmt.Errorf("installation interrupted by user")
 				}
-				return "", fmt.Errorf("error running install script: %s\n%s\n%s", o.Output.Err, string(o.Output.Stdout), string(o.Output.Stderr))
+				// Save script failure to local machine for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					instName,
+					1,
+					scriptPath,
+					installScript,
+					o.Output.Stdout,
+					o.Output.Stderr,
+					o.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					return "", fmt.Errorf("error running install script: %s\n%s\n%s (also failed to save logs: %v)", o.Output.Err, string(o.Output.Stdout), string(o.Output.Stderr), saveErr)
+				}
+				return "", fmt.Errorf("%s", scriptlog.FormatError(logPath, instName, 1, o.Output.Err))
 			}
 		}
 	}

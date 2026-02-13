@@ -4,8 +4,13 @@ ENABLE_VSCODE="{{.EnableVSCode}}"
 START_VSCODE="{{.StartVSCode}}"
 PATCH_EXTENSIONS="{{.PatchExtensions}}"
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 set -e
-curl -fsSL https://code-server.dev/install.sh | sh
+retry_cmd curl -fsSL https://code-server.dev/install.sh | sh
 
 cat <<'EOF' > "/etc/systemd/system/vscode.service"
 [Unit]

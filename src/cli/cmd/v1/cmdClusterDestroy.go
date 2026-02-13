@@ -55,9 +55,16 @@ func (c *ClusterDestroyCmd) DestroyCluster(system *System, inventory *backends.I
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
+	var err error
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			inst, err := c.DestroyCluster(system, inventory, logger, args, action)
@@ -67,10 +74,11 @@ func (c *ClusterDestroyCmd) DestroyCluster(system *System, inventory *backends.I
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		cluster, err = c.ClusterName.GetInstanceList(inventory)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -133,6 +141,6 @@ func (c *ClusterDestroyCmd) DestroyCluster(system *System, inventory *backends.I
 		}
 	}
 	logger.Info("Destroying %d nodes", cluster.Count())
-	err := cluster.Terminate(10 * time.Minute)
+	err = cluster.Terminate(10 * time.Minute)
 	return cluster.Describe(), err
 }

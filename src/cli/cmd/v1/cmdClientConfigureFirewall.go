@@ -49,8 +49,16 @@ func (c *ClientConfigureFirewallCmd) configureFirewall(system *System, inventory
 	}
 
 	// Support comma-separated client names
+	var clients backends.Instances
 	if strings.Contains(c.ClientName.String(), ",") {
 		clientNames := strings.Split(c.ClientName.String(), ",")
+		// Pre-validation loop - check ALL clients exist before processing any
+		for _, clientName := range clientNames {
+			if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+				return fmt.Errorf("client group '%s' not found", clientName)
+			}
+		}
+		// Processing loop - actually perform the operation
 		for _, clientName := range clientNames {
 			c.ClientName = TypeClientName(clientName)
 			err := c.configureFirewall(system, inventory, logger, args)
@@ -59,12 +67,12 @@ func (c *ClientConfigureFirewallCmd) configureFirewall(system *System, inventory
 			}
 		}
 		return nil
-	}
-
-	// Get client instances
-	clients := inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(c.ClientName.String())
-	if clients == nil || clients.Count() == 0 {
-		return fmt.Errorf("client group '%s' not found", c.ClientName.String())
+	} else {
+		var err error
+		clients, err = c.ClientName.GetInstanceList(inventory)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Filter by specific machines if requested

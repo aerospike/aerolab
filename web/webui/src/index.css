@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: theme('colors.slate.50');
+  --color-surface: theme('colors.white');
+  --color-text: theme('colors.slate.900');
+  --color-text-muted: theme('colors.slate.600');
+  --color-border: theme('colors.slate.200');
+  --color-primary: theme('colors.blue.600');
+}
+
+.dark {
+  --color-bg: theme('colors.gray.900');
+  --color-surface: theme('colors.slate.800');
+  --color-text: theme('colors.slate.100');
+  --color-text-muted: theme('colors.slate.400');
+  --color-border: theme('colors.slate.700');
+  --color-primary: theme('colors.blue.500');
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 dark:bg-gray-900 text-slate-900 dark:text-slate-100 antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-100 dark:bg-slate-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-500;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+/* CLI syntax highlighting */
+.cli-token.cli-nv {
+  @apply text-cyan-400;
+}
+.cli-token.cli-na {
+  @apply text-amber-400;
+}
+.cli-token.cli-s {
+  @apply text-emerald-400;
+}
+.cli-token {
+  @apply pr-1;
+}

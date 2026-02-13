@@ -15,9 +15,11 @@ import (
 // The label is stored in /opt/agi/label and is also updated in instance tags.
 type AgiRelabelCmd struct {
 	ClusterName TypeAgiClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
-	NewLabel    string          `short:"l" long:"label" description:"New label for the AGI instance" required:"true"`
-	GcpZone     string          `short:"z" long:"zone" description:"GCP only: zone where the instance is"`
-	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	NewLabel    string             `short:"l" long:"label" description:"New label for the AGI instance" required:"true"`
+	GcpZone     string             `short:"z" long:"zone" description:"GCP only: zone where the instance is"`
+	MaxRetries  int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help        HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi change-label.
@@ -65,13 +67,25 @@ func (c *AgiRelabelCmd) Relabel(system *System, inventory *backends.Inventory, l
 
 	// Validate new label
 	if c.NewLabel == "" {
-		return fmt.Errorf("new label is required")
+		if IsInteractive() {
+			// ask user for new label
+			newLabel, err := AskForString("Enter new label")
+			if err != nil {
+				return err
+			}
+			if newLabel == "" {
+				return fmt.Errorf("new label is required")
+			}
+			c.NewLabel = newLabel
+		} else {
+			return fmt.Errorf("new label is required")
+		}
 	}
 
 	// Get AGI instance
-	instance := inventory.Instances.WithClusterName(string(c.ClusterName))
-	if instance.Count() == 0 {
-		return fmt.Errorf("AGI instance %s not found", c.ClusterName)
+	instance, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
 	}
 	inst := instance.Describe()[0]
 
@@ -101,6 +115,8 @@ func (c *AgiRelabelCmd) Relabel(system *System, inventory *backends.Inventory, l
 			logger.Warn("Could not get SFTP config to update label file: %s", err)
 		} else {
 			for _, conf := range confs {
+				conf.MaxRetries = c.MaxRetries
+				conf.RetrySleep = c.RetrySleep
 				cli, err := sshexec.NewSftp(conf)
 				if err != nil {
 					logger.Warn("Could not create SFTP client: %s", err)
@@ -128,6 +144,8 @@ func (c *AgiRelabelCmd) Relabel(system *System, inventory *backends.Inventory, l
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 	}
 
@@ -167,4 +185,3 @@ func (c *AgiRelabelCmd) updateGCPLabels(system *System, inst *backends.Instance,
 
 	return nil
 }
-

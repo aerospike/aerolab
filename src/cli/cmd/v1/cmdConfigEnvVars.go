@@ -60,6 +60,8 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		{Key: "AEROSPIKE_CLOUD_ENV", Value: getEnvValue("AEROSPIKE_CLOUD_ENV", false), Description: "Set to `dev` to use development environment for Aerospike Cloud API endpoints"},
 		{Key: "AEROSPIKE_CLOUD_KEY", Value: getEnvValue("AEROSPIKE_CLOUD_KEY", true), Description: "Set the API key for Aerospike Cloud API"},
 		{Key: "AEROSPIKE_CLOUD_SECRET", Value: getEnvValue("AEROSPIKE_CLOUD_SECRET", true), Description: "Set the API secret for Aerospike Cloud API"},
+		{Key: "AEROLAB_SIMPLE_MODE", Value: getEnvValue("AEROLAB_SIMPLE_MODE", false), Description: "Path to a simple mode config file that overrides which commands/parameters are visible in simple mode"},
+		{Key: "AEROLAB_FORCE_SIMPLE_MODE", Value: getEnvValue("AEROLAB_FORCE_SIMPLE_MODE", false), Description: "Set to 'true' to enforce simple mode: blocked commands cannot be run, blocked parameters cannot be changed from defaults"},
 	}
 
 	if c.Pager && page == nil {

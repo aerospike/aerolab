@@ -23,6 +23,8 @@ type ConfNamespaceMemoryCmd struct {
 	Namespace   string          `short:"m" long:"namespace" description:"Name of the namespace to adjust" default:"test"`
 	MemPct      int             `short:"r" long:"mem-pct" description:"The percentage of RAM to use for the namespace memory" default:"50"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -77,11 +79,17 @@ func (c *ConfNamespaceMemoryCmd) AdjustNamespaceMemory(system *System, inventory
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.AdjustNamespaceMemory(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -89,11 +97,12 @@ func (c *ConfNamespaceMemoryCmd) AdjustNamespaceMemory(system *System, inventory
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if c.Nodes.String() != "" {
@@ -153,6 +162,8 @@ func (c *ConfNamespaceMemoryCmd) processInstance(instance *backends.Instance, lo
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)
@@ -234,9 +245,6 @@ func (c *ConfNamespaceMemoryCmd) getSystemMemory(instance *backends.Instance) (i
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        []string{"free", "-b"},
-			Stdin:          nil,
-			Stdout:         nil,
-			Stderr:         nil,
 			SessionTimeout: time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -244,6 +252,8 @@ func (c *ConfNamespaceMemoryCmd) getSystemMemory(instance *backends.Instance) (i
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {

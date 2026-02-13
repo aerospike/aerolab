@@ -2,6 +2,36 @@
 
 AeroLab can be used as a Go library to programmatically create, manage, and operate Aerospike clusters across multiple cloud providers (AWS, GCP) and Docker.
 
+## Configuration Loading
+
+When you call `Initialize()`, the following configuration loading chain is applied automatically:
+
+1. **Environment variables** - Special AeroLab environment variables are respected (see [Environment Variables](#environment-variables))
+2. **Struct tag defaults** - All command parameters are initialized with their default values from struct tags
+3. **Config file defaults** - Values from the AeroLab config file (`~/.config/aerolab/conf`) overwrite the tag defaults
+
+After initialization, you can override any values you need before calling command functions.
+
+### Using Pre-filled Defaults
+
+The `system.Opts` struct contains all commands with defaults and config values already loaded:
+
+```go
+// RECOMMENDED: Use system.Opts to get pre-filled defaults
+createCmd := &system.Opts.Cluster.Create
+createCmd.ClusterName = "mycluster"  // Override only what you need
+createCmd.NodeCount = 3
+```
+
+If you create a new struct instance directly, it will NOT have the defaults or config values:
+
+```go
+// NOT RECOMMENDED: This struct has NO defaults loaded
+createCmd := &cmd.ClusterCreateCmd{}
+createCmd.ClusterName = "mycluster"
+// All other fields are zero values, not the configured defaults!
+```
+
 ## Import
 
 ```go
@@ -35,6 +65,7 @@ Controls the initialization behavior:
 | `UpgradeCheck` | `bool` | Check for available AeroLab upgrades |
 | `Backend` | `*InitBackend` | Backend-specific configuration overrides |
 | `ExistingInventory` | `*backends.Inventory` | Pass existing inventory to avoid re-fetching |
+| `SkipArgsParsing` | `bool` | Skip CLI argument parsing - set to `true` when using aerolab as a library |
 
 ### InitBackend
 
@@ -80,8 +111,9 @@ func main() {
 
     // 2. Initialize WITHOUT the backend first (to read existing config)
     system, err := cmd.Initialize(&cmd.Init{
-        InitBackend:  false,  // Important: false here
-        UpgradeCheck: false,
+        InitBackend:     false,  // Important: false here
+        UpgradeCheck:    false,
+        SkipArgsParsing: true,   // Skip CLI argument parsing (library use)
     }, nil, nil)
     if err != nil {
         panic(err)
@@ -139,10 +171,10 @@ func main() {
             inst.ClusterName, inst.NodeNo, inst.State, inst.PublicIP)
     }
 
-    // Example: Call a command function directly
-    listCmd := &cmd.InventoryListCmd{
-        Output: "json",
-    }
+    // Example: Call a command function directly using system.Opts (recommended)
+    // This preserves defaults and config file values
+    listCmd := &system.Opts.Inventory.List
+    listCmd.Output = "json"  // Override only what you need
     err = listCmd.InventoryList(system, []string{"inventory", "list"},
         []string{}, inventory, os.Stdout)
     if err != nil {
@@ -161,21 +193,23 @@ Each CLI command has two methods:
 Always call the internal function when using AeroLab as a library:
 
 ```go
-// Create a command struct with parameters
-createCmd := &cmd.ClusterCreateCmd{
-    // Set fields matching CLI flags
-}
+// RECOMMENDED: Use system.Opts to get a command with defaults already loaded
+createCmd := &system.Opts.Cluster.Create
+createCmd.ClusterName = "mycluster"  // Override only the fields you need
+createCmd.NodeCount = 3
 
 // Call the internal function, NOT Execute()
 err = createCmd.ClusterCreate(system, []string{"cluster", "create"}, []string{}, inventory)
 ```
+
+**Important:** If you create a new struct instance directly (e.g., `&cmd.ClusterCreateCmd{}`), it will have zero values for all fields instead of the configured defaults from struct tags and config file. Always use `system.Opts.X.Y` to get pre-filled defaults.
 
 ## Key Methods
 
 | Method | Description |
 |--------|-------------|
 | `cmd.AerolabRootDir()` | Get the AeroLab home directory path |
-| `cmd.Initialize(init, cmd, params, args...)` | Initialize the system |
+| `cmd.Initialize(init, cmd, params, args...)` | Initialize the system. For library use, set `init.SkipArgsParsing = true` |
 | `system.GetBackend(pollHourly)` | Initialize or reinitialize the backend |
 | `system.WriteConfigFile()` | Save current config to disk |
 | `system.Backend.GetInventory()` | Get the current inventory |
@@ -183,8 +217,12 @@ err = createCmd.ClusterCreate(system, []string{"cluster", "create"}, []string{},
 
 ## Environment Variables
 
+These environment variables are respected during initialization:
+
 | Variable | Description |
 |----------|-------------|
 | `AEROLAB_HOME` | Custom AeroLab home directory |
 | `AEROLAB_CONFIG_FILE` | Custom configuration file path |
 | `AEROLAB_LOG_LEVEL` | Log level: DEBUG, INFO, DETAIL, WARNING, ERROR, CRITICAL |
+| `AEROLAB_PROJECT` | Project name for multi-project setups (default: "default") |
+| `AEROLAB_DISABLE_UPGRADE_CHECK` | Set to any value to disable upgrade checks |

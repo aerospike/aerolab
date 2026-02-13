@@ -41,7 +41,7 @@ type VolumesCreateCmdAws struct {
 
 type VolumesCreateCmdGcp struct {
 	SizeGiB    int           `long:"size" description:"Size of the volume in GB"`
-	Zone       string        `long:"zone" description:"Zone of the volume"`
+	Zone       guiZone       `long:"zone" description:"Zone of the volume" webchoice:"method::List"`
 	DiskType   string        `long:"disk-type" description:"Type of disk to use"`
 	Iops       int           `long:"iops" description:"Iops of the volume"`
 	Throughput int           `long:"throughput" description:"Throughput of the volume"`
@@ -131,7 +131,7 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 		},
 		"gcp": &bgcp.CreateVolumeParams{
 			SizeGiB:    c.GCP.SizeGiB,
-			Placement:  c.GCP.Zone,
+			Placement:  string(c.GCP.Zone),
 			DiskType:   c.GCP.DiskType,
 			Iops:       c.GCP.Iops,
 			Throughput: c.GCP.Throughput,
@@ -213,8 +213,8 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 					volumeRegion = volumeRegion[:len(volumeRegion)-1]
 				}
 			}
-			if system.Opts.Config.Backend.Type == "gcp" {
-				volumeRegion = c.GCP.Zone
+		if system.Opts.Config.Backend.Type == "gcp" {
+			volumeRegion = string(c.GCP.Zone)
 				if strings.Count(volumeRegion, "-") == 2 {
 					volumeRegion = volumeRegion[:strings.LastIndex(volumeRegion, "-")]
 				}

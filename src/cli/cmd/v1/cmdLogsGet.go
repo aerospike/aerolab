@@ -28,6 +28,8 @@ type LogsGetCmd struct {
 	Force       bool            `short:"f" long:"force" description:"set to not be asked whether to override existing files" webdisable:"true" webset:"true"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
 	Tail        []string        `description:"Optionally, specify the command to execute to get the logs instead of log files/journalctl"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -65,11 +67,19 @@ func (c *LogsGetCmd) GetLogs(system *System, inventory *backends.Inventory, logg
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		// Pre-validation loop - check ALL clusters exist before processing any
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		// Processing loop - actually perform the operation
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.GetLogs(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -77,10 +87,12 @@ func (c *LogsGetCmd) GetLogs(system *System, inventory *backends.Inventory, logg
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -275,7 +287,6 @@ func (c *LogsGetCmd) getLogContent(instance *backends.Instance, logger *logger.L
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        command,
-			Stdin:          nil,
 			Stdout:         &buf,
 			Stderr:         &buf,
 			SessionTimeout: time.Minute,
@@ -285,6 +296,8 @@ func (c *LogsGetCmd) getLogContent(instance *backends.Instance, logger *logger.L
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	// Check for errors

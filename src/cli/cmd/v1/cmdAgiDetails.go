@@ -33,6 +33,8 @@ type AgiDetailsCmd struct {
 	Watch      bool               `short:"w" long:"watch" description:"Watch mode - continuously update the output"`
 	Interval   int                `short:"i" long:"interval" description:"Watch interval in seconds" default:"5"`
 	Pager      bool               `short:"p" long:"pager" description:"Use a pager to display the output"`
+	MaxRetries int                `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration      `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help       HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -152,23 +154,20 @@ func (c *AgiDetailsCmd) ShowDetails(system *System, inventory *backends.Inventor
 		inventory = system.Backend.GetInventory()
 	}
 
-	// Find AGI instance
-	instances := inventory.Instances.WithTags(map[string]string{
-		"aerolab.type": "agi",
-	}).WithClusterName(c.Name.String()).WithState(backends.LifeCycleStateRunning).Describe()
+	instances, err := c.Name.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 
-	if instances.Count() == 0 {
+	if instances.WithState(backends.LifeCycleStateRunning).Describe().Count() == 0 {
 		// Check if instance exists but not running
-		allInstances := inventory.Instances.WithTags(map[string]string{
-			"aerolab.type": "agi",
-		}).WithClusterName(c.Name.String()).Describe()
-		if allInstances.Count() > 0 {
-			return fmt.Errorf("AGI instance %s is not running (state: %s)", c.Name, allInstances[0].InstanceState.String())
+		if instances.Count() > 0 {
+			return fmt.Errorf("AGI instance %s is not running (state: %s)", c.Name, instances.Describe()[0].InstanceState.String())
 		}
 		return fmt.Errorf("AGI instance %s not found", c.Name)
 	}
 
-	inst := instances[0]
+	inst := instances.WithState(backends.LifeCycleStateRunning).Describe()[0]
 
 	// Build output
 	output := AgiDetailsOutput{
@@ -183,6 +182,8 @@ func (c *AgiDetailsCmd) ShowDetails(system *System, inventory *backends.Inventor
 		output.Steps.CriticalError = fmt.Sprintf("failed to get SFTP config: %v", err)
 		return c.renderOutput(system, output, out)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	cli, err := sshexec.NewSftp(conf)
 	if err != nil {

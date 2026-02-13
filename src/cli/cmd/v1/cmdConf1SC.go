@@ -25,6 +25,8 @@ type ConfSCCmd struct {
 	WithDisks   bool            `short:"d" long:"with-disks" description:"If set, will attempt to configure device storage engine for the namespace, using all available devices"`
 	Verbose     bool            `short:"v" long:"verbose" description:"Enable verbose logging"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -81,11 +83,17 @@ func (c *ConfSCCmd) ConfigureStrongConsistency(system *System, inventory *backen
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.ConfigureStrongConsistency(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -93,11 +101,12 @@ func (c *ConfSCCmd) ConfigureStrongConsistency(system *System, inventory *backen
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cluster = cluster.WithState(backends.LifeCycleStateRunning)
@@ -217,6 +226,8 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)
@@ -309,9 +320,6 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 				output := instance.Exec(&backends.ExecInput{
 					ExecDetail: sshexec.ExecDetail{
 						Command:        cmd,
-						Stdin:          nil,
-						Stdout:         nil,
-						Stderr:         nil,
 						SessionTimeout: time.Minute,
 						Env:            []*sshexec.Env{},
 						Terminal:       false,
@@ -319,6 +327,8 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 					Username:        "root",
 					ConnectTimeout:  30 * time.Second,
 					ParallelThreads: 1,
+					MaxRetries:      c.MaxRetries,
+					RetrySleep:      c.RetrySleep,
 				})
 				if output.Output.Err != nil {
 					logger.Warn("Failed to remove files on %s:%d: %s", instance.ClusterName, instance.NodeNo, output.Output.Err)

@@ -8,30 +8,15 @@ import (
 	flags "github.com/rglonek/go-flags"
 )
 
-// AgiMonitorListenCmd starts the monitor listener that handles AGI instance events.
-// The monitor provides auto-sizing, spot instance rotation, and notification forwarding.
-//
-// The monitor implements a challenge-response authentication system:
-//  1. AGI instance sends notification with secret to monitor
-//  2. Monitor calls back to AGI /agi/monitor-challenge endpoint
-//  3. Validates secret matches before processing event
-//
-// Supported events:
-//   - SPOT_INSTANCE_CAPACITY_SHUTDOWN: Rotate spot to on-demand
-//   - SYS_RESOURCE_USAGE_MONITOR: Check RAM/disk sizing
-//   - INGEST_STEP_*: Check sizing after processing steps
-//   - SERVICE_DOWN: Handle crashed services
-type AgiMonitorListenCmd struct {
-	// Server configuration
-	ListenAddress string `long:"address" description:"Address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`
-	NoTLS         bool   `long:"no-tls" description:"Disable TLS"`
-	StrictAGITLS  bool   `long:"strict-agi-tls" description:"If set, AGI-Monitor will expect AGI instances to have a valid TLS certificate"`
-
-	// TLS configuration
-	AutoCertDomains []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"`
-	AutoCertEmail   string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
-	CertFile        string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`
-	KeyFile         string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`
+// AgiMonitorConfigCmd contains all runtime configuration for the AGI monitor
+// logic — sizing thresholds, notifications, capacity rotation, etc. These
+// fields are relevant both when running the standalone listener (agi monitor
+// listen) and when the monitor is embedded inside the WebUI (webui
+// --agi-monitor-enable). Server/listener fields (address, TLS, autocert) live
+// in AgiMonitorListenCmd instead.
+type AgiMonitorConfigCmd struct {
+	// TLS verification for callbacks to AGI instances
+	StrictAGITLS bool `long:"strict-agi-tls" description:"If set, AGI-Monitor will expect AGI instances to have a valid TLS certificate"`
 
 	// Disk sizing thresholds (GCP)
 	GCPDiskThresholdPct int `long:"gcp-disk-thres-pct" description:"Usage threshold pct at which the disk will be increased" default:"80"`
@@ -70,6 +55,34 @@ type AgiMonitorListenCmd struct {
 	invLock  *sync.Mutex           `yaml:"-" json:"-"`
 	execLock *sync.Mutex           `yaml:"-" json:"-"`
 	notifier *notifier.HTTPSNotify `yaml:"-" json:"-"`
+}
+
+// AgiMonitorListenCmd starts the monitor listener that handles AGI instance events.
+// The monitor provides auto-sizing, spot instance rotation, and notification forwarding.
+//
+// The monitor implements a challenge-response authentication system:
+//  1. AGI instance sends notification with secret to monitor
+//  2. Monitor calls back to AGI /agi/monitor-challenge endpoint
+//  3. Validates secret matches before processing event
+//
+// Supported events:
+//   - SPOT_INSTANCE_CAPACITY_SHUTDOWN: Rotate spot to on-demand
+//   - SYS_RESOURCE_USAGE_MONITOR: Check RAM/disk sizing
+//   - INGEST_STEP_*: Check sizing after processing steps
+//   - SERVICE_DOWN: Handle crashed services
+type AgiMonitorListenCmd struct {
+	// Server configuration
+	ListenAddress string `long:"address" description:"Address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`
+	NoTLS         bool   `long:"no-tls" description:"Disable TLS"`
+
+	// TLS configuration
+	AutoCertDomains []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"`
+	AutoCertEmail   string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
+	CertFile        string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`
+	KeyFile         string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`
+
+	// Embed monitor config (sizing thresholds, notifications, etc.)
+	AgiMonitorConfigCmd
 
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -100,12 +113,16 @@ type AgiMonitorCreateCmd struct {
 	// GCP-specific options
 	GCP AgiMonitorCreateCmdGcp `group:"GCP" namespace:"gcp" description:"backend-gcp"`
 
+	// Retry configuration
+	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // AgiMonitorCreateCmdAws contains AWS-specific options for monitor creation.
 type AgiMonitorCreateCmdAws struct {
-	InstanceType      string        `long:"instance" description:"Instance type to use" default:"t3a.medium"`
+	InstanceType      guiInstanceType `long:"instance" description:"Instance type to use" default:"t3a.medium" webchoice:"method::List"`
 	SecurityGroupID   string        `short:"S" long:"secgroup-id" description:"Security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID          string        `short:"U" long:"subnet-id" description:"Subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
 	NamePrefix        []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
@@ -121,8 +138,8 @@ type AgiMonitorCreateCmdAws struct {
 
 // AgiMonitorCreateCmdGcp contains GCP-specific options for monitor creation.
 type AgiMonitorCreateCmdGcp struct {
-	InstanceType string        `long:"instance" description:"Instance type to use" default:"e2-medium"`
-	Zone         string        `long:"zone" description:"Zone name to deploy to" webrequired:"true"`
+	InstanceType guiInstanceType `long:"instance" description:"Instance type to use" default:"e2-medium" webchoice:"method::List"`
+	Zone         guiZone         `long:"zone" description:"Zone name to deploy to" webrequired:"true" webchoice:"method::List"`
 	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	InstanceRole string        `long:"role" description:"Instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 	Expires      time.Duration `long:"expire" description:"Instance expiry (0 for never)" default:"0"`

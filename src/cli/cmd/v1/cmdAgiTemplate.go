@@ -17,9 +17,9 @@ import (
 // AGI templates are pre-built images containing all required software
 // (aerospike, grafana, plugin, ingest, ttyd, filebrowser) for fast AGI instance creation.
 type AgiTemplateCmd struct {
-	Create  AgiTemplateCreateCmd  `command:"create" subcommands-optional:"true" description:"Create AGI template" webicon:"fas fa-plus"`
+	Create  AgiTemplateCreateCmd  `command:"create" subcommands-optional:"true" description:"Create AGI template" webicon:"fas fa-plus" invwebforce:"true"`
 	List    AgiTemplateListCmd    `command:"list" subcommands-optional:"true" description:"List AGI templates" webicon:"fas fa-list"`
-	Destroy AgiTemplateDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy AGI template" webicon:"fas fa-trash"`
+	Destroy AgiTemplateDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy AGI template" webicon:"fas fa-trash" invwebforce:"true"`
 	Vacuum  AgiTemplateVacuumCmd  `command:"vacuum" subcommands-optional:"true" description:"Clean dangling templates" webicon:"fas fa-broom"`
 	Help    HelpCmd               `command:"help" subcommands-optional:"true" description:"Print help"`
 }

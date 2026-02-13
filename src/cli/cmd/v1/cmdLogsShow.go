@@ -17,6 +17,8 @@ type LogsShowCmd struct {
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
 	Follow      bool            `short:"f" long:"follow" description:"Follow logs instead of displaying full log" webdisable:"true"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -50,11 +52,19 @@ func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, lo
 	if c.ClusterName.String() == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		// Pre-validation loop - check ALL clusters exist before processing any
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		// Processing loop - actually perform the operation
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.ShowLogs(system, inventory, logger, args, action)
 			if err != nil {
 				return nil, err
@@ -62,10 +72,12 @@ func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, lo
 			instances = append(instances, inst...)
 		}
 		return instances, nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Filter to specific node
@@ -113,6 +125,8 @@ func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	// Check for errors

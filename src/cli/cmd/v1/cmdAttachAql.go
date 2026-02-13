@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -60,12 +61,22 @@ func (c *AttachAqlCmd) AttachAql(system *System, inventory *backends.Inventory, 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
+	// Validate cluster exists (with interactive selection if not found)
+	_, err := c.ClusterName.GetInstanceList(inventory)
+	if err != nil {
+		return err
+	}
 	parallelThreads := c.ParallelThreads
 	if !c.Parallel {
 		parallelThreads = 1
 	}
 	if args == nil && c.Tail != nil {
 		args = c.Tail
+	}
+	// If non-interactive and no aql parameters specified, fail early - an interactive
+	// aql session cannot work without a terminal
+	if len(args) == 0 && !IsInteractive() {
+		return fmt.Errorf("interactive mode is disabled (AEROLAB_NONINTERACTIVE is set or no TTY detected); specify aql parameters using '-- <aql-parameters>' syntax")
 	}
 	node := c.Node.String()
 	if node == "all" {

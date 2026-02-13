@@ -3,6 +3,11 @@
 
 set -e
 
+# Retry helper function: tries command once, sleeps 1s, then retries once on failure
+retry_cmd() {
+    "$@" || { sleep 1; "$@"; }
+}
+
 # Parse arguments
 AWS_REGION=""
 AWS_KEY_ID=""
@@ -29,9 +34,9 @@ if ! command -v aws &> /dev/null; then
   echo "Installing AWS CLI..."
   ARCH=$(uname -m)
   if [ "$ARCH" = "x86_64" ]; then
-    curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+    retry_cmd curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
   elif [ "$ARCH" = "aarch64" ]; then
-    curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "/tmp/awscliv2.zip"
+    retry_cmd curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "/tmp/awscliv2.zip"
   else
     echo "Unsupported architecture: $ARCH" >&2
     exit 1
@@ -57,7 +62,7 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
   fi
   
-  curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${K8S_ARCH}/kubectl"
+  retry_cmd curl -sLO "https://dl.k8s.io/release/$(retry_cmd curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${K8S_ARCH}/kubectl"
   chmod +x kubectl
   mv kubectl /usr/local/bin/
 fi

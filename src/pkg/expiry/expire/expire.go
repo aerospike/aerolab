@@ -233,6 +233,17 @@ func (h *ExpiryHandler) expireEksctl(region string) error {
 		sort.Slice(stackList, func(i, j int) bool {
 			return stackList[j].CreationTime.Before(stackList[i].CreationTime) // reverse sort since we want to delete in reverse order
 		})
+		// turn off deletion protection for all stacks before attempting deletion
+		for _, stack := range stackList {
+			log.Printf("EKS: Disabling termination protection on stack %s", stack.Name)
+			_, err = cfSvc.UpdateTerminationProtection(context.TODO(), &cloudformation.UpdateTerminationProtectionInput{
+				StackName:                  aws.String(stack.Name),
+				EnableTerminationProtection: aws.Bool(false),
+			})
+			if err != nil {
+				log.Printf("EKS: Warning: could not disable termination protection on stack %s: %s", stack.Name, err)
+			}
+		}
 		for _, stack := range stackList {
 			if stack.Name == "eksctl-"+aws.ToString(eksCluster.Cluster.Name)+"-cluster" {
 				log.Print("EKS: Listing EBS Volumes")
@@ -252,6 +263,17 @@ func (h *ExpiryHandler) expireEksctl(region string) error {
 				}
 				log.Printf("EKS: Deleting %d EBS volumes created using the ebs-csi driver (tag:KubernetesCluster={CLUSTERNAME} tag:kubernetes.io/cluster/{CLUSTERNAME}=owned)", len(delvols.Volumes))
 				for _, delvol := range delvols.Volumes {
+					doNotExpire := false
+					for _, tag := range delvol.Tags {
+						if aws.ToString(tag.Key) == "aerolab/do-not-expire" {
+							doNotExpire = true
+							break
+						}
+					}
+					if doNotExpire {
+						log.Printf("Skipping %s (aerolab/do-not-expire tag set)", *delvol.VolumeId)
+						continue
+					}
 					log.Printf("Deleting %s", *delvol.VolumeId)
 					_, err = ec2svc.DeleteVolume(context.TODO(), &ec2.DeleteVolumeInput{
 						VolumeId: delvol.VolumeId,

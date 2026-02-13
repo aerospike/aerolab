@@ -17,6 +17,8 @@ type RosterShowCmd struct {
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Namespace   string          `short:"m" long:"namespace" description:"Namespace name" default:"test"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -65,21 +67,30 @@ func (c *RosterShowCmd) ShowRoster(system *System, inventory *backends.Inventory
 	if c.ClusterName.String() == "" {
 		return fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		// Pre-validation loop - check ALL clusters exist before processing any
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		// Processing loop - actually perform the operation
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			err := c.ShowRoster(system, inventory, logger, args, action)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}
-
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get node numbers
@@ -162,9 +173,6 @@ func (c *RosterShowCmd) showRosterOnNode(instance *backends.Instance, logger *lo
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        []string{"asinfo", "-v", "roster:namespace=" + c.Namespace},
-			Stdin:          nil,
-			Stdout:         nil,
-			Stderr:         nil,
 			SessionTimeout: time.Minute,
 			Env:            []*sshexec.Env{},
 			Terminal:       false,
@@ -172,6 +180,8 @@ func (c *RosterShowCmd) showRosterOnNode(instance *backends.Instance, logger *lo
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {

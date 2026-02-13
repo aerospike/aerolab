@@ -13,6 +13,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
@@ -20,16 +21,18 @@ import (
 )
 
 type TemplateCreateCmd struct {
-	Distro           string  `short:"d" long:"distro" description:"Distro to create the template for" default:"ubuntu"`
-	DistroVersion    string  `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
-	Arch             string  `short:"a" long:"arch" description:"Architecture to create the template for" default:"amd64"`
-	AerospikeVersion string  `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
-	Owner            string  `short:"o" long:"owner" description:"Owner of the template"`
-	DisablePublicIP  bool    `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
-	Timeout          int     `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
-	DryRun           bool    `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
-	NoVacuum         bool    `short:"V" long:"no-vacuum" description:"Do not vacuum an existing template creation instance on failure"`
-	Help             HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Distro           string        `short:"d" long:"distro" description:"Distro to create the template for" default:"ubuntu"`
+	DistroVersion    string        `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
+	Arch             string        `short:"a" long:"arch" description:"Architecture to create the template for" default:"amd64"`
+	AerospikeVersion string        `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
+	Owner            string        `short:"o" long:"owner" description:"Owner of the template"`
+	DisablePublicIP  bool          `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
+	Timeout          int           `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
+	DryRun           bool          `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
+	NoVacuum         bool          `short:"V" long:"no-vacuum" description:"Do not vacuum an existing template creation instance on failure"`
+	MaxRetries       int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep       time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help             HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *TemplateCreateCmd) Execute(args []string) error {
@@ -141,9 +144,9 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		case "ubuntu":
 			versionList = []string{"24.04", "22.04", "20.04", "18.04"}
 		case "centos":
-			versionList = []string{"9", "8", "7"}
+			versionList = []string{"10", "9", "8", "7"}
 		case "rocky":
-			versionList = []string{"9", "8"}
+			versionList = []string{"10", "9", "8"}
 		case "debian":
 			versionList = []string{"13", "12", "11", "10", "9", "8"}
 		case "amazon":
@@ -313,7 +316,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			ImageID:            "",
 			Expire:             20 * time.Minute,
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
-			InstanceType:       awsInstanceType,
+			InstanceType:       guiInstanceType(awsInstanceType),
 			Disks:              []string{"type=gp2,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
@@ -324,8 +327,8 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		GCP: InstancesCreateCmdGcp{
 			ImageName:          "",
 			Expire:             20 * time.Minute,
-			Zone:               system.Opts.Config.Backend.Region + "-a",
-			InstanceType:       gcpInstanceType,
+			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
+			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
@@ -434,13 +437,15 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		return "", fmt.Errorf("could not get sftp config: %s", err)
 	}
 	for _, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		logger.Info("Uploading install script to instance %s", conf.Host)
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return "", fmt.Errorf("could not create sftp client: %s", err)
 		}
 		err = cli.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install.sh",
+			DestPath:    "/opt/aerolab/scripts/template-install.sh",
 			Source:      bytes.NewReader(installScript),
 			Permissions: 0755,
 		})
@@ -460,7 +465,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			stdin = io.NopCloser(os.Stdin)
 		}
 		execDetail := sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/install.sh"},
+			Command:        []string{"bash", "/opt/aerolab/scripts/template-install.sh"},
 			Terminal:       terminal,
 			SessionTimeout: 15 * time.Minute,
 			Env:            env,
@@ -474,11 +479,14 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		if stderr != nil {
 			execDetail.Stderr = stderr
 		}
+		scriptPath := "/opt/aerolab/scripts/template-install.sh"
 		outputs := inst.Exec(&backends.ExecInput{
 			ExecDetail:      execDetail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if len(outputs) == 0 {
 			return "", fmt.Errorf("no output from install script")
@@ -488,7 +496,21 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 				if strings.Contains(o.Output.Err.Error(), "interrupted") {
 					return "", fmt.Errorf("installation interrupted by user")
 				}
-				return "", fmt.Errorf("error running install script: %s\n%s\n%s", o.Output.Err, string(o.Output.Stdout), string(o.Output.Stderr))
+				// Save script failure to local machine for debugging
+				failure := scriptlog.NewScriptFailureWithPath(
+					instName,
+					1,
+					scriptPath,
+					installScript,
+					o.Output.Stdout,
+					o.Output.Stderr,
+					o.Output.Err,
+				)
+				logPath, saveErr := scriptlog.SaveFailure(failure)
+				if saveErr != nil {
+					return "", fmt.Errorf("error running install script: %s\n%s\n%s (also failed to save logs: %v)", o.Output.Err, string(o.Output.Stdout), string(o.Output.Stderr), saveErr)
+				}
+				return "", fmt.Errorf("%s", scriptlog.FormatError(logPath, instName, 1, o.Output.Err))
 			}
 		}
 	}

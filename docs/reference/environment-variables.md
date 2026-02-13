@@ -18,6 +18,8 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROSPIKE_CLOUD_KEY` | API_KEY | Set the API key for Aerospike Cloud API |
 | `AEROSPIKE_CLOUD_SECRET` | API_SECRET | Set the API secret for Aerospike Cloud API |
 | `AEROLAB_DEBUG` | 1 | If set to 1, aerolab will print more detailed output and not terminate instances on certain errors |
+| `AEROLAB_SIMPLE_MODE` | FILEPATH | Path to a simple mode config file that overrides which commands/parameters are visible in simple mode |
+| `AEROLAB_FORCE_SIMPLE_MODE` | true | Enforce simple mode: blocked commands cannot be run, blocked parameters cannot be changed from defaults |
 
 ## AEROLAB_HOME
 
@@ -197,6 +199,103 @@ aerolab cloud credentials list
 - Testing against Aerospike Cloud development environment
 - Internal development and testing
 - QA and validation workflows
+
+## AEROLAB_SIMPLE_MODE
+
+Point to a configuration file that overrides which commands and parameters are visible in simple mode. This allows administrators to customize the user experience by hiding or showing specific functionality.
+
+### Config File Format
+
+The file uses a simple line-based format:
+
+- Lines starting with `#` are comments
+- Empty lines are ignored
+- Lines start with `+` (show) or `-` (hide)
+- Paths use dots as separators, matching CLI command and parameter names
+- `ALL` is a special keyword matching everything
+- `*` at the end of a path matches all descendants
+- Rules are evaluated top-to-bottom; last matching rule wins
+- Matching is case-insensitive
+
+### Path Naming
+
+- **Commands** use the CLI command names (lowercase, hyphenated): `cluster`, `cluster.create`, `agi.add-auth-token`
+- **Parameters** use the `--long` flag name appended to the command path: `cluster.create.name`, `cluster.create.count`
+
+### Example Config File
+
+```
+# Hide everything first, then selectively enable
+-ALL
+
+# Allow cluster operations
++cluster
++cluster.create
++cluster.list
++cluster.destroy
++cluster.start
++cluster.stop
+
+# Allow AGI with all subcommands and parameters
++agi
++agi.*
+
+# But hide the add-auth-token subcommand
+-agi.add-auth-token
+
+# Show specific parameters for cluster create
++cluster.create.name
++cluster.create.count
++cluster.create.distro
++cluster.create.distro-version
++cluster.create.aerospike-version
+```
+
+### Example: Hide Only Advanced Options
+
+```
+# Start from defaults (everything shown), hide specific items
+-attach
+-volumes
+-cluster.create.heartbeat-mode
+-cluster.create.max-retries
+```
+
+### Example
+
+```bash
+export AEROLAB_SIMPLE_MODE=/etc/aerolab/simple-mode.conf
+aerolab webui -l :8080
+```
+
+### Use Cases
+
+- Customize the WebUI to show only relevant commands for specific teams
+- Hide advanced or dangerous operations from inexperienced users
+- Create role-based command visibility without code changes
+
+## AEROLAB_FORCE_SIMPLE_MODE
+
+When set to `true`, enforces simple mode restrictions at all levels:
+
+- **CLI**: Blocked commands return an error; blocked parameters cannot be changed from their defaults
+- **WebUI**: The simple mode toggle is locked on and cannot be disabled; blocked commands are rejected server-side
+- Commands `config`, `webui`, `help`, `version`, `completion`, and `upgrade` are always allowed to prevent lockout
+
+### Example
+
+```bash
+export AEROLAB_SIMPLE_MODE=/etc/aerolab/simple-mode.conf
+export AEROLAB_FORCE_SIMPLE_MODE=true
+aerolab cluster create  # works if allowed by config
+aerolab attach shell    # ERROR: command 'attach.shell' is not available in simple mode
+```
+
+### Use Cases
+
+- Enforce restricted command sets in production environments
+- Prevent users from accessing hidden functionality via CLI
+- Create locked-down shared environments
 
 ## Common Usage Patterns
 

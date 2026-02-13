@@ -42,6 +42,8 @@ type ClientConf struct {
 	Password       string        // auth - password to use
 	PrivateKey     []byte        // auth - private key to use
 	ConnectTimeout time.Duration // connect timeout
+	MaxRetries     int           // max retries for operations (default: 0 = no retries)
+	RetrySleep     time.Duration // sleep between retries (default: 5s if MaxRetries > 0)
 }
 
 type Env struct {
@@ -61,13 +63,40 @@ func (o *ExecOutput) addWarn(f string, params ...interface{}) {
 }
 
 func Exec(i *ExecInput) *ExecOutput {
-	session, conn, err := ExecPrepare(i)
-	if err != nil {
-		return &ExecOutput{
-			Err: err,
+	maxRetries := i.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+	retrySleep := i.RetrySleep
+	if retrySleep <= 0 {
+		retrySleep = 5 * time.Second
+	}
+
+	var lastOutput *ExecOutput
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		session, conn, err := ExecPrepare(i)
+		if err != nil {
+			lastOutput = &ExecOutput{
+				Err: err,
+			}
+			if attempt < maxRetries {
+				time.Sleep(retrySleep)
+				continue
+			}
+			return lastOutput
+		}
+		lastOutput = ExecRun(session, conn, i)
+		if lastOutput.Err == nil {
+			return lastOutput
+		}
+		if attempt < maxRetries {
+			time.Sleep(retrySleep)
 		}
 	}
-	return ExecRun(session, conn, i)
+	if maxRetries > 0 && lastOutput != nil && lastOutput.Err != nil {
+		lastOutput.Err = fmt.Errorf("failed after %d attempts: %w", maxRetries+1, lastOutput.Err)
+	}
+	return lastOutput
 }
 
 func ExecRun(session *ssh.Session, conn *ssh.Client, i *ExecInput) *ExecOutput {
@@ -167,7 +196,12 @@ func ExecRun(session *ssh.Session, conn *ssh.Client, i *ExecInput) *ExecOutput {
 	if len(i.Command) > 0 {
 		// Run the script
 		if err := session.Run(script); err != nil {
-			out.Err = errors.Join(out.Err, fmt.Errorf("session: %s", err))
+			// Try to extract the script path for better error messages
+			if scriptPath := extractScriptPath(i.Command); scriptPath != "" {
+				out.Err = errors.Join(out.Err, fmt.Errorf("session failed executing remote script %s: %s", scriptPath, err))
+			} else {
+				out.Err = errors.Join(out.Err, fmt.Errorf("session: %s", err))
+			}
 			return out
 		}
 	} else {
@@ -332,4 +366,36 @@ func escapeForBash(args []string) []string {
 		escaped[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 	}
 	return escaped
+}
+
+// extractScriptPath extracts the script path from a command if it looks like a script execution.
+// Returns empty string if no script path can be determined.
+func extractScriptPath(command []string) string {
+	if len(command) == 0 {
+		return ""
+	}
+
+	// Common shell interpreters that take a script path as the first argument
+	shells := []string{"bash", "sh", "/bin/bash", "/bin/sh", "/usr/bin/bash", "/usr/bin/sh"}
+
+	// Check if command[0] is a shell and command[1] looks like a path
+	for _, shell := range shells {
+		if command[0] == shell && len(command) > 1 {
+			// command[1] should be the script path
+			path := command[1]
+			if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") {
+				return path
+			}
+		}
+	}
+
+	// Check if command[0] itself is a script path (direct execution)
+	if strings.HasPrefix(command[0], "/") || strings.HasPrefix(command[0], "./") {
+		// Only return if it looks like a script (has an extension or is in a scripts directory)
+		if strings.Contains(command[0], "/scripts/") || strings.HasSuffix(command[0], ".sh") {
+			return command[0]
+		}
+	}
+
+	return ""
 }

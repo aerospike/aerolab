@@ -49,20 +49,33 @@ func (c *ClientChangeExpiryCmd) ChangeExpiryClient(system *System, inventory *ba
 	}
 
 	// Handle comma-separated client names
+	var clients backends.InstanceList
 	if strings.Contains(c.ClientName.String(), ",") {
-		clients := strings.Split(c.ClientName.String(), ",")
-		for _, client := range clients {
-			c.ClientName = TypeClientName(client)
+		clientNames := strings.Split(c.ClientName.String(), ",")
+		// Pre-validation loop - check ALL clients exist before processing any
+		for _, clientName := range clientNames {
+			if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
+				return fmt.Errorf("client '%s' not found", clientName)
+			}
+		}
+		// Processing loop - actually perform the operation
+		for _, clientName := range clientNames {
+			c.ClientName = TypeClientName(clientName)
 			err := c.ChangeExpiryClient(system, inventory, args, logger)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
+	} else {
+		_, err = c.ClientName.GetInstanceList(inventory)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get client instances using the helper
-	clients, err := getClientInstancesHelper(inventory, c.ClientName.String(), c.Machines.String())
+	clients, err = getClientInstancesHelper(inventory, c.ClientName.String(), c.Machines.String())
 	if err != nil {
 		return err
 	}

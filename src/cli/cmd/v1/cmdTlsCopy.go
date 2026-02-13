@@ -21,6 +21,8 @@ type TlsCopyCmd struct {
 	DestinationNodeList    TypeNodes       `short:"a" long:"destination-nodes" description:"List of destination nodes to copy the TLS certs to, comma separated. Empty=ALL." default:""`
 	TlsName                string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
 	Threads                int             `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	MaxRetries             int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep             time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help                   HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -56,6 +58,16 @@ func (c *TlsCopyCmd) CopyTLS(system *System, inventory *backends.Inventory, logg
 		inventory = system.Backend.GetInventory()
 	}
 
+	// Validate source cluster exists
+	_, err := c.SourceClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return nil, err
+	}
+	// Validate destination cluster exists
+	_, err = c.DestinationClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+	if err != nil {
+		return nil, err
+	}
 	// Validate source cluster and node
 	sourceCluster := inventory.Instances.WithClusterName(c.SourceClusterName.String())
 	if sourceCluster == nil {
@@ -125,6 +137,8 @@ func (c *TlsCopyCmd) readCertificatesFromSource(sourceInstance *backends.Instanc
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SFTP config from source: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	client, err := sshexec.NewSftp(conf)
@@ -142,6 +156,8 @@ func (c *TlsCopyCmd) readCertificatesFromSource(sourceInstance *backends.Instanc
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {
@@ -196,6 +212,8 @@ func (c *TlsCopyCmd) uploadCertificatesToDestination(destInstances backends.Inst
 
 	tasks := make([]uploadTask, len(confs))
 	for i, conf := range confs {
+		conf.MaxRetries = c.MaxRetries
+		conf.RetrySleep = c.RetrySleep
 		tasks[i] = uploadTask{
 			conf:     conf,
 			instance: destInstances.Describe()[i],
@@ -215,6 +233,8 @@ func (c *TlsCopyCmd) uploadCertificatesToDestination(destInstances backends.Inst
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {
@@ -232,6 +252,8 @@ func (c *TlsCopyCmd) uploadCertificatesToDestination(destInstances backends.Inst
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {

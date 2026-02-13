@@ -41,6 +41,8 @@ type CreateInstanceInput struct {
 	ParallelSSHThreads int `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
 	// optional: just so it can be marshalled/printed, it is ignored by the backend
 	ImageName string `yaml:"imageName" json:"imageName"`
+	// optional: retry configuration for handling capacity and transient errors
+	RetryConfig RetryConfig `yaml:"retryConfig" json:"retryConfig"`
 }
 
 type InstanceDNS struct {
@@ -130,6 +132,8 @@ type ExecInput struct {
 	Username        string
 	ConnectTimeout  time.Duration
 	ParallelThreads int
+	MaxRetries      int           // max retries for SSH operations (default: 0 = no retries)
+	RetrySleep      time.Duration // sleep between retries (default: 5s if MaxRetries > 0)
 }
 
 type ExecOutput struct {

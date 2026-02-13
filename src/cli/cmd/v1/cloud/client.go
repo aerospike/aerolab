@@ -196,3 +196,8 @@ func (c *Client) PrettyPrint(data interface{}) error {
 	fmt.Println(string(jsonData))
 	return nil
 }
+
+// GetAccessToken returns the current access token
+func (c *Client) GetAccessToken() string {
+	return c.accessToken
+}

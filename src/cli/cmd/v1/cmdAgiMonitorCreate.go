@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -12,7 +13,9 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
@@ -115,6 +118,42 @@ func (c *AgiMonitorCreateCmd) CreateMonitor(system *System, inventory *backends.
 	// Set default owner if not specified
 	if c.Owner == "" {
 		c.Owner = GetCurrentOwnerUser()
+	}
+
+	// Check if monitor with the same name already exists
+	existingMonitor := inventory.Instances.
+		WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).
+		WithClusterName(c.Name).
+		WithTags(map[string]string{"aerolab.type": "agimonitor"})
+	if existingMonitor.Count() > 0 {
+		if !IsInteractive() {
+			return nil, fmt.Errorf("AGI monitor '%s' already exists", c.Name)
+		}
+		ans, quitting, err := choice.Choice(fmt.Sprintf("AGI monitor '%s' already exists. Do you want to recreate it?", c.Name), choice.Items{
+			choice.Item("Yes"),
+			choice.Item("No"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user choice: %w", err)
+		}
+		if quitting || ans != "Yes" {
+			return nil, errors.New("aborted by user")
+		}
+		// Destroy the existing monitor
+		logger.Info("Destroying existing monitor '%s'", c.Name)
+		destroyCmd := &ClientDestroyCmd{
+			ClientName: TypeClientName(c.Name),
+			Force:      true,
+		}
+		err = destroyCmd.destroyClients(system, inventory, logger, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to destroy existing monitor: %w", err)
+		}
+		// Refresh inventory after destruction
+		inventory, err = system.Backend.GetRefreshedInventory()
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh inventory after monitor destruction: %w", err)
+		}
 	}
 
 	// Generate config YAML for the monitor listener
@@ -602,6 +641,8 @@ func (c *AgiMonitorCreateCmd) installAerolab(system *System, logger *logger.Logg
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	sftpClient, err := sshexec.NewSftp(conf)
@@ -646,25 +687,41 @@ func (c *AgiMonitorCreateCmd) installAerolab(system *System, logger *logger.Logg
 		}
 
 		// Execute install script
-		var stdout, stderr *os.File
+		execDetail := sshexec.ExecDetail{
+			Command:        []string{"bash", scriptPath},
+			SessionTimeout: 10 * time.Minute,
+		}
 		if system.logLevel >= 5 {
-			stdout = os.Stdout
-			stderr = os.Stderr
+			execDetail.Stdin = io.NopCloser(os.Stdin)
+			execDetail.Stdout = os.Stdout
+			execDetail.Stderr = os.Stderr
+			execDetail.Terminal = true
 		}
 		output := instance.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", scriptPath},
-				Stdout:         stdout,
-				Stderr:         stderr,
-				SessionTimeout: 10 * time.Minute,
-			},
+			ExecDetail:     execDetail,
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
 		})
 
 		if output.Output.Err != nil {
-			return fmt.Errorf("failed to install aerolab: %w (stdout: %s, stderr: %s)",
-				output.Output.Err, output.Output.Stdout, output.Output.Stderr)
+			// Save script failure to local machine for debugging
+			failure := scriptlog.NewScriptFailureWithPath(
+				instance.ClusterName,
+				instance.NodeNo,
+				scriptPath,
+				installScript,
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to install aerolab: %w (stdout: %s, stderr: %s) (also failed to save logs: %v)",
+					output.Output.Err, output.Output.Stdout, output.Output.Stderr, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, instance.ClusterName, instance.NodeNo, output.Output.Err))
 		}
 	}
 
@@ -678,6 +735,8 @@ func (c *AgiMonitorCreateCmd) installService(system *System, logger *logger.Logg
 	if err != nil {
 		return fmt.Errorf("failed to get SFTP config: %w", err)
 	}
+	conf.MaxRetries = c.MaxRetries
+	conf.RetrySleep = c.RetrySleep
 
 	// Create SFTP client
 	sftpClient, err := sshexec.NewSftp(conf)
@@ -766,6 +825,8 @@ func (c *AgiMonitorCreateCmd) startService(system *System, logger *logger.Logger
 		},
 		Username:       "root",
 		ConnectTimeout: 30 * time.Second,
+		MaxRetries:     c.MaxRetries,
+		RetrySleep:     c.RetrySleep,
 	})
 
 	if output.Output.Err != nil {

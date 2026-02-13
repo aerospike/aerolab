@@ -48,8 +48,14 @@ func (c *ClusterAddExpiryCmd) AddExpiryCluster(system *System, inventory *backen
 	if c.ClusterName.String() == "" {
 		return fmt.Errorf("cluster name is required")
 	}
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
+		for _, cluster := range clusters {
+			if inventory.Instances.WithClusterName(cluster).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return fmt.Errorf("cluster %s not found", cluster)
+			}
+		}
 		for _, cluster := range clusters {
 			c.ClusterName = TypeClusterName(cluster)
 			err := c.AddExpiryCluster(system, inventory, args, logger)
@@ -58,10 +64,12 @@ func (c *ClusterAddExpiryCmd) AddExpiryCluster(system *System, inventory *backen
 			}
 		}
 		return nil
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return err
+		}
 	}
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())

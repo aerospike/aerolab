@@ -64,6 +64,12 @@ func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends
 		inventory = system.Backend.GetInventory()
 	}
 
+	// If non-interactive and no command specified, fail early - an interactive shell
+	// session cannot work without a terminal
+	if len(args) == 0 && !IsInteractive() {
+		return nil, fmt.Errorf("interactive mode is disabled (AEROLAB_NONINTERACTIVE is set or no TTY detected); specify a command to execute using '-- <command>' syntax")
+	}
+
 	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).Describe()
 	items := choice.Items{}
 	itemInstances := make(map[string]backends.Instance)

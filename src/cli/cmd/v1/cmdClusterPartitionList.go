@@ -132,11 +132,17 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 		return nil, fmt.Errorf("cluster name is required")
 	}
 
+	var cluster backends.Instances
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output PartitionList
-		for _, cluster := range clusters {
-			c.ClusterName = TypeClusterName(cluster)
+		for _, clusterName := range clusters {
+			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
+				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			}
+		}
+		for _, clusterName := range clusters {
+			c.ClusterName = TypeClusterName(clusterName)
 			inst, err := c.PartitionListClusterDo(system, inventory, args, logger)
 			if err != nil {
 				return nil, err
@@ -145,6 +151,12 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 		}
 		output.Sort()
 		return output, nil
+	} else {
+		var err error
+		cluster, err = c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.FilterType == "local" {
 		c.FilterType = "nvme"
@@ -158,10 +170,6 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 	partitionsFilter, err := c.FilterPartitions.Expand()
 	if err != nil {
 		return nil, fmt.Errorf("could not expand partitions filter: %s", err)
-	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
 	// Filter by Running state first, before checking node numbers
 	cluster = cluster.WithState(backends.LifeCycleStateRunning)
@@ -187,9 +195,7 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 		out := inst.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
 				Command:        []string{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE,PARTUUID"},
-				Stdin:          nil,
 				Stdout:         stdout,
-				Stderr:         nil,
 				SessionTimeout: 5 * time.Minute,
 				Env:            []*sshexec.Env{},
 				Terminal:       true,
@@ -204,9 +210,7 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 			out = inst.Exec(&backends.ExecInput{
 				ExecDetail: sshexec.ExecDetail{
 					Command:        []string{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE,PARTUUID"},
-					Stdin:          nil,
 					Stdout:         stdout,
-					Stderr:         nil,
 					SessionTimeout: 5 * time.Minute,
 					Env:            []*sshexec.Env{},
 					Terminal:       true,

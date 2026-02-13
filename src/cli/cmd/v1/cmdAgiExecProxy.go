@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"compress/gzip"
@@ -33,7 +34,6 @@ import (
 	"github.com/aerospike/aerolab/pkg/agi"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
 	"github.com/aerospike/aerolab/pkg/agi/notifier"
-	"github.com/aerospike/aerolab/pkg/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
@@ -355,7 +355,7 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 		c.wwwSimple = true
 		log.Printf("WARN: simple homepage, error: %s", err)
 	} else {
-		err = webui.InstallWebsite("/opt/agi/www", agi.AgiProxyWeb)
+		err = c.InstallWebsite("/opt/agi/www", agi.AgiProxyWeb)
 		if err != nil {
 			c.wwwSimple = true
 			log.Printf("WARN: simple homepage, error: %s", err)
@@ -1626,4 +1626,50 @@ func (c *AgiExecProxyCmd) gottyWatcher(out io.Reader) {
 		log.Printf("ERROR: gottyWatcher scanner error: %s", err)
 	}
 	log.Printf("INFO: Exiting gottyWatcher")
+}
+
+func (c *AgiExecProxyCmd) InstallWebsite(dst string, website []byte) error {
+	br := bytes.NewReader(website)
+	r, err := gzip.NewReader(br)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	tr := tar.NewReader(r)
+	for {
+		header, err := tr.Next()
+		switch {
+		case err == io.EOF:
+			return nil
+		case err != nil:
+			return err
+		case header == nil:
+			continue
+		}
+		target := filepath.Join(dst, header.Name)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if _, err := os.Stat(target); err != nil {
+				if err := os.MkdirAll(target, 0755); err != nil {
+					return err
+				}
+			}
+		case tar.TypeReg:
+			prevDir, _ := filepath.Split(target)
+			if _, err := os.Stat(prevDir); os.IsNotExist(err) {
+				if err := os.MkdirAll(prevDir, 0755); err != nil {
+					return err
+				}
+			}
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return err
+			}
+			f.Close()
+		}
+	}
 }
