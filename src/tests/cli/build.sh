@@ -13,7 +13,7 @@ fi
 
 rm -rf ./aerolab ./aerolab-linux-amd64 ./aerolab-linux-arm64
 echo "$(date) Building aerolab..."
-GOOS=darwin GOARCH=amd64 go build -o ./aerolab -ldflags="-s -w" -trimpath ../../cli/.
+GOOS=darwin GOARCH=arm64 go build -o ./aerolab -ldflags="-s -w" -trimpath ../../cli/.
 echo "$(date) Building aerolab-linux-amd64..."
 GOOS=linux GOARCH=amd64 go build -o ./aerolab-linux-amd64 -ldflags="-s -w" -trimpath ../../cli/.
 upx ./aerolab-linux-amd64

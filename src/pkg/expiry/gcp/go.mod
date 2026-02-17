@@ -1,6 +1,6 @@
 module aerospike.com/aerolab/expiry
 
-go 1.25.5
+go 1.26.0
 
 require github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
 

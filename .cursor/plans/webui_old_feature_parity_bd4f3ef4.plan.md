@@ -120,7 +120,7 @@ Below is a feature-by-feature mapping from old flags to the current code, with w
 
 ## 7. `--block-server-ls` and `--always-server-ls` -- COMPLETED
 
-Already implemented by the file browse/upload plan. Fields `BlockServerLs`, `AllowLsEverywhere` exist on `WebUICmd` with `allowServerBrowse(r)` guard on `/api/fs/*` endpoints.
+Already implemented by the file browse/upload plan. Fields `BlockServerLs`, `AllowLsEverywhere` exist on `WebUICmd` with `allowServerBrowse(r)` guard on `/api/fs/`* endpoints.
 
 ## 8. `--max-upload-size-bytes` and `--upload-temp-dir` -- COMPLETED
 
@@ -206,9 +206,9 @@ Already implemented by the file browse/upload plan. Fields `MaxUploadSizeBytes` 
 
 ## Files to Modify
 
-- `**[src/cli/cmd/v1/cmdWebUI.go](src/cli/cmd/v1/cmdWebUI.go)**` - Main struct, Execute method, health endpoint, index serving, server startup
-- `**[src/cli/cmd/v1/cmdWebUIJobs.go](src/cli/cmd/v1/cmdWebUIJobs.go)**` - Job concurrency/queuing, history limits
-- `**[src/cli/cmd/v1/cmdWebUIFileBrowser.go](src/cli/cmd/v1/cmdWebUIFileBrowser.go)**` - File browser access control
-- `**[src/cli/cmd/v1/cmdWebUIHandlers.go](src/cli/cmd/v1/cmdWebUIHandlers.go)**` - Upload size limits
-- `**[src/cli/cmd/v1/cmdWebUITerminal.go](src/cli/cmd/v1/cmdWebUITerminal.go)**` - WebSocket origin checking
+- `**[src/cli/cmd/v1/cmdWebUI.go](src/cli/cmd/v1/cmdWebUI.go)`** - Main struct, Execute method, health endpoint, index serving, server startup
+- `**[src/cli/cmd/v1/cmdWebUIJobs.go](src/cli/cmd/v1/cmdWebUIJobs.go)`** - Job concurrency/queuing, history limits
+- `**[src/cli/cmd/v1/cmdWebUIFileBrowser.go](src/cli/cmd/v1/cmdWebUIFileBrowser.go)`** - File browser access control
+- `**[src/cli/cmd/v1/cmdWebUIHandlers.go](src/cli/cmd/v1/cmdWebUIHandlers.go)`** - Upload size limits
+- `**[src/cli/cmd/v1/cmdWebUITerminal.go](src/cli/cmd/v1/cmdWebUITerminal.go)`** - WebSocket origin checking
 
