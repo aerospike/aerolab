@@ -5,11 +5,12 @@ import (
 )
 
 type VersionCmd struct {
-	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NoUpgradeCheck bool    `short:"n" long:"no-upgrade-check" description:"Do not check for upgrades"`
+	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *VersionCmd) Execute(args []string) error {
-	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, []string{"version"}, c, args...)
+	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: !c.NoUpgradeCheck}, []string{"version"}, c, args...)
 	if err != nil {
 		return Error(err, system, []string{"version"}, c, args)
 	}
