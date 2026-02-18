@@ -355,7 +355,9 @@ func (v InstanceList) WithType(types ...string) Instances {
 	for _, instance := range v {
 		instance := instance
 		instanceType := instance.Tags["aerolab.type"]
-		if !slices.Contains(types, instanceType) {
+		oldType := instance.Tags["aerolab.old.type"]
+		matches := slices.Contains(types, instanceType) || slices.Contains(types, oldType)
+		if !matches {
 			continue
 		}
 		ret = append(ret, instance)

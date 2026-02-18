@@ -17,8 +17,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/termutil"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
+	"golang.org/x/term"
 )
 
 //go:embed telemetryVersion.txt
@@ -40,11 +42,24 @@ type telemetryItem struct {
 	Error           *string            // error message if the command failed
 	Stderr          []string           // capture of the logger output
 	StderrTruncated bool               // whether the logger output was truncated (max 1000 lines per event will be logged)
+	EnvVars         map[string]string  // env vars with keys starting with AEROLAB_
+	IsTerminal      bool               // stdout is a TTY (term.IsTerminal)
+	IsForeground    bool               // process has foreground of that TTY (termutil.IsForeground)
 }
 
 type telemetryDefault struct {
 	Key   string
 	Value string
+}
+
+func getAerolabEnvVars() map[string]string {
+	out := make(map[string]string)
+	for _, s := range os.Environ() {
+		if idx := strings.IndexByte(s, '='); idx > 0 && strings.HasPrefix(s, "AEROLAB_") {
+			out[s[:idx]] = s[idx+1:]
+		}
+	}
+	return out
 }
 
 var telemetryLock = new(sync.Mutex)
@@ -204,6 +219,7 @@ func TelemetryEvent(command []string, params interface{}, args []string, system 
 
 	// fill item
 	version, commit, edition, _ := GetAerolabVersion()
+	stdoutFd := os.Stdout.Fd()
 	item := telemetryItem{
 		CmdLine:         os.Args[1:],
 		Command:         command,
@@ -220,6 +236,9 @@ func TelemetryEvent(command []string, params interface{}, args []string, system 
 		Error:           errString,
 		Stderr:          logBuffer,
 		StderrTruncated: system.LogBufferTruncated,
+		EnvVars:         getAerolabEnvVars(),
+		IsTerminal:      term.IsTerminal(int(stdoutFd)),
+		IsForeground:    termutil.IsForegroundNoError(stdoutFd, true),
 	}
 
 	// write item to file

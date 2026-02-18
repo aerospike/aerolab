@@ -35,9 +35,12 @@ func AeroLabTelemetry(w http.ResponseWriter, r *http.Request) {
 		AeroLabVersion  string      // version of the AeroLab binary
 		AeroLabCommit   string      // commit hash of the AeroLab binary
 		AeroLabEdition  string      // edition of the AeroLab binary
-		Error           *string     // error message if the command failed
-		Stderr          []string    // capture of the logger output
-		StderrTruncated bool        // whether the logger output was truncated (max 1000 lines per event will be logged)
+		Error           *string            // error message if the command failed
+		Stderr          []string          // capture of the logger output
+		StderrTruncated bool              // whether the logger output was truncated (max 1000 lines per event will be logged)
+		EnvVars         map[string]string // AEROLAB_* env vars from client
+		IsTerminal      bool              // stdout is a TTY
+		IsForeground    bool              // process has terminal foreground
 		Defaults        []struct {
 			Key   string
 			Value string
