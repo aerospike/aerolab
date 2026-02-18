@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/termutil"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/mattn/go-isatty"
 )
@@ -130,7 +131,7 @@ func getip2() string {
 }
 
 func IsInteractive() bool {
-	return os.Getenv("AEROLAB_NONINTERACTIVE") == "" && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()))
+	return os.Getenv("AEROLAB_NONINTERACTIVE") == "" && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) && termutil.IsForegroundNoError(os.Stdout.Fd(), true)
 }
 
 func AskForString(prompt string) (string, error) {
@@ -198,7 +199,7 @@ func UpdateDiskCache(system *System) func() {
 }
 
 // shellEscape escapes a string for safe use in a shell command.
-// Uses single quotes and escapes embedded single quotes as '\''
+// Uses single quotes and escapes embedded single quotes as '\”
 func shellEscape(s string) string {
 	// If the string is empty, return empty quoted string
 	if s == "" {

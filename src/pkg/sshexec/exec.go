@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/termutil"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
@@ -265,8 +266,9 @@ func resize(session *ssh.Session) {
 			return
 		}
 		if session != nil {
-			term.MakeRaw(fd)
-			logger.SetRawTerminalMode(true)
+			if _, err := term.MakeRaw(fd); err == nil {
+				logger.SetRawTerminalMode(true)
+			}
 			if err := session.WindowChange(height, width); err != nil {
 				log.Printf("handleWindowResize: failed to set window size: %s", err)
 			}
@@ -299,7 +301,7 @@ var savedTermState *term.State
 func init() {
 	// handle restoring of terminal state
 	fileDescriptor := int(os.Stdin.Fd())
-	if term.IsTerminal(fileDescriptor) {
+	if term.IsTerminal(fileDescriptor) && termutil.IsForegroundNoError(uintptr(fileDescriptor), true) {
 		var err error
 		termState, err := term.GetState(fileDescriptor)
 		if err != nil {
