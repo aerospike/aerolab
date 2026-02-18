@@ -447,19 +447,42 @@ func (t *TypeClientName) GetInstanceList(inventory *backends.Inventory, interact
 	return instances, nil
 }
 
-// returns the cluster instance list for a given cluster name, or an error if cluster is not found
+// returns the cluster instance list for a given cluster name, or an error if cluster is not found.
+// When instanceTypes contains "client", also matches instances with aerolab.old.type=client (legacy/Docker clients).
 func getInstanceListForClusterName(t *string, inventory *backends.Inventory, instanceTypes []string, interactiveStates ...backends.LifeCycleState) (backends.Instances, error) {
-	cluster := inventory.Instances.WithClusterName(*t).WithType(instanceTypes...).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+	base := inventory.Instances.WithClusterName(*t).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+	byType := base.WithType(instanceTypes...)
+	var cluster backends.Instances
+	if slices.Contains(instanceTypes, "client") {
+		byOldType := base.WithOldType(instanceTypes...)
+		cluster = mergeInstanceListsByID(byType.Describe(), byOldType.Describe())
+	} else {
+		cluster = byType.Describe()
+	}
 	if cluster == nil || cluster.Count() == 0 {
 		if IsInteractive() {
-			// get cluster list
+			// get cluster list (include instances matching type, and old type only for client)
+			baseAll := inventory.Instances.WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+			var allMerged backends.InstanceList
+			if slices.Contains(instanceTypes, "client") {
+				allMerged = mergeInstanceListsByID(
+					baseAll.WithType(instanceTypes...).Describe(),
+					baseAll.WithOldType(instanceTypes...).Describe(),
+				)
+			} else {
+				allMerged = baseAll.WithType(instanceTypes...).Describe()
+			}
 			clusters := []string{}
-			for _, i := range inventory.Instances.WithType(instanceTypes...).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Describe() {
+			seenClusters := map[string]struct{}{}
+			for _, i := range allMerged {
 				if len(interactiveStates) > 0 && !slices.Contains(interactiveStates, i.InstanceState) {
 					continue
 				}
-				if !slices.Contains(clusters, i.ClusterName) && strings.Contains(i.ClusterName, string(*t)) {
-					clusters = append(clusters, i.ClusterName)
+				if strings.Contains(i.ClusterName, string(*t)) {
+					if _, ok := seenClusters[i.ClusterName]; !ok {
+						seenClusters[i.ClusterName] = struct{}{}
+						clusters = append(clusters, i.ClusterName)
+					}
 				}
 			}
 			if len(clusters) == 0 {
@@ -472,10 +495,37 @@ func getInstanceListForClusterName(t *string, inventory *backends.Inventory, ins
 				return nil, err
 			}
 			*t = choice
-			cluster = inventory.Instances.WithClusterName(string(*t)).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+			base = inventory.Instances.WithClusterName(string(*t)).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+			byType = base.WithType(instanceTypes...)
+			if slices.Contains(instanceTypes, "client") {
+				cluster = mergeInstanceListsByID(byType.Describe(), base.WithOldType(instanceTypes...).Describe())
+			} else {
+				cluster = byType.Describe()
+			}
 		} else {
 			return nil, errors.New("cluster not found")
 		}
 	}
 	return cluster.Describe(), nil
+}
+
+// mergeInstanceListsByID returns an InstanceList with instances from both lists, deduplicated by InstanceID.
+func mergeInstanceListsByID(a, b backends.InstanceList) backends.InstanceList {
+	seen := make(map[string]struct{})
+	var merged backends.InstanceList
+	for _, inst := range a {
+		if _, ok := seen[inst.InstanceID]; ok {
+			continue
+		}
+		seen[inst.InstanceID] = struct{}{}
+		merged = append(merged, inst)
+	}
+	for _, inst := range b {
+		if _, ok := seen[inst.InstanceID]; ok {
+			continue
+		}
+		seen[inst.InstanceID] = struct{}{}
+		merged = append(merged, inst)
+	}
+	return merged
 }

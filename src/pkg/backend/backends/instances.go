@@ -65,6 +65,8 @@ type Instances interface {
 	WithBackendType(types ...BackendType) Instances
 	// instance selector - by volume type
 	WithType(types ...string) Instances
+	// instance selector - by aerolab.old.type tag (e.g. legacy client instances)
+	WithOldType(types ...string) Instances
 	// instance selector - by zone
 	WithZoneName(zoneNames ...string) Instances
 	// instance selector - by zone
@@ -355,9 +357,21 @@ func (v InstanceList) WithType(types ...string) Instances {
 	for _, instance := range v {
 		instance := instance
 		instanceType := instance.Tags["aerolab.type"]
+		if !slices.Contains(types, instanceType) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+// WithOldType filters instances by aerolab.old.type tag (e.g. "client" for legacy client instances).
+func (v InstanceList) WithOldType(types ...string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
 		oldType := instance.Tags["aerolab.old.type"]
-		matches := slices.Contains(types, instanceType) || slices.Contains(types, oldType)
-		if !matches {
+		if !slices.Contains(types, oldType) {
 			continue
 		}
 		ret = append(ret, instance)
