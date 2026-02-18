@@ -4,6 +4,7 @@ import { usePreferences } from '@/hooks/usePreferences'
 import { useHealth } from '@/hooks/useHealth'
 import { useJobModal } from '@/contexts/JobModalContext'
 import { ServerBrowseContext } from '@/contexts/ServerBrowseContext'
+import { getConfig } from '@/utils/config'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import Footer from './Footer'
@@ -13,7 +14,7 @@ import { ArrowUp } from 'lucide-react'
 
 export default function Layout() {
   const { sidebarCollapsed, setSidebarCollapsed } = usePreferences()
-  const { isHealthy, refetch, allowServerBrowse } = useHealth()
+  const { isHealthy, refetch, allowServerBrowse, version: serverVersion } = useHealth()
   const {
     activeJobId,
     activeJobIds,
@@ -25,6 +26,24 @@ export default function Layout() {
   } = useJobModal()
 
   const [showBackToTop, setShowBackToTop] = useState(false)
+
+  // Reload when daemon version changes (e.g. after upgrade) so UI stays in sync
+  useEffect(() => {
+    if (!serverVersion) return
+    const loadedVersion = getConfig().version
+    if (loadedVersion !== '' && serverVersion !== loadedVersion) {
+      window.location.reload()
+    }
+  }, [serverVersion])
+
+  // Refetch health when user returns to the tab so we detect version mismatch quickly
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refetch()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [refetch])
 
   useEffect(() => {
     const handleScroll = () => {
