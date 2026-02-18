@@ -34,7 +34,7 @@ func GetNetworkDetails(net *backends.Network) *NetworkDetails {
 		return nd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := net.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := net.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var nd NetworkDetails

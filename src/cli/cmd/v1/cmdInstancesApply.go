@@ -269,7 +269,7 @@ func (c *InstancesApplyCmd) grow(system *System, inventory *backends.Inventory, 
 	}
 	create.Count = 1
 	nodes := []string{}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		for _, hook := range c.Hooks.BeforeEachGrow {
 			err := c.runHook(system, hook, map[string]string{})
 			if err != nil {
@@ -349,7 +349,7 @@ func (c *InstancesApplyCmd) shrink(system *System, inventory *backends.Inventory
 		}
 		return nil
 	}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		destroy.Filters.NodeNo = nodesStr[i]
 		for _, hook := range c.Hooks.BeforeEachShrink {
 			err := c.runHook(system, hook, map[string]string{

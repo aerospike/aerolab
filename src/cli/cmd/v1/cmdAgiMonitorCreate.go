@@ -86,11 +86,11 @@ func (c *AgiMonitorCreateCmd) CreateMonitor(system *System, inventory *backends.
 
 	// Handle ENV:: prefix for AWS credentials
 	if backendType == "aws" {
-		if strings.HasPrefix(c.AWS.AWSKeyId, "ENV::") {
-			c.AWS.AWSKeyId = os.Getenv(strings.TrimPrefix(c.AWS.AWSKeyId, "ENV::"))
+		if after, ok := strings.CutPrefix(c.AWS.AWSKeyId, "ENV::"); ok {
+			c.AWS.AWSKeyId = os.Getenv(after)
 		}
-		if strings.HasPrefix(c.AWS.AWSSecretKey, "ENV::") {
-			c.AWS.AWSSecretKey = os.Getenv(strings.TrimPrefix(c.AWS.AWSSecretKey, "ENV::"))
+		if after, ok := strings.CutPrefix(c.AWS.AWSSecretKey, "ENV::"); ok {
+			c.AWS.AWSSecretKey = os.Getenv(after)
 		}
 		// Validate that both or neither AWS credential fields are set
 		if (c.AWS.AWSKeyId != "" && c.AWS.AWSSecretKey == "") || (c.AWS.AWSKeyId == "" && c.AWS.AWSSecretKey != "") {
@@ -518,8 +518,8 @@ func (c *AgiMonitorCreateCmd) getRoute53DomainInfo(system *System, logger *logge
 
 	// Compute the subdomain by removing the domain from the FQDN
 	fqdn := strings.TrimSuffix(c.AWS.Route53DomainName, ".")
-	if strings.HasSuffix(fqdn, "."+domainName) {
-		dnsName = strings.TrimSuffix(fqdn, "."+domainName)
+	if before, ok := strings.CutSuffix(fqdn, "."+domainName); ok {
+		dnsName = before
 	} else if fqdn == domainName {
 		// The FQDN is the domain itself (apex record)
 		dnsName = ""

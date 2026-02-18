@@ -1,3 +1,6 @@
 go 1.26.0
 
-use ./src
+use (
+	./src
+	./src/pkg/expiry/gcp
+)

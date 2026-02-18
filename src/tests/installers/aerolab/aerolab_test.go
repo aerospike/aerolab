@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
@@ -57,7 +56,7 @@ func TestAerolabLatestStable(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript("", nil, installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", nil, new(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -77,7 +76,7 @@ func TestAerolabLatestPrelease(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript("", nil, installers.Bool(true))
+	script, err := aerolab.GetLinuxInstallScript("", nil, new(true))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -97,7 +96,7 @@ func TestAerolabVersioned(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript("", installers.String("7.7.0"), installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", new("7.7.0"), new(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -118,7 +117,7 @@ func TestAerolabVersionPrefixed(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript("", installers.String("7.7.*"), installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", new("7.7.*"), new(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)

@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	maps0 "maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,7 +37,6 @@ import (
 	dns "google.golang.org/api/dns/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/protobuf/proto"
 )
 
 type CreateInstanceParams struct {
@@ -101,7 +101,7 @@ func getInstanceDetail(instance *backends.Instance) *InstanceDetail {
 		return id
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := instance.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := instance.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var id InstanceDetail
@@ -364,7 +364,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 	var i backends.InstanceList
 	it := client.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
 		Project: s.credentials.Project,
-		Filter:  proto.String(LABEL_FILTER_AEROLAB),
+		Filter:  new(LABEL_FILTER_AEROLAB),
 	})
 	for {
 		inst, err := it.Next()
@@ -425,12 +425,8 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 	log.Detail("Adding tags to instances")
 	for _, instance := range instances {
 		newTags := make(map[string]string)
-		for k, v := range instance.Tags {
-			newTags[k] = v
-		}
-		for k, v := range tags {
-			newTags[k] = v
-		}
+		maps0.Copy(newTags, instance.Tags)
+		maps0.Copy(newTags, tags)
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
 		id := getInstanceDetail(instance)
@@ -439,13 +435,13 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
 		const maxRetries = 3
 		var op *compute.Operation
-		for retry := 0; retry < maxRetries; retry++ {
+		for retry := range maxRetries {
 			op, err = client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 				Instance: instance.InstanceID,
 				Project:  s.credentials.Project,
 				Zone:     instance.ZoneName,
 				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-					LabelFingerprint: proto.String(fingerprint),
+					LabelFingerprint: new(fingerprint),
 					Labels:           labels,
 				},
 			})
@@ -531,13 +527,13 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
 		const maxRetries = 3
 		var op *compute.Operation
-		for retry := 0; retry < maxRetries; retry++ {
+		for retry := range maxRetries {
 			op, err = client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 				Instance: instance.InstanceID,
 				Project:  s.credentials.Project,
 				Zone:     instance.ZoneName,
 				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-					LabelFingerprint: proto.String(fingerprint),
+					LabelFingerprint: new(fingerprint),
 					Labels:           labels,
 				},
 			})
@@ -610,9 +606,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	defer client.Close()
 
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		dnsPerDomainID := make(map[string][]*backends.InstanceDNS)
 		for _, dns := range instances {
 			if dns.CustomDNS == nil {
@@ -645,7 +639,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 				}
 			}
 		}
-	}()
+	})
 
 	ops := []*compute.Operation{}
 	for _, instance := range instances {
@@ -721,9 +715,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 	var reterr error
 	retLock := new(sync.Mutex)
 	retWait := new(sync.WaitGroup)
-	retWait.Add(1)
-	go func() {
-		defer retWait.Done()
+	retWait.Go(func() {
 		log.Detail("tag instances start")
 		defer log.Detail("tag instances end")
 		for _, instance := range instances {
@@ -737,7 +729,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 				retLock.Unlock()
 			}
 		}
-	}()
+	})
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
@@ -791,9 +783,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 	var reterr error
 	retLock := new(sync.Mutex)
 	retWait := new(sync.WaitGroup)
-	retWait.Add(1)
-	go func() {
-		defer retWait.Done()
+	retWait.Go(func() {
 		log.Detail("tag instances start")
 		defer log.Detail("tag instances end")
 		for _, instance := range instances {
@@ -806,7 +796,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 				retLock.Unlock()
 			}
 		}
-	}()
+	})
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
@@ -1025,7 +1015,7 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
-				Fingerprint: proto.String(id.TagFingerprint),
+				Fingerprint: new(id.TagFingerprint),
 			},
 		})
 		if err != nil {
@@ -1074,7 +1064,7 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
-				Fingerprint: proto.String(id.TagFingerprint),
+				Fingerprint: new(id.TagFingerprint),
 			},
 		})
 		if err != nil {
@@ -1225,14 +1215,14 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - iops must be a number", diskDef)
 			}
-			iops = proto.Int32(int32(i))
+			iops = new(int32(i))
 		}
 		if diskThroughput != "" {
 			t, err := strconv.ParseInt(diskThroughput, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - throughput must be a number", diskDef)
 			}
-			throughput = proto.Int32(int32(t))
+			throughput = new(int32(t))
 		}
 
 		for i := int64(0); i < count; i++ {
@@ -1242,7 +1232,7 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 				if !strings.HasPrefix(diskType, "pd-") && !strings.HasPrefix(diskType, "hyperdisk-") {
 					return nil, fmt.Errorf("first (root volume) disk must be of type pd-* or hyperdisk-*")
 				}
-				simage = proto.String(backendSpecificParams.Image.ImageId)
+				simage = new(backendSpecificParams.Image.ImageId)
 				boot = true
 				nI++
 			}
@@ -1257,13 +1247,13 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 			}
 
 			diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, diskType)
-			attachmentType := proto.String(computepb.AttachedDisk_SCRATCH.String())
+			attachmentType := new(computepb.AttachedDisk_SCRATCH.String())
 			var devIface *string
 			var piops *int64
 			var pput *int64
 			if strings.HasPrefix(diskType, "pd-") || strings.HasPrefix(diskType, "hyperdisk-") {
 				devIface = nil
-				attachmentType = proto.String(computepb.AttachedDisk_PERSISTENT.String())
+				attachmentType = new(computepb.AttachedDisk_PERSISTENT.String())
 				if diskThroughput != "" {
 					put := int64(*throughput)
 					pput = &put
@@ -1273,28 +1263,28 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 					piops = &iops
 				}
 			} else {
-				devIface = proto.String(computepb.AttachedDisk_NVME.String())
+				devIface = new(computepb.AttachedDisk_NVME.String())
 			}
 			// Set explicit disk name for boot disk to avoid naming collisions with pre-existing volumes
 			var diskName *string
 			if boot && instanceName != "" {
-				diskName = proto.String(instanceName + "-boot")
+				diskName = new(instanceName + "-boot")
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
 					DiskSizeGb:            &size,
 					DiskName:              diskName,
 					SourceImage:           simage,
-					DiskType:              proto.String(diskTypeFull),
+					DiskType:              new(diskTypeFull),
 					ProvisionedIops:       piops,
 					ProvisionedThroughput: pput,
 					Labels:                nodeVolumeTagsEncoded,
 				},
-				AutoDelete: proto.Bool(true),
-				Boot:       proto.Bool(boot),
+				AutoDelete: new(true),
+				Boot:       new(boot),
 				Type:       attachmentType,
 				Interface:  devIface,
-				DeviceName: proto.String(deviceName),
+				DeviceName: new(deviceName),
 			})
 		}
 	}
@@ -1515,9 +1505,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		gcpTags[TAG_DNS_DOMAIN_ID] = backendSpecificParams.CustomDNS.DomainID
 		gcpTags[TAG_DNS_DOMAIN_NAME] = backendSpecificParams.CustomDNS.DomainName
 	}
-	for k, v := range input.Tags {
-		gcpTags[k] = v
-	}
+	maps0.Copy(gcpTags, input.Tags)
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
@@ -1656,7 +1644,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 		var minCpuPlatform *string
 		if backendSpecificParams.MinCpuPlatform != "" {
-			minCpuPlatform = proto.String(backendSpecificParams.MinCpuPlatform)
+			minCpuPlatform = new(backendSpecificParams.MinCpuPlatform)
 		}
 		// Create instance with capacity retry logic
 		insertRequest := &computepb.InsertInstanceRequest{
@@ -1667,31 +1655,31 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				Metadata: &computepb.Metadata{
 					Items: []*computepb.Items{
 						{
-							Key:   proto.String("startup-script"),
-							Value: proto.String(userDataString),
+							Key:   new("startup-script"),
+							Value: new(userDataString),
 						},
 					},
 				},
 				Name:            &name,
-				MachineType:     proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", zone, backendSpecificParams.InstanceType)),
+				MachineType:     new(fmt.Sprintf("zones/%s/machineTypes/%s", zone, backendSpecificParams.InstanceType)),
 				MinCpuPlatform:  minCpuPlatform,
 				ServiceAccounts: serviceAccounts,
 				Tags:            &computepb.Tags{Items: securityGroupIds},
 				Scheduling: &computepb.Scheduling{
-					AutomaticRestart:  proto.Bool(autoRestart),
-					OnHostMaintenance: proto.String(onHostMaintenance),
-					ProvisioningModel: proto.String(provisioning),
+					AutomaticRestart:  new(autoRestart),
+					OnHostMaintenance: new(onHostMaintenance),
+					ProvisioningModel: new(provisioning),
 				},
 				Disks: disksList,
 				NetworkInterfaces: []*computepb.NetworkInterface{
 					{
-						Network:    proto.String(vpc.NetworkId),
-						Subnetwork: proto.String(subnet.SubnetId),
-						StackType:  proto.String("IPV4_ONLY"),
+						Network:    new(vpc.NetworkId),
+						Subnetwork: new(subnet.SubnetId),
+						StackType:  new("IPV4_ONLY"),
 						AccessConfigs: []*computepb.AccessConfig{
 							{
-								Name:        proto.String("External NAT"),
-								NetworkTier: proto.String("PREMIUM"),
+								Name:        new("External NAT"),
+								NetworkTier: new("PREMIUM"),
 							},
 						},
 					},
@@ -1749,7 +1737,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	it := client.List(context.Background(), &computepb.ListInstancesRequest{
 		Project: s.credentials.Project,
 		Zone:    zone,
-		Filter:  proto.String(LABEL_FILTER_AEROLAB),
+		Filter:  new(LABEL_FILTER_AEROLAB),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %v", err)
@@ -1777,9 +1765,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if backendSpecificParams.CustomDNS == nil {
 			return
 		}
@@ -1825,7 +1811,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				}
 			}
 		}
-	}()
+	})
 	defer wg.Wait()
 
 	// using ssh, wait for the instances to be ready
@@ -1945,7 +1931,6 @@ func (s *b) InstancesUpdateHostsFile(instances backends.InstanceList, hostsEntri
 	sem := make(chan struct{}, parallelSSHThreads)
 
 	for _, config := range sshConfig {
-		config := config
 		wait.Add(1)
 		sem <- struct{}{}
 		go func(config *sshexec.ClientConf) {

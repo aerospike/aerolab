@@ -23,7 +23,7 @@ func (c *CloudClustersCredentialsListCmd) Execute(args []string) error {
 		return err
 	}
 
-	var result interface{}
+	var result any
 	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.ClusterID)
 	err = client.Get(path, &result)
 	if err != nil {
@@ -87,7 +87,7 @@ func (c *CloudClustersCredentialsCreateCmd) CreateCloudCredentials(system *Syste
 		Password: c.Password,
 		Roles:    roles,
 	}
-	var result interface{}
+	var result any
 
 	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.ClusterID)
 	err = client.Post(path, request, &result)
@@ -98,7 +98,7 @@ func (c *CloudClustersCredentialsCreateCmd) CreateCloudCredentials(system *Syste
 	// If --wait is specified, wait for credentials to become active
 	if c.Wait {
 		// Extract the ID from the response
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			return fmt.Errorf("unexpected response type: %T", result)
 		}
@@ -128,7 +128,7 @@ func (c *CloudClustersCredentialsCreateCmd) CreateCloudCredentials(system *Syste
 
 // waitForCredentialsActive polls the credentials list until the credential with the given ID has status "active"
 // Returns the credential object when it becomes active
-func (c *CloudClustersCredentialsCreateCmd) waitForCredentialsActive(client *cloud.Client, clusterID string, credentialID string, logger *logger.Logger) (map[string]interface{}, error) {
+func (c *CloudClustersCredentialsCreateCmd) waitForCredentialsActive(client *cloud.Client, clusterID string, credentialID string, logger *logger.Logger) (map[string]any, error) {
 	timeout := 10 * time.Minute
 	interval := 5 * time.Second
 	startTime := time.Now()
@@ -138,19 +138,19 @@ func (c *CloudClustersCredentialsCreateCmd) waitForCredentialsActive(client *clo
 			return nil, fmt.Errorf("timeout waiting for credentials to become active after %v", timeout)
 		}
 
-		var result interface{}
+		var result any
 		path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, clusterID)
 		err := client.Get(path, &result)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get credentials list: %w", err)
 		}
 
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("unexpected response type from credentials list: %T", result)
 		}
 
-		credentials, ok := resultMap["credentials"].([]interface{})
+		credentials, ok := resultMap["credentials"].([]any)
 		if !ok {
 			logger.Debug("No credentials found yet, waiting %v...", interval)
 			time.Sleep(interval)
@@ -159,7 +159,7 @@ func (c *CloudClustersCredentialsCreateCmd) waitForCredentialsActive(client *clo
 
 		// Find the credential with the matching ID
 		for _, cred := range credentials {
-			credMap, ok := cred.(map[string]interface{})
+			credMap, ok := cred.(map[string]any)
 			if !ok {
 				continue
 			}

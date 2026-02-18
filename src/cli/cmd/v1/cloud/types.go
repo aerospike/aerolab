@@ -230,10 +230,10 @@ type AerospikeXDR struct {
 
 // CreateClusterRequest is the request body for creating a cluster
 type CreateClusterRequest struct {
-	Name             string          `json:"name"`
-	DataPlaneVersion string          `json:"dataPlaneVersion,omitempty"`
-	Infrastructure   Infrastructure  `json:"infrastructure"`
-	AerospikeCloud   interface{}     `json:"aerospikeCloud"` // Can be AerospikeCloudMemory, AerospikeCloudLocalDisk, or AerospikeCloudNetworkStorage
+	Name             string         `json:"name"`
+	DataPlaneVersion string         `json:"dataPlaneVersion,omitempty"`
+	Infrastructure   Infrastructure `json:"infrastructure"`
+	AerospikeCloud   any            `json:"aerospikeCloud"` // Can be AerospikeCloudMemory, AerospikeCloudLocalDisk, or AerospikeCloudNetworkStorage
 	// AerospikeServer uses json.RawMessage to preserve all fields from custom configs
 	// since the API supports many more fields than are defined in the typed struct
 	AerospikeServer json.RawMessage `json:"aerospikeServer,omitempty"`
@@ -245,7 +245,7 @@ type UpdateClusterRequest struct {
 	Name             string          `json:"name,omitempty"`
 	DataPlaneVersion string          `json:"dataPlaneVersion,omitempty"`
 	Infrastructure   *Infrastructure `json:"infrastructure,omitempty"`
-	AerospikeCloud   interface{}     `json:"aerospikeCloud,omitempty"`
+	AerospikeCloud   any             `json:"aerospikeCloud,omitempty"`
 	// AerospikeServer uses json.RawMessage to preserve all fields from custom configs
 	// since the API supports many more fields than are defined in the typed struct
 	AerospikeServer json.RawMessage `json:"aerospikeServer,omitempty"`
@@ -324,8 +324,8 @@ type CreateTopologyRequest struct {
 // Database Metrics Types
 type DatabaseMetrics struct {
 	// Define based on the actual metrics schema
-	Timestamp string                 `json:"timestamp"`
-	Metrics   map[string]interface{} `json:"metrics"`
+	Timestamp string         `json:"timestamp"`
+	Metrics   map[string]any `json:"metrics"`
 }
 
 // Common collection structure

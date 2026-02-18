@@ -119,7 +119,7 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 			expire = time.Now().Add(c.GCP.Expire)
 		}
 	}
-	backendSpecificParams := map[backends.BackendType]interface{}{
+	backendSpecificParams := map[backends.BackendType]any{
 		"aws": &baws.CreateVolumeParams{
 			SizeGiB:           c.AWS.SizeGiB,
 			Placement:         c.AWS.Placement,
@@ -213,8 +213,8 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 					volumeRegion = volumeRegion[:len(volumeRegion)-1]
 				}
 			}
-		if system.Opts.Config.Backend.Type == "gcp" {
-			volumeRegion = string(c.GCP.Zone)
+			if system.Opts.Config.Backend.Type == "gcp" {
+				volumeRegion = string(c.GCP.Zone)
 				if strings.Count(volumeRegion, "-") == 2 {
 					volumeRegion = volumeRegion[:strings.LastIndex(volumeRegion, "-")]
 				}

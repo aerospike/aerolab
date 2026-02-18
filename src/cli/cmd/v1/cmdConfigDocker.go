@@ -263,7 +263,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

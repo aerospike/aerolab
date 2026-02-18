@@ -410,7 +410,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 				})
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("AGI INSTANCES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("AGI INSTANCES"), header, rows))
 		fmt.Fprintln(out, "")
 
 		// Render volumes table (only for non-Docker backends since Docker volumes don't persist separately)
@@ -481,7 +481,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 					vol.CreatedAt,
 				})
 			}
-			fmt.Fprintln(out, t.RenderTable(printer.String("AGI VOLUMES"), volHeader, volRows))
+			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows))
 			fmt.Fprintln(out, "")
 		}
 	}
@@ -523,14 +523,14 @@ func computeDockerAgiAccessURL(firewalls []string, protocol string) string {
 		var hostPort, containerPort string
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, "host=") {
-				hostPart := strings.TrimPrefix(part, "host=")
+			if after, ok := strings.CutPrefix(part, "host="); ok {
+				hostPart := after
 				// Extract port from IP:PORT
 				if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx >= 0 {
 					hostPort = hostPart[colonIdx+1:]
 				}
-			} else if strings.HasPrefix(part, "container=") {
-				containerPort = strings.TrimPrefix(part, "container=")
+			} else if after, ok := strings.CutPrefix(part, "container="); ok {
+				containerPort = after
 			}
 		}
 

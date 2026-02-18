@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -114,9 +115,7 @@ func (i *Ingest) Unpack() error {
 			if err != nil {
 				log.Printf("WARN: Failed to enumerate staging directory: %s", err)
 			} else {
-				for fn, file := range stagingFiles {
-					files[fn] = file
-				}
+				maps.Copy(files, stagingFiles)
 			}
 		}
 

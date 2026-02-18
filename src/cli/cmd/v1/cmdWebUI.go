@@ -94,8 +94,8 @@ type WebUICmd struct {
 	CleanupInterval string `long:"cleanup-interval" default:"1h" description:"How often to run cleanup of old jobs"`
 
 	// AGI Monitor (embedded)
-	AgiMonitorEnable bool                  `long:"agi-monitor-enable" description:"Enable built-in AGI monitor for auto-sizing and spot rotation"`
-	AgiMonitor       AgiMonitorConfigCmd   `group:"AGI Monitor" namespace:"agi-monitor" description:"AGI Monitor configuration (requires --agi-monitor-enable)"`
+	AgiMonitorEnable bool                `long:"agi-monitor-enable" description:"Enable built-in AGI monitor for auto-sizing and spot rotation"`
+	AgiMonitor       AgiMonitorConfigCmd `group:"AGI Monitor" namespace:"agi-monitor" description:"AGI Monitor configuration (requires --agi-monitor-enable)"`
 
 	// Subcommands
 	Exec WebUIExecCmd `command:"exec" subcommands-optional:"true" description:"Execute command (internal use)" hidden:"true"`
@@ -110,14 +110,14 @@ type WebUICmd struct {
 	isBasicAuth        bool
 	isTokenAuth        bool
 	jobManager         *JobManager
-	historyExpiresDur    time.Duration
-	maxJobRuntimeDur     time.Duration
-	cleanupIntervalDur   time.Duration
-	refreshIntervalDur   time.Duration
-	minimumIntervalDur   time.Duration
-	jobSemaphore         chan struct{}
-	pendingJobs          atomic.Int32
-	shutdownChan         chan struct{}
+	historyExpiresDur  time.Duration
+	maxJobRuntimeDur   time.Duration
+	cleanupIntervalDur time.Duration
+	refreshIntervalDur time.Duration
+	minimumIntervalDur time.Duration
+	jobSemaphore       chan struct{}
+	pendingJobs        atomic.Int32
+	shutdownChan       chan struct{}
 	rootPath           string // normalized root path (e.g., "/boblab" or "")
 	spaHandler         *webui.SPAHandler
 
@@ -151,8 +151,8 @@ func parseDurationWithDays(s string) (time.Duration, error) {
 	if s == "" || s == "0" {
 		return 0, nil
 	}
-	if strings.HasSuffix(s, "d") {
-		days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+	if before, ok := strings.CutSuffix(s, "d"); ok {
+		days, err := strconv.Atoi(before)
 		if err != nil {
 			return 0, fmt.Errorf("invalid day duration: %s", s)
 		}
@@ -479,7 +479,7 @@ func (c *WebUICmd) Execute(args []string) error {
 			if strings.HasPrefix(dialAddr, ":") {
 				dialAddr = "localhost" + dialAddr
 			}
-			for i := 0; i < 50; i++ {
+			for range 50 {
 				conn, err := net.DialTimeout("tcp", dialAddr, 100*time.Millisecond)
 				if err == nil {
 					conn.Close()
@@ -613,7 +613,7 @@ func (c *WebUICmd) loadTokens() error {
 	c.tokensMutex.Lock()
 	defer c.tokensMutex.Unlock()
 	c.tokens = []string{}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && !strings.HasPrefix(line, "#") {
 			c.tokens = append(c.tokens, line)
@@ -748,7 +748,7 @@ func (c *WebUICmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
 func (c *WebUICmd) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	forceSimple := c.simpleModeConfig != nil && c.simpleModeConfig.ForceEnabled
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"status":            "ok",
 		"version":           getVersion(),
 		"forceSimpleMode":   forceSimple,
@@ -882,7 +882,7 @@ func (c *WebUICmd) handleExplore(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
 
-	var result interface{}
+	var result any
 	if path == "" {
 		// Return full command tree
 		result = c.commandTree
@@ -996,7 +996,7 @@ func (c *WebUICmd) handleDryRun(w http.ResponseWriter, r *http.Request, path str
 	preferShort := r.URL.Query().Get("preferShort") == "true"
 
 	// Parse JSON body into map
-	var params map[string]interface{}
+	var params map[string]any
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			http.Error(w, fmt.Sprintf("Invalid JSON: %s", err), http.StatusBadRequest)
@@ -1015,7 +1015,7 @@ func (c *WebUICmd) handleDryRun(w http.ResponseWriter, r *http.Request, path str
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]interface{}{
+	enc.Encode(map[string]any{
 		"dryRun":      true,
 		"commandPath": path,
 		"cli":         cliCmd,
@@ -1033,7 +1033,7 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 	}
 
 	// Parse request body - support both JSON and multipart/form-data
-	var params map[string]interface{}
+	var params map[string]any
 	var tempDir string
 	contentType := r.Header.Get("Content-Type")
 
@@ -1054,7 +1054,7 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 				return
 			}
 		} else {
-			params = make(map[string]interface{})
+			params = make(map[string]any)
 		}
 
 		// Process uploaded files
@@ -1414,17 +1414,17 @@ func (c *WebUICmd) resolveDynamicChoices(cmd *CommandInfo) {
 
 // ExecuteResponse is the JSON response for command execution
 type ExecuteResponse struct {
-	Success          bool        `json:"success"`
-	Path             string      `json:"path"`
-	Error            string      `json:"error,omitempty"`
-	Result           interface{} `json:"result,omitempty"`
-	Logs             []string    `json:"logs,omitempty"`
-	RefreshInventory bool        `json:"refreshInventory,omitempty"`
+	Success          bool     `json:"success"`
+	Path             string   `json:"path"`
+	Error            string   `json:"error,omitempty"`
+	Result           any      `json:"result,omitempty"`
+	Logs             []string `json:"logs,omitempty"`
+	RefreshInventory bool     `json:"refreshInventory,omitempty"`
 }
 
 // ExecuteResult holds the result of command execution
 type ExecuteResult struct {
-	Result interface{}
+	Result any
 	Logs   []string
 }
 
@@ -1598,7 +1598,7 @@ func (c *WebUICmd) handleJobLogs(w http.ResponseWriter, r *http.Request, jobID s
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]interface{}{
+	enc.Encode(map[string]any{
 		"jobId":  jobID,
 		"status": job.Status,
 		"logs":   logs,
@@ -1652,7 +1652,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 			// concatenated with the first line of the next chunk.
 			// \r is stripped because the SSE parser treats it as a line
 			// terminator, which would corrupt the data field.
-			for _, line := range strings.Split(content, "\n") {
+			for line := range strings.SplitSeq(content, "\n") {
 				fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r"))
 			}
 			fmt.Fprintf(w, "\n")
@@ -1678,7 +1678,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 				// Preserve all elements from Split (including trailing empty
 				// string) so the SSE event data retains trailing \n.  Strip
 				// \r to avoid SSE parser treating it as a line terminator.
-				for _, line := range strings.Split(content, "\n") {
+				for line := range strings.SplitSeq(content, "\n") {
 					fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r"))
 				}
 				fmt.Fprintf(w, "\n")
@@ -1699,7 +1699,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 				// Read any final logs that may have been written between last read and status change
 				sendRemainingLogs()
 				// Send final status (include reloadRequired for config/backend)
-				completePayload := map[string]interface{}{
+				completePayload := map[string]any{
 					"status": job.Status,
 					"error":  job.Error,
 				}
@@ -1727,10 +1727,10 @@ func (c *WebUICmd) handleGenerateCLI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		CommandPath     string                 `json:"commandPath"`
-		Parameters      map[string]interface{} `json:"parameters"`
-		PreferShort     bool                   `json:"preferShort"`     // Use short flags (-n) instead of long (--name)
-		IncludeDefaults bool                   `json:"includeDefaults"` // Include flags even when they match defaults
+		CommandPath     string         `json:"commandPath"`
+		Parameters      map[string]any `json:"parameters"`
+		PreferShort     bool           `json:"preferShort"`     // Use short flags (-n) instead of long (--name)
+		IncludeDefaults bool           `json:"includeDefaults"` // Include flags even when they match defaults
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1768,7 +1768,7 @@ func (c *WebUICmd) handleGenerateCLI(w http.ResponseWriter, r *http.Request) {
 
 // generateCLIWithReflection generates a CLI command using reflection to properly handle
 // struct defaults, nested groups, and proper shell escaping.
-func (c *WebUICmd) generateCLIWithReflection(cmdPath string, params map[string]interface{}, preferShort bool, includeDefaults bool) (string, error) {
+func (c *WebUICmd) generateCLIWithReflection(cmdPath string, params map[string]any, preferShort bool, includeDefaults bool) (string, error) {
 	// Find the command struct type by path
 	cmdVal, err := getCommandValueByPath(c.system.Opts, cmdPath)
 	if err != nil {
@@ -1905,7 +1905,7 @@ func (c *WebUICmd) handleCancelJob(w http.ResponseWriter, r *http.Request, jobID
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"status":  "cancelling",
 		"signal":  sig.String(),
 		"force":   force,

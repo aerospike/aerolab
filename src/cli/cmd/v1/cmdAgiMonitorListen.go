@@ -754,7 +754,7 @@ func (m *agiMonitor) challengeCallbackDo(prot string, ip string, secret string) 
 }
 
 // getDeploymentJSON extracts deployment JSON from the event.
-func (m *agiMonitor) getDeploymentJSON(uuid string, event *ingest.NotifyEvent, dst interface{}) bool {
+func (m *agiMonitor) getDeploymentJSON(uuid string, event *ingest.NotifyEvent, dst any) bool {
 	deployDetail, err := base64.StdEncoding.DecodeString(event.DeploymentJsonGzB64)
 	if err != nil {
 		m.log(uuid, "getDeploymentJson", "base64.StdEncoding.DecodeString: "+err.Error())
@@ -947,10 +947,7 @@ func (m *agiMonitor) handleCheckSizing(w http.ResponseWriter, r *http.Request, u
 			if event.IngestStatus.System.DiskFreeBytes > 0 && event.IngestStatus.System.DiskTotalBytes > 0 {
 				usedPct := 1 - (float64(event.IngestStatus.System.DiskFreeBytes) / float64(event.IngestStatus.System.DiskTotalBytes))
 				if event.IngestStatus.Ingest.LogProcessorCompletePct < 100 && usedPct > float64(m.cmd.GCPDiskThresholdPct)/100 {
-					diskNewSize = (event.IngestStatus.System.DiskTotalBytes / 1024 / 1024 / 1024) + uint64(m.cmd.GCPDiskIncreaseGB)
-					if diskNewSize > uint64(m.cmd.SizingMaxDiskGB) {
-						diskNewSize = uint64(m.cmd.SizingMaxDiskGB)
-					}
+					diskNewSize = min((event.IngestStatus.System.DiskTotalBytes/1024/1024/1024)+uint64(m.cmd.GCPDiskIncreaseGB), uint64(m.cmd.SizingMaxDiskGB))
 					nnotify.Disk = &agiMonitorNotifyDisk{
 						InitialSizeGB: int(event.IngestStatus.System.DiskTotalBytes / 1024 / 1024 / 1024),
 						FinalSizeGB:   int(diskNewSize),

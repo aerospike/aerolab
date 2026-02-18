@@ -89,9 +89,9 @@ func (f TypeFilterRange) Expand() ([]int, error) {
 		return nil, nil
 	}
 	list := []int{}
-	for _, item := range strings.Split(string(f), ",") {
-		if strings.HasPrefix(item, "-") {
-			itemNo, err := strconv.Atoi(strings.TrimPrefix(item, "-"))
+	for item := range strings.SplitSeq(string(f), ",") {
+		if after, ok := strings.CutPrefix(item, "-"); ok {
+			itemNo, err := strconv.Atoi(after)
 			if err != nil {
 				return nil, err
 			}

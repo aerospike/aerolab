@@ -188,7 +188,7 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 	}
 
 	// Check if peering already exists and get its status
-	var existingPeering map[string]interface{}
+	var existingPeering map[string]any
 	var peeringConnectionID string
 	for _, peering := range existingPeerings {
 		if peering["vpcId"] == c.VPCID {
@@ -332,7 +332,7 @@ func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *log
 			return fmt.Errorf("timeout waiting for cluster to be ready after %v", timeout)
 		}
 
-		var result map[string]interface{}
+		var result map[string]any
 		path := fmt.Sprintf("%s/%s", cloudDbPath, clusterID)
 		err := client.Get(path, &result)
 		if err != nil {
@@ -341,7 +341,7 @@ func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *log
 		}
 
 		// Check health.status
-		health, ok := result["health"].(map[string]interface{})
+		health, ok := result["health"].(map[string]any)
 		if !ok {
 			log.Debug("Health field not found in cluster response, retrying...")
 			continue
@@ -369,13 +369,13 @@ func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *log
 	}
 }
 
-func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[string]interface{}, error) {
+func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[string]any, error) {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	var result interface{}
+	var result any
 	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 	err = client.Get(path, &result)
 	if err != nil {
@@ -383,20 +383,20 @@ func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[s
 	}
 
 	// Parse the result to extract peerings
-	resultMap, ok := result.(map[string]interface{})
+	resultMap, ok := result.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("unexpected response format")
 	}
 
-	peerings, ok := resultMap["vpcPeerings"].([]interface{})
+	peerings, ok := resultMap["vpcPeerings"].([]any)
 	if !ok {
 		// If no peerings exist, return empty slice
-		return []map[string]interface{}{}, nil
+		return []map[string]any{}, nil
 	}
 
-	var existingPeerings []map[string]interface{}
+	var existingPeerings []map[string]any
 	for _, peering := range peerings {
-		if peeringMap, ok := peering.(map[string]interface{}); ok {
+		if peeringMap, ok := peering.(map[string]any); ok {
 			existingPeerings = append(existingPeerings, peeringMap)
 		}
 	}
@@ -417,7 +417,7 @@ func (c *CloudClustersPeerVPCCmd) initiateVPCPeering(clusterID string, cidr stri
 		Region:             vpcRegion,
 		IsSecureConnection: true,
 	}
-	var result interface{}
+	var result any
 
 	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 	err = client.Post(path, request, &result)
@@ -454,22 +454,22 @@ func (c *CloudClustersPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Clien
 			return "", fmt.Errorf("timeout waiting for VPC peering initiation after %v", timeout)
 		}
 
-		var result interface{}
+		var result any
 		path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 		err := client.Get(path, &result)
 		if err != nil {
 			return "", fmt.Errorf("failed to get VPC peerings list: %w", err)
 		}
 
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			return "", fmt.Errorf("unexpected response type from peerings list: %T", result)
 		}
 
-		peerings, ok := resultMap["vpcPeerings"].([]interface{})
+		peerings, ok := resultMap["vpcPeerings"].([]any)
 		if !ok {
 			// Try alternative field name
-			peerings, ok = resultMap["vpc_peerings"].([]interface{})
+			peerings, ok = resultMap["vpc_peerings"].([]any)
 		}
 		if !ok {
 			log.Debug("No peerings found yet, waiting %v...", interval)
@@ -479,7 +479,7 @@ func (c *CloudClustersPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Clien
 
 		// Find the peering that matches our VPC ID
 		for _, peering := range peerings {
-			peeringMap, ok := peering.(map[string]interface{})
+			peeringMap, ok := peering.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -564,7 +564,7 @@ func (c *CloudClustersPeerVPCCmd) createRoute(system *System, logger *logger.Log
 
 	// Get the cluster to extract CIDR block
 	logger.Info("Getting cluster information to extract CIDR block...")
-	var clusterResult interface{}
+	var clusterResult any
 	clusterPath := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err = client.Get(clusterPath, &clusterResult)
 	if err != nil {
@@ -572,12 +572,12 @@ func (c *CloudClustersPeerVPCCmd) createRoute(system *System, logger *logger.Log
 	}
 
 	// Extract CIDR block from infrastructure
-	clusterMap, ok := clusterResult.(map[string]interface{})
+	clusterMap, ok := clusterResult.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected cluster response type: %T", clusterResult)
 	}
 
-	infrastructure, ok := clusterMap["infrastructure"].(map[string]interface{})
+	infrastructure, ok := clusterMap["infrastructure"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("infrastructure field not found or invalid in cluster response")
 	}
@@ -610,19 +610,19 @@ func (c *CloudClustersPeerVPCCmd) associateHostedZone(system *System, logger *lo
 
 	// Get VPC peerings list to extract hosted zone ID
 	logger.Info("Getting VPC peerings list to extract hosted zone ID...")
-	var peeringsResult interface{}
+	var peeringsResult any
 	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.ClusterID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		return fmt.Errorf("failed to get VPC peerings list: %w", err)
 	}
 
-	peeringsMap, ok := peeringsResult.(map[string]interface{})
+	peeringsMap, ok := peeringsResult.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected VPC peerings response type: %T", peeringsResult)
 	}
 
-	peerings, ok := peeringsMap["vpcPeerings"].([]interface{})
+	peerings, ok := peeringsMap["vpcPeerings"].([]any)
 	if !ok {
 		return fmt.Errorf("vpcPeerings field not found or invalid in response")
 	}
@@ -630,7 +630,7 @@ func (c *CloudClustersPeerVPCCmd) associateHostedZone(system *System, logger *lo
 	// Find the peering that matches our VPC ID
 	var hostedZoneID string
 	for _, peering := range peerings {
-		peeringMap, ok := peering.(map[string]interface{})
+		peeringMap, ok := peering.(map[string]any)
 		if !ok {
 			continue
 		}

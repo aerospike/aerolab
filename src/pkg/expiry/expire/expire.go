@@ -84,11 +84,12 @@ func (h *ExpiryHandler) Expire() error {
 	instances := inventory.Instances.WithExpired(true).WithState(backends.LifeCycleStateRunning, backends.LifeCycleStateUnknown, backends.LifeCycleStateStopped, backends.LifeCycleStateFail, backends.LifeCycleStateCreated, backends.LifeCycleStateConfiguring).Describe()
 
 	if len(instances) > 0 {
-		logLine := fmt.Sprintf("Terminating %d instances: ", len(instances))
+		var logLine strings.Builder
+		logLine.WriteString(fmt.Sprintf("Terminating %d instances: ", len(instances)))
 		for _, instance := range instances {
-			logLine += fmt.Sprintf("clusterName=%s,nodeNo=%d,instanceID=%s;", instance.ClusterName, instance.NodeNo, instance.InstanceID)
+			logLine.WriteString(fmt.Sprintf("clusterName=%s,nodeNo=%d,instanceID=%s;", instance.ClusterName, instance.NodeNo, instance.InstanceID))
 		}
-		log.Print(logLine)
+		log.Print(logLine.String())
 
 		// Send telemetry for instances with aerolab.telemetry=true tag before termination
 		for _, instance := range instances {
@@ -108,11 +109,12 @@ func (h *ExpiryHandler) Expire() error {
 
 	volumes := inventory.Volumes.WithDeleteOnTermination(false).WithExpired(true).Describe()
 	if len(volumes) > 0 {
-		logLine := fmt.Sprintf("Deleting %d volumes: ", len(volumes))
+		var logLine strings.Builder
+		logLine.WriteString(fmt.Sprintf("Deleting %d volumes: ", len(volumes)))
 		for _, volume := range volumes {
-			logLine += fmt.Sprintf("volumeID=%s;", volume.FileSystemId)
+			logLine.WriteString(fmt.Sprintf("volumeID=%s;", volume.FileSystemId))
 		}
-		log.Print(logLine)
+		log.Print(logLine.String())
 
 		// Send telemetry for volumes with aerolab.telemetry=true tag before deletion
 		for _, volume := range volumes {
@@ -499,14 +501,12 @@ func (h *ExpiryHandler) expireEksctl(region string) error {
 
 // shipInstanceTelemetry sends telemetry data for an expiring instance asynchronously
 func (h *ExpiryHandler) shipInstanceTelemetry(instance *backends.Instance) {
-	telemetryWaitGroup.Add(1)
-	go func() {
-		defer telemetryWaitGroup.Done()
+	telemetryWaitGroup.Go(func() {
 		err := h.shipInstanceTelemetrySync(instance)
 		if err != nil {
 			log.Printf("Telemetry: failed to send telemetry for instance %s: %s", instance.InstanceID, err)
 		}
-	}()
+	})
 }
 
 // shipInstanceTelemetrySync sends telemetry data for an expiring instance synchronously
@@ -559,14 +559,12 @@ func (h *ExpiryHandler) shipInstanceTelemetrySync(instance *backends.Instance) e
 
 // shipVolumeTelemetry sends telemetry data for an expiring volume asynchronously
 func (h *ExpiryHandler) shipVolumeTelemetry(volume *backends.Volume) {
-	telemetryWaitGroup.Add(1)
-	go func() {
-		defer telemetryWaitGroup.Done()
+	telemetryWaitGroup.Go(func() {
 		err := h.shipVolumeTelemetrySync(volume)
 		if err != nil {
 			log.Printf("Telemetry: failed to send telemetry for volume %s: %s", volume.FileSystemId, err)
 		}
-	}()
+	})
 }
 
 // shipVolumeTelemetrySync sends telemetry data for an expiring volume synchronously

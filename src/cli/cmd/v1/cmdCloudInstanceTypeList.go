@@ -210,7 +210,7 @@ func (c *CloudListInstanceTypesCmd) formatOutput(instanceTypes []FlattenedInstan
 				return err
 			}
 		}
-		title := printer.String("INSTANCE TYPES")
+		title := new("INSTANCE TYPES")
 		fmt.Fprintln(out, t.RenderTable(title, header, rows))
 		fmt.Fprintln(out, "")
 	}

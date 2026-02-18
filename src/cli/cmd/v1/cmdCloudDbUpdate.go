@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -139,7 +140,7 @@ func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *b
 
 	logger.Debug("Update request:\n%s", string(requestJson))
 
-	var result interface{}
+	var result any
 	path := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err = client.Patch(path, request, &result)
 	if err != nil {
@@ -149,7 +150,7 @@ func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *b
 	logger.Info("Cluster update successfully queued")
 
 	// Extract cluster ID from result
-	resultMap, ok := result.(map[string]interface{})
+	resultMap, ok := result.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected cluster response type: %T", result)
 	}
@@ -191,7 +192,7 @@ func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *b
 // waitForClusterUpdateComplete waits for the cluster update to complete
 // It polls the cluster list until status != "updating"
 // Returns the cluster result map and an error (if any)
-func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Client, clusterID string, logger *logger.Logger) (map[string]interface{}, error) {
+func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Client, clusterID string, logger *logger.Logger) (map[string]any, error) {
 	timeout := time.Hour
 	interval := 10 * time.Second
 
@@ -200,7 +201,7 @@ func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Clie
 	time.Sleep(10 * time.Second)
 
 	startTime := time.Now()
-	var lastClusterResult map[string]interface{}
+	var lastClusterResult map[string]any
 
 	for {
 		if time.Since(startTime) > timeout {
@@ -210,7 +211,7 @@ func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Clie
 			return nil, fmt.Errorf("timeout waiting for cluster update after %v", timeout)
 		}
 
-		var result interface{}
+		var result any
 		path := cloudDbPath
 		err := client.Get(path, &result)
 		if err != nil {
@@ -220,7 +221,7 @@ func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Clie
 			return nil, fmt.Errorf("failed to get cluster list: %w", err)
 		}
 
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			if lastClusterResult != nil {
 				return lastClusterResult, fmt.Errorf("unexpected response type: %T", result)
@@ -228,7 +229,7 @@ func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Clie
 			return nil, fmt.Errorf("unexpected response type: %T", result)
 		}
 
-		clusters, ok := resultMap["clusters"].([]interface{})
+		clusters, ok := resultMap["clusters"].([]any)
 		if !ok {
 			if lastClusterResult != nil {
 				return lastClusterResult, fmt.Errorf("clusters field not found or invalid in response")
@@ -239,7 +240,7 @@ func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Clie
 		// Look for the cluster with the matching ID
 		found := false
 		for _, db := range clusters {
-			dbMap, ok := db.(map[string]interface{})
+			dbMap, ok := db.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -291,7 +292,7 @@ func (c *CloudClustersUpdateCmd) loadAndMergeCustomConfig(filePath string, baseR
 	}
 
 	// Parse as generic map to detect the type
-	var rawConfig map[string]interface{}
+	var rawConfig map[string]any
 	if err := json.Unmarshal(data, &rawConfig); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom config JSON: %w", err)
 	}
@@ -330,13 +331,13 @@ func (c *CloudClustersUpdateCmd) mergeFullRequest(data []byte, baseRequest cloud
 		return baseRequest, fmt.Errorf("failed to marshal base request: %w", err)
 	}
 
-	var baseMap map[string]interface{}
+	var baseMap map[string]any
 	if err := json.Unmarshal(baseData, &baseMap); err != nil {
 		return baseRequest, fmt.Errorf("failed to unmarshal base request: %w", err)
 	}
 
 	// Parse custom config
-	var customMap map[string]interface{}
+	var customMap map[string]any
 	if err := json.Unmarshal(data, &customMap); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom config: %w", err)
 	}
@@ -361,19 +362,19 @@ func (c *CloudClustersUpdateCmd) mergeFullRequest(data []byte, baseRequest cloud
 // mergeAerospikeServerOnly merges an aerospikeServer-only JSON with the base request
 func (c *CloudClustersUpdateCmd) mergeAerospikeServerOnly(data []byte, baseRequest cloud.UpdateClusterRequest, logger *logger.Logger) (cloud.UpdateClusterRequest, error) {
 	// Parse the aerospikeServer section
-	var customServer map[string]interface{}
+	var customServer map[string]any
 	if err := json.Unmarshal(data, &customServer); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom aerospikeServer config: %w", err)
 	}
 
 	// Convert base aerospikeServer to map
-	var baseServerMap map[string]interface{}
+	var baseServerMap map[string]any
 	if baseRequest.AerospikeServer != nil {
 		if err := json.Unmarshal(baseRequest.AerospikeServer, &baseServerMap); err != nil {
 			return baseRequest, fmt.Errorf("failed to unmarshal base aerospikeServer: %w", err)
 		}
 	} else {
-		baseServerMap = make(map[string]interface{})
+		baseServerMap = make(map[string]any)
 	}
 
 	// Deep merge: custom config takes precedence
@@ -390,20 +391,18 @@ func (c *CloudClustersUpdateCmd) mergeAerospikeServerOnly(data []byte, baseReque
 }
 
 // deepMergeUpdate recursively merges two maps, with the override map taking precedence
-func deepMergeUpdate(base, override map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
+func deepMergeUpdate(base, override map[string]any) map[string]any {
+	result := make(map[string]any)
 
 	// Copy all base values
-	for k, v := range base {
-		result[k] = v
-	}
+	maps.Copy(result, base)
 
 	// Override/merge with custom values
 	for k, v := range override {
 		if baseVal, exists := result[k]; exists {
 			// If both are maps, merge recursively
-			baseMap, baseIsMap := baseVal.(map[string]interface{})
-			overrideMap, overrideIsMap := v.(map[string]interface{})
+			baseMap, baseIsMap := baseVal.(map[string]any)
+			overrideMap, overrideIsMap := v.(map[string]any)
 			if baseIsMap && overrideIsMap {
 				result[k] = deepMergeUpdate(baseMap, overrideMap)
 				continue

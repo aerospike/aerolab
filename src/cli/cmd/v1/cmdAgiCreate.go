@@ -163,23 +163,23 @@ type AgiCreateCmd struct {
 // AgiCreateCmdAws contains AWS-specific options for AGI instance creation.
 type AgiCreateCmdAws struct {
 	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 12GB RAM); empty=auto-select" webchoice:"method::List"`
-	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size in GB" default:"40"`
-	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"Security group IDs (comma-separated)"`
-	SubnetID            string        `short:"U" long:"subnet-id" description:"Subnet ID or availability zone"`
-	Tags                []string      `long:"tags" description:"Custom tags (key=value)"`
-	WithEFS             bool          `long:"with-efs" description:"Use EFS for persistent storage"`
-	EFSName             string        `long:"efs-name" description:"EFS volume name" default:"{AGI_NAME}"`
-	EFSPath             string        `long:"efs-path" description:"EFS mount path" default:"/"`
-	EFSMultiZone        bool          `long:"efs-multizone" description:"Enable multi-AZ EFS (higher cost)"`
-	EFSExpires          time.Duration `long:"efs-expire" description:"EFS expiry after last use" default:"96h"`
-	EFSFips             bool          `long:"efs-fips" description:"Enable FIPS mode for the EFS mount"`
-	TerminateOnPoweroff bool          `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
-	SpotInstance        bool          `long:"spot-instance" description:"Request spot instance"`
-	SpotFallback        bool          `long:"spot-fallback" description:"Fall back to on-demand if spot unavailable"`
-	Expires             time.Duration `long:"expire" description:"Instance expiry time" default:"30h"`
-	Route53ZoneId       string        `long:"route53-zoneid" description:"Route53 zone ID for DNS"`
-	Route53DomainName   string        `long:"route53-domain" description:"Route53 domain name"`
-	DisablePublicIP     bool          `long:"disable-public-ip" description:"Disable public IP assignment"`
+	Ebs                 string          `short:"E" long:"ebs" description:"EBS volume size in GB" default:"40"`
+	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"Security group IDs (comma-separated)"`
+	SubnetID            string          `short:"U" long:"subnet-id" description:"Subnet ID or availability zone"`
+	Tags                []string        `long:"tags" description:"Custom tags (key=value)"`
+	WithEFS             bool            `long:"with-efs" description:"Use EFS for persistent storage"`
+	EFSName             string          `long:"efs-name" description:"EFS volume name" default:"{AGI_NAME}"`
+	EFSPath             string          `long:"efs-path" description:"EFS mount path" default:"/"`
+	EFSMultiZone        bool            `long:"efs-multizone" description:"Enable multi-AZ EFS (higher cost)"`
+	EFSExpires          time.Duration   `long:"efs-expire" description:"EFS expiry after last use" default:"96h"`
+	EFSFips             bool            `long:"efs-fips" description:"Enable FIPS mode for the EFS mount"`
+	TerminateOnPoweroff bool            `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
+	SpotInstance        bool            `long:"spot-instance" description:"Request spot instance"`
+	SpotFallback        bool            `long:"spot-fallback" description:"Fall back to on-demand if spot unavailable"`
+	Expires             time.Duration   `long:"expire" description:"Instance expiry time" default:"30h"`
+	Route53ZoneId       string          `long:"route53-zoneid" description:"Route53 zone ID for DNS"`
+	Route53DomainName   string          `long:"route53-domain" description:"Route53 domain name"`
+	DisablePublicIP     bool            `long:"disable-public-ip" description:"Disable public IP assignment"`
 }
 
 // AgiCreateCmdGcp contains GCP-specific options for AGI instance creation.
@@ -187,15 +187,15 @@ type AgiCreateCmdGcp struct {
 	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-highmem-4" webchoice:"method::List"`
 	Disks               []string        `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
 	Zone                guiZone         `long:"zone" description:"GCP zone" webchoice:"method::List"`
-	Tags                []string      `long:"tag" description:"Network tags"`
-	Labels              []string      `long:"label" description:"Labels (key=value)"`
-	SpotInstance        bool          `long:"spot-instance" description:"Request spot instance"`
-	Expires             time.Duration `long:"expire" description:"Instance expiry time" default:"30h"`
-	WithVol             bool          `long:"with-vol" description:"Use persistent volume for storage"`
-	VolName             string        `long:"vol-name" description:"Volume name" default:"{AGI_NAME}"`
-	VolExpires          time.Duration `long:"vol-expire" description:"Volume expiry after last use" default:"96h"`
-	VolFips             bool          `long:"vol-fips" description:"Enable FIPS mode for the volume mount"`
-	TerminateOnPoweroff bool          `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
+	Tags                []string        `long:"tag" description:"Network tags"`
+	Labels              []string        `long:"label" description:"Labels (key=value)"`
+	SpotInstance        bool            `long:"spot-instance" description:"Request spot instance"`
+	Expires             time.Duration   `long:"expire" description:"Instance expiry time" default:"30h"`
+	WithVol             bool            `long:"with-vol" description:"Use persistent volume for storage"`
+	VolName             string          `long:"vol-name" description:"Volume name" default:"{AGI_NAME}"`
+	VolExpires          time.Duration   `long:"vol-expire" description:"Volume expiry after last use" default:"96h"`
+	VolFips             bool            `long:"vol-fips" description:"Enable FIPS mode for the volume mount"`
+	TerminateOnPoweroff bool            `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
 }
 
 // AgiCreateCmdDocker contains Docker-specific options for AGI instance creation.
@@ -381,14 +381,12 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	// Start background task to ensure expiry system has CleanupDNS enabled (AWS with Route53 only)
 	var expiryCleanupWg sync.WaitGroup
 	if backendType == "aws" && c.AWS.Route53ZoneId != "" && c.AWS.Route53DomainName != "" {
-		expiryCleanupWg.Add(1)
-		go func() {
-			defer expiryCleanupWg.Done()
+		expiryCleanupWg.Go(func() {
 			if err := c.ensureExpiryCleanupDNS(system, logger); err != nil {
 				logger.Warn("Failed to enable CleanupDNS in expiry system: %s", err)
 				logger.Warn("You may need to manually enable CleanupDNS via: aerolab config aws expiry-install -c")
 			}
-		}()
+		})
 	}
 	defer expiryCleanupWg.Wait()
 
@@ -607,8 +605,8 @@ func (c *AgiCreateCmd) processEnvVariables() {
 		&c.S3Secret,
 	}
 	for _, field := range fields {
-		if strings.HasPrefix(*field, "ENV::") {
-			envVar := strings.TrimPrefix(*field, "ENV::")
+		if after, ok := strings.CutPrefix(*field, "ENV::"); ok {
+			envVar := after
 			*field = os.Getenv(envVar)
 		}
 	}
@@ -1090,15 +1088,15 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update EFS tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-			"agiinstance":   string(c.AWS.InstanceType),
-			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-			"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
-			"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
-			"aerolab7agiav": c.AerospikeVersion,
-			"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
-			"agisubnet":     c.AWS.SubnetID,
-			"agisecgroup":   c.AWS.SecurityGroupID,
-			"agiefsexpire":  c.AWS.EFSExpires.String(),
+				"agiinstance":   string(c.AWS.InstanceType),
+				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
+				"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
+				"aerolab7agiav": c.AerospikeVersion,
+				"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
+				"agisubnet":     c.AWS.SubnetID,
+				"agisecgroup":   c.AWS.SecurityGroupID,
+				"agiefsexpire":  c.AWS.EFSExpires.String(),
 				"agiLabel":      agiLabelB64,
 				"agiSrcLocal":   sourceStringLocalB64,
 				"agiSrcSftp":    sourceStringSftpB64,
@@ -1176,13 +1174,13 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update GCP volume tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-			"agiinstance":   string(c.GCP.InstanceType),
-			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-			"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
-			"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
-			"aerolab7agiav": c.AerospikeVersion,
-			"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
-			"agizone":       string(c.GCP.Zone),
+				"agiinstance":   string(c.GCP.InstanceType),
+				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
+				"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
+				"aerolab7agiav": c.AerospikeVersion,
+				"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
+				"agizone":       string(c.GCP.Zone),
 				"agivolexpire":  c.GCP.VolExpires.String(),
 				"agiLabel":      agiLabelB64,
 				"agiSrcLocal":   sourceStringLocalB64,
@@ -1555,7 +1553,7 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 	var lastStdout, lastStderr string
 
 	// Retry up to 10 times with 3 second delay to handle instance startup delay
-	for attempt := 0; attempt < 10; attempt++ {
+	for attempt := range 10 {
 		if attempt > 0 {
 			time.Sleep(3 * time.Second)
 		}
@@ -1837,7 +1835,7 @@ labelFiles:
 // generateNotifierConfig generates the notifier.yaml configuration.
 // Returns the YAML-encoded configuration or nil if marshaling fails.
 func (c *AgiCreateCmd) generateNotifierConfig() []byte {
-	notifier := map[string]interface{}{
+	notifier := map[string]any{
 		"agiMonitor":           c.MonitorUrl,
 		"agiMonitorCertIgnore": c.MonitorCertIgnore,
 		"slackToken":           c.SlackToken,
@@ -1874,7 +1872,7 @@ func (c *AgiCreateCmd) generateProxyConfig(backendType string) []byte {
 		shutdownCmd = "/usr/bin/systemctl stop aerospike; /usr/bin/sync"
 	}
 
-	proxyConfig := map[string]interface{}{
+	proxyConfig := map[string]any{
 		"agiName":         string(c.ClusterName),
 		"label":           c.AGILabel,
 		"listenPort":      listenPort,
@@ -2477,13 +2475,13 @@ func (c *AgiCreateCmd) getAccessURL(instance backends.InstanceList, backendType 
 			var hp, cp string
 			for _, part := range parts {
 				part = strings.TrimSpace(part)
-				if strings.HasPrefix(part, "host=") {
-					hostPart := strings.TrimPrefix(part, "host=")
+				if after, ok := strings.CutPrefix(part, "host="); ok {
+					hostPart := after
 					if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx >= 0 {
 						hp = hostPart[colonIdx+1:]
 					}
-				} else if strings.HasPrefix(part, "container=") {
-					cp = strings.TrimPrefix(part, "container=")
+				} else if after, ok := strings.CutPrefix(part, "container="); ok {
+					cp = after
 				}
 			}
 			if cp == containerPort && hp != "" {
@@ -2724,8 +2722,8 @@ func (c *AgiCreateCmd) getRoute53DomainInfo(system *System, logger *logger.Logge
 
 	// Compute the subdomain by removing the domain from the FQDN
 	fqdn := strings.TrimSuffix(c.AWS.Route53DomainName, ".")
-	if strings.HasSuffix(fqdn, "."+domainName) {
-		dnsName = strings.TrimSuffix(fqdn, "."+domainName)
+	if before, ok := strings.CutSuffix(fqdn, "."+domainName); ok {
+		dnsName = before
 	} else if fqdn == domainName {
 		// The FQDN is the domain itself (apex record)
 		dnsName = ""
@@ -2998,8 +2996,8 @@ func findNextAvailableAGIPort(inventory *backends.Inventory, useSSL bool) string
 				var hostPort string
 				for _, part := range parts {
 					part = strings.TrimSpace(part)
-					if strings.HasPrefix(part, "host=") {
-						hostPart := strings.TrimPrefix(part, "host=")
+					if after, ok := strings.CutPrefix(part, "host="); ok {
+						hostPart := after
 						// Extract port from IP:PORT
 						if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx >= 0 {
 							hostPort = hostPart[colonIdx+1:]

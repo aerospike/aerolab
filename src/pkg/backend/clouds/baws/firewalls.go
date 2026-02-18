@@ -148,7 +148,6 @@ func (s *b) FirewallsUpdate(fw backends.FirewallList, ports backends.PortsIn, wa
 	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
 	fwIds := make(map[string]backends.FirewallList)
 	for _, firewall := range fw {
-		firewall := firewall
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
 			fwIds[firewall.ZoneID] = backends.FirewallList{}
 		}

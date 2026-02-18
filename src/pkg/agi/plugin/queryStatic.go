@@ -17,7 +17,7 @@ func (p *Plugin) handleQueryStatic(req *queryRequest, i int, remote string) (*st
 		return nil, err
 	}
 	defer f.Close()
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	err = json.NewDecoder(f).Decode(&data)
 	if err != nil {
 		return nil, err
@@ -25,7 +25,7 @@ func (p *Plugin) handleQueryStatic(req *queryRequest, i int, remote string) (*st
 	response := &staticResponse{
 		Type: "table",
 	}
-	var responseRows []interface{}
+	var responseRows []any
 	if req.Targets[i].Payload.Static.Name != "" {
 		req.Targets[i].Payload.Static.Names = append(req.Targets[i].Payload.Static.Names, req.Targets[i].Payload.Static.Name)
 	}

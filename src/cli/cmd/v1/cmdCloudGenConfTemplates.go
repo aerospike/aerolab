@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -98,7 +99,7 @@ func (c *CloudGenConfTemplatesCmd) GenerateTemplates(system *System) error {
 	return nil
 }
 
-func (c *CloudGenConfTemplatesCmd) downloadOpenAPISpec() (map[string]interface{}, error) {
+func (c *CloudGenConfTemplatesCmd) downloadOpenAPISpec() (map[string]any, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(openAPIURL)
 	if err != nil {
@@ -116,7 +117,7 @@ func (c *CloudGenConfTemplatesCmd) downloadOpenAPISpec() (map[string]interface{}
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var spec map[string]interface{}
+	var spec map[string]any
 	if err := yaml.Unmarshal(body, &spec); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
@@ -124,13 +125,13 @@ func (c *CloudGenConfTemplatesCmd) downloadOpenAPISpec() (map[string]interface{}
 	return spec, nil
 }
 
-func (c *CloudGenConfTemplatesCmd) extractSchemas(spec map[string]interface{}) (map[string]interface{}, error) {
-	components, ok := spec["components"].(map[string]interface{})
+func (c *CloudGenConfTemplatesCmd) extractSchemas(spec map[string]any) (map[string]any, error) {
+	components, ok := spec["components"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("components not found in OpenAPI spec")
 	}
 
-	schemas, ok := components["schemas"].(map[string]interface{})
+	schemas, ok := components["schemas"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("schemas not found in components")
 	}
@@ -138,8 +139,8 @@ func (c *CloudGenConfTemplatesCmd) extractSchemas(spec map[string]interface{}) (
 	return schemas, nil
 }
 
-func (c *CloudGenConfTemplatesCmd) generateTemplate(schemas map[string]interface{}, schemaName string, serverOnly bool) (interface{}, error) {
-	schema, ok := schemas[schemaName].(map[string]interface{})
+func (c *CloudGenConfTemplatesCmd) generateTemplate(schemas map[string]any, schemaName string, serverOnly bool) (any, error) {
+	schema, ok := schemas[schemaName].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("schema %s not found", schemaName)
 	}
@@ -148,7 +149,7 @@ func (c *CloudGenConfTemplatesCmd) generateTemplate(schemas map[string]interface
 
 	if serverOnly {
 		// Extract just the aerospikeServer section
-		if templateMap, ok := template.(map[string]interface{}); ok {
+		if templateMap, ok := template.(map[string]any); ok {
 			if aerospikeServer, exists := templateMap["aerospikeServer"]; exists {
 				return aerospikeServer, nil
 			}
@@ -159,7 +160,7 @@ func (c *CloudGenConfTemplatesCmd) generateTemplate(schemas map[string]interface
 	return template, nil
 }
 
-func (c *CloudGenConfTemplatesCmd) schemaToTemplate(schemas map[string]interface{}, schema map[string]interface{}, depth int) interface{} {
+func (c *CloudGenConfTemplatesCmd) schemaToTemplate(schemas map[string]any, schema map[string]any, depth int) any {
 	// Prevent infinite recursion
 	if depth > 10 {
 		return nil
@@ -168,34 +169,32 @@ func (c *CloudGenConfTemplatesCmd) schemaToTemplate(schemas map[string]interface
 	// Handle $ref
 	if ref, ok := schema["$ref"].(string); ok {
 		refName := c.extractRefName(ref)
-		if refSchema, ok := schemas[refName].(map[string]interface{}); ok {
+		if refSchema, ok := schemas[refName].(map[string]any); ok {
 			return c.schemaToTemplate(schemas, refSchema, depth+1)
 		}
 		return nil
 	}
 
 	// Handle anyOf/oneOf by taking the first option
-	if anyOf, ok := schema["anyOf"].([]interface{}); ok && len(anyOf) > 0 {
-		if firstOption, ok := anyOf[0].(map[string]interface{}); ok {
+	if anyOf, ok := schema["anyOf"].([]any); ok && len(anyOf) > 0 {
+		if firstOption, ok := anyOf[0].(map[string]any); ok {
 			return c.schemaToTemplate(schemas, firstOption, depth+1)
 		}
 	}
-	if oneOf, ok := schema["oneOf"].([]interface{}); ok && len(oneOf) > 0 {
-		if firstOption, ok := oneOf[0].(map[string]interface{}); ok {
+	if oneOf, ok := schema["oneOf"].([]any); ok && len(oneOf) > 0 {
+		if firstOption, ok := oneOf[0].(map[string]any); ok {
 			return c.schemaToTemplate(schemas, firstOption, depth+1)
 		}
 	}
 
 	// Handle allOf by merging all schemas
-	if allOf, ok := schema["allOf"].([]interface{}); ok {
-		merged := make(map[string]interface{})
+	if allOf, ok := schema["allOf"].([]any); ok {
+		merged := make(map[string]any)
 		for _, item := range allOf {
-			if itemSchema, ok := item.(map[string]interface{}); ok {
+			if itemSchema, ok := item.(map[string]any); ok {
 				itemTemplate := c.schemaToTemplate(schemas, itemSchema, depth+1)
-				if itemMap, ok := itemTemplate.(map[string]interface{}); ok {
-					for k, v := range itemMap {
-						merged[k] = v
-					}
+				if itemMap, ok := itemTemplate.(map[string]any); ok {
+					maps.Copy(merged, itemMap)
 				}
 			}
 		}
@@ -226,16 +225,16 @@ func (c *CloudGenConfTemplatesCmd) schemaToTemplate(schemas map[string]interface
 	}
 }
 
-func (c *CloudGenConfTemplatesCmd) objectToTemplate(schemas map[string]interface{}, schema map[string]interface{}, depth int) map[string]interface{} {
-	result := make(map[string]interface{})
+func (c *CloudGenConfTemplatesCmd) objectToTemplate(schemas map[string]any, schema map[string]any, depth int) map[string]any {
+	result := make(map[string]any)
 
-	properties, ok := schema["properties"].(map[string]interface{})
+	properties, ok := schema["properties"].(map[string]any)
 	if !ok {
 		return result
 	}
 
 	for name, prop := range properties {
-		propSchema, ok := prop.(map[string]interface{})
+		propSchema, ok := prop.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -254,27 +253,27 @@ func (c *CloudGenConfTemplatesCmd) objectToTemplate(schemas map[string]interface
 	return result
 }
 
-func (c *CloudGenConfTemplatesCmd) arrayToTemplate(schemas map[string]interface{}, schema map[string]interface{}, depth int) []interface{} {
-	items, ok := schema["items"].(map[string]interface{})
+func (c *CloudGenConfTemplatesCmd) arrayToTemplate(schemas map[string]any, schema map[string]any, depth int) []any {
+	items, ok := schema["items"].(map[string]any)
 	if !ok {
-		return []interface{}{}
+		return []any{}
 	}
 
 	itemTemplate := c.schemaToTemplate(schemas, items, depth+1)
 	if itemTemplate != nil {
-		return []interface{}{itemTemplate}
+		return []any{itemTemplate}
 	}
-	return []interface{}{}
+	return []any{}
 }
 
-func (c *CloudGenConfTemplatesCmd) stringToTemplate(schema map[string]interface{}) string {
+func (c *CloudGenConfTemplatesCmd) stringToTemplate(schema map[string]any) string {
 	// Use default if available
 	if defaultVal, ok := schema["default"].(string); ok {
 		return defaultVal
 	}
 
 	// Use first enum value if available
-	if enum, ok := schema["enum"].([]interface{}); ok && len(enum) > 0 {
+	if enum, ok := schema["enum"].([]any); ok && len(enum) > 0 {
 		if enumStr, ok := enum[0].(string); ok {
 			return enumStr
 		}
@@ -288,7 +287,7 @@ func (c *CloudGenConfTemplatesCmd) stringToTemplate(schema map[string]interface{
 	return ""
 }
 
-func (c *CloudGenConfTemplatesCmd) numberToTemplate(schema map[string]interface{}) interface{} {
+func (c *CloudGenConfTemplatesCmd) numberToTemplate(schema map[string]any) any {
 	// Use default if available
 	if defaultVal, ok := schema["default"]; ok {
 		return defaultVal
@@ -302,7 +301,7 @@ func (c *CloudGenConfTemplatesCmd) numberToTemplate(schema map[string]interface{
 	return 0
 }
 
-func (c *CloudGenConfTemplatesCmd) booleanToTemplate(schema map[string]interface{}) bool {
+func (c *CloudGenConfTemplatesCmd) booleanToTemplate(schema map[string]any) bool {
 	// Use default if available
 	if defaultVal, ok := schema["default"].(bool); ok {
 		return defaultVal

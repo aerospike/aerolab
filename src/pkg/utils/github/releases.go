@@ -67,7 +67,7 @@ func GetReleases(timeout time.Duration, owner, repo string) (Releases, error) {
 	return releases, nil
 }
 
-func get(url string, timeout time.Duration, out interface{}) error {
+func get(url string, timeout time.Duration, out any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

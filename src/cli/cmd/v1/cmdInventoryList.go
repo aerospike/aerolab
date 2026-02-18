@@ -173,7 +173,7 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 	return nil
 }
 
-func (c *InventoryListCmd) getInventory(system *System, withExpiries bool, withAerospikeCloud bool) map[string]interface{} {
+func (c *InventoryListCmd) getInventory(system *System, withExpiries bool, withAerospikeCloud bool) map[string]any {
 	inventory := system.Backend.GetInventory()
 
 	// Filter instances - exclude terminated instances (same as table output)
@@ -194,7 +194,7 @@ func (c *InventoryListCmd) getInventory(system *System, withExpiries bool, withA
 		volumes = volumes.WithOwner(c.Owner)
 	}
 
-	inv := map[string]interface{}{
+	inv := map[string]any{
 		"networks":  inventory.Networks.Describe(),
 		"firewalls": inventory.Firewalls.Describe(),
 		"volumes":   volumes.Describe(),
@@ -216,7 +216,7 @@ func (c *InventoryListCmd) getInventory(system *System, withExpiries bool, withA
 		if err != nil {
 			system.Logger.Error("Error getting Aerospike Cloud clusters: %s", err)
 		} else {
-			inv["aerospikeCloud"] = map[string]interface{}{
+			inv["aerospikeCloud"] = map[string]any{
 				"clusters": clusters,
 			}
 		}

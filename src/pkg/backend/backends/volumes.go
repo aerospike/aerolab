@@ -11,14 +11,14 @@ import (
 )
 
 type CreateVolumeInput struct {
-	BackendType           BackendType                 `yaml:"backendType" json:"backendType" required:"true"`         // pick a cloud backend
-	VolumeType            VolumeType                  `yaml:"volumeType" json:"volumeType" required:"true"`           // shared or attached
-	Name                  string                      `yaml:"name" json:"name" required:"true"`                       // name of the volume
-	Description           string                      `yaml:"description" json:"description"`                         // from description or tags if no description field
-	Owner                 string                      `yaml:"owner" json:"owner"`                                     // from tags
-	Tags                  map[string]string           `yaml:"tags" json:"tags"`                                       // all tags
-	Expires               time.Time                   `yaml:"expires" json:"expires"`                                 // from tags
-	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecific" json:"backendSpecific" required:"true"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendType           BackendType         `yaml:"backendType" json:"backendType" required:"true"`         // pick a cloud backend
+	VolumeType            VolumeType          `yaml:"volumeType" json:"volumeType" required:"true"`           // shared or attached
+	Name                  string              `yaml:"name" json:"name" required:"true"`                       // name of the volume
+	Description           string              `yaml:"description" json:"description"`                         // from description or tags if no description field
+	Owner                 string              `yaml:"owner" json:"owner"`                                     // from tags
+	Tags                  map[string]string   `yaml:"tags" json:"tags"`                                       // all tags
+	Expires               time.Time           `yaml:"expires" json:"expires"`                                 // from tags
+	BackendSpecificParams map[BackendType]any `yaml:"backendSpecific" json:"backendSpecific" required:"true"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 type CreateVolumeOutput struct {
@@ -48,7 +48,7 @@ func (a VolumeType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
-func (a VolumeType) MarshalYAML() (interface{}, error) {
+func (a VolumeType) MarshalYAML() (any, error) {
 	return a.String(), nil
 }
 
@@ -165,7 +165,7 @@ type Volume struct {
 	DeleteOnTermination bool              `yaml:"deleteOnTermination" json:"deleteOnTermination"`
 	AttachedTo          []string          `yaml:"attachedTo" json:"attachedTo"` // for non-efs
 	EstimatedCostUSD    CostVolume        `yaml:"estimatedCost" json:"estimatedCost"`
-	BackendSpecific     interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific     any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // list of all volumes, for the Inventory interface
@@ -174,7 +174,6 @@ type VolumeList []*Volume
 func (v VolumeList) WithBackendType(types ...BackendType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}
@@ -186,7 +185,6 @@ func (v VolumeList) WithBackendType(types ...BackendType) Volumes {
 func (v VolumeList) WithType(types ...VolumeType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.VolumeType) {
 			continue
 		}
@@ -198,7 +196,6 @@ func (v VolumeList) WithType(types ...VolumeType) Volumes {
 func (v VolumeList) WithOwner(owner ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(owner, volume.Owner) {
 			continue
 		}
@@ -210,7 +207,6 @@ func (v VolumeList) WithOwner(owner ...string) Volumes {
 func (v VolumeList) WithAttached(attached bool) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if attached != (len(volume.AttachedTo) > 0) {
 			continue
 		}
@@ -222,7 +218,6 @@ func (v VolumeList) WithAttached(attached bool) Volumes {
 func (v VolumeList) WithZoneName(zoneNames ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneNames, volume.ZoneName) {
 			continue
 		}
@@ -234,7 +229,6 @@ func (v VolumeList) WithZoneName(zoneNames ...string) Volumes {
 func (v VolumeList) WithZoneID(zoneIDs ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneIDs, volume.ZoneID) {
 			continue
 		}
@@ -246,7 +240,6 @@ func (v VolumeList) WithZoneID(zoneIDs ...string) Volumes {
 func (v VolumeList) WithName(names ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(names, volume.Name) {
 			continue
 		}
@@ -258,7 +251,6 @@ func (v VolumeList) WithName(names ...string) Volumes {
 func (v VolumeList) WithVolumeID(id ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(id, volume.FileSystemId) {
 			continue
 		}
@@ -271,7 +263,6 @@ func (v VolumeList) WithTags(tags map[string]string) Volumes {
 	ret := VolumeList{}
 NEXTVOL:
 	for _, volume := range v {
-		volume := volume
 		for k, v := range tags {
 			if v == "" {
 				if _, ok := volume.Tags[k]; !ok {
@@ -291,7 +282,6 @@ NEXTVOL:
 func (v VolumeList) WithExpired(expired bool) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		// Zero time means no expiry - skip when looking for expired volumes
 		if expired && volume.Expires.IsZero() {
 			continue
@@ -310,7 +300,6 @@ func (v VolumeList) WithExpired(expired bool) Volumes {
 func (v VolumeList) WithDeleteOnTermination(deleteOnTermination bool) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
-		volume := volume
 		if deleteOnTermination != volume.DeleteOnTermination {
 			continue
 		}
@@ -331,9 +320,7 @@ func (v VolumeList) AddTags(tags map[string]string, waitDur time.Duration) error
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -341,7 +328,7 @@ func (v VolumeList) AddTags(tags map[string]string, waitDur time.Duration) error
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -351,9 +338,7 @@ func (v VolumeList) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -361,7 +346,7 @@ func (v VolumeList) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -371,9 +356,7 @@ func (v VolumeList) DeleteVolumes(fw FirewallList, waitDur time.Duration) error 
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -381,7 +364,7 @@ func (v VolumeList) DeleteVolumes(fw FirewallList, waitDur time.Duration) error 
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -391,9 +374,7 @@ func (v VolumeList) Attach(instance *Instance, sharedMountData *VolumeAttachShar
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -401,7 +382,7 @@ func (v VolumeList) Attach(instance *Instance, sharedMountData *VolumeAttachShar
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -411,9 +392,7 @@ func (v VolumeList) Detach(instance *Instance, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -421,7 +400,7 @@ func (v VolumeList) Detach(instance *Instance, waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -431,9 +410,7 @@ func (v VolumeList) Resize(newSizeGiB StorageSize, waitDur time.Duration) error 
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -441,7 +418,7 @@ func (v VolumeList) Resize(newSizeGiB StorageSize, waitDur time.Duration) error 
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -451,9 +428,7 @@ func (v VolumeList) ChangeExpiry(expiry time.Time) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -461,7 +436,7 @@ func (v VolumeList) ChangeExpiry(expiry time.Time) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr

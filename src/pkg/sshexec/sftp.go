@@ -19,10 +19,7 @@ type Sftp struct {
 }
 
 func NewSftp(i *ClientConf) (*Sftp, error) {
-	maxRetries := i.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
+	maxRetries := max(i.MaxRetries, 0)
 	retrySleep := i.RetrySleep
 	if retrySleep <= 0 {
 		retrySleep = 5 * time.Second
@@ -135,10 +132,7 @@ func (i *Sftp) Mkdir(path string, perm os.FileMode) error {
 // write a file to remote
 // if mkdir is set, will check if directory exists; if it doesn't, one will be created
 func (i *Sftp) WriteFile(mkdir bool, f *FileWriter) error {
-	maxRetries := i.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
+	maxRetries := max(i.MaxRetries, 0)
 	retrySleep := i.RetrySleep
 	if retrySleep <= 0 {
 		retrySleep = 5 * time.Second
@@ -191,10 +185,7 @@ func (i *Sftp) writeFileInternal(mkdir bool, f *FileWriter) error {
 
 // read a file from remote
 func (i *Sftp) ReadFile(f *FileReader) error {
-	maxRetries := i.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
+	maxRetries := max(i.MaxRetries, 0)
 	retrySleep := i.RetrySleep
 	if retrySleep <= 0 {
 		retrySleep = 5 * time.Second

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 type variableQuery struct {
@@ -48,8 +48,8 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Query does not contain target variable name (remote:%s)", r.RemoteAddr)
 		return
 	}
-	if strings.HasPrefix(query.Payload.Target, "file::") {
-		fname := strings.TrimPrefix(query.Payload.Target, "file::")
+	if after, ok := strings.CutPrefix(query.Payload.Target, "file::"); ok {
+		fname := after
 		fc, err := os.ReadFile(fname)
 		if err != nil {
 			responseError(w, http.StatusBadRequest, "File read error (remote:%s) (error:%s)", r.RemoteAddr, err)

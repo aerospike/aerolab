@@ -11,8 +11,8 @@ import (
 
 	//"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/aerospike/aerospike-client-go/v8"
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 type HistogramRequest struct {
@@ -175,7 +175,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 }
 
 // toInt64 converts various numeric types to int64
-func toInt64(v interface{}) (int64, error) {
+func toInt64(v any) (int64, error) {
 	switch t := v.(type) {
 	case int:
 		return int64(t), nil

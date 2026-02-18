@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -240,9 +241,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		return nil, err
 	}
 	tagsIn := make(map[string]string)
-	for k, v := range input.Tags {
-		tagsIn[k] = v
-	}
+	maps.Copy(tagsIn, input.Tags)
 	tagsIn[TAG_NAME] = input.Name
 	tagsIn[TAG_OWNER] = input.Owner
 	tagsIn[TAG_DESCRIPTION] = input.Description

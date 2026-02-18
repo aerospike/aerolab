@@ -16,7 +16,7 @@ func (c *CloudSecretsListCmd) Execute(args []string) error {
 		return err
 	}
 
-	var result interface{}
+	var result any
 	err = client.Get("/secrets", &result)
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (c *CloudSecretsCreateCmd) Execute(args []string) error {
 		Description: c.Description,
 		Value:       c.Value,
 	}
-	var result interface{}
+	var result any
 
 	err = client.Post("/secrets", request, &result)
 	if err != nil {

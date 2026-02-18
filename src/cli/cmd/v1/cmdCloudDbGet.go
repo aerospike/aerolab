@@ -36,7 +36,7 @@ func (c *CloudClustersGetHostCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	var result interface{}
+	var result any
 	path := cloudDbPath + "?status_ne=decommissioned"
 	err = client.Get(path, &result)
 	if err != nil {
@@ -71,7 +71,7 @@ func (c *CloudClustersGetTlsCertCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	var result interface{}
+	var result any
 	path := cloudDbPath + "?status_ne=decommissioned"
 	err = client.Get(path, &result)
 	if err != nil {
@@ -89,29 +89,29 @@ func (c *CloudClustersGetTlsCertCmd) Execute(args []string) error {
 }
 
 // extractConnectionField extracts a field from connectionDetails in the cluster list response
-func extractConnectionField(result interface{}, clusterID, clusterName, field string) (string, error) {
+func extractConnectionField(result any, clusterID, clusterName, field string) (string, error) {
 	// Convert result to JSON bytes and unmarshal to map
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %w", err)
 	}
 
-	var resultMap map[string]interface{}
+	var resultMap map[string]any
 	err = json.Unmarshal(resultBytes, &resultMap)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal result: %w", err)
 	}
 
 	// Get clusters array
-	clusters, ok := resultMap["clusters"].([]interface{})
+	clusters, ok := resultMap["clusters"].([]any)
 	if !ok {
 		return "", fmt.Errorf("clusters field not found or not an array")
 	}
 
 	// Find the cluster by ID or name
-	var foundCluster map[string]interface{}
+	var foundCluster map[string]any
 	for _, db := range clusters {
-		dbMap, ok := db.(map[string]interface{})
+		dbMap, ok := db.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -143,7 +143,7 @@ func extractConnectionField(result interface{}, clusterID, clusterName, field st
 	}
 
 	// Get connectionDetails
-	connectionDetails, ok := foundCluster["connectionDetails"].(map[string]interface{})
+	connectionDetails, ok := foundCluster["connectionDetails"].(map[string]any)
 	if !ok {
 		return "", fmt.Errorf("connectionDetails not found or not an object")
 	}

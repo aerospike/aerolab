@@ -22,7 +22,7 @@ type CreateInstanceInput struct {
 	// backend type
 	BackendType BackendType `yaml:"backendType" json:"backendType" required:"true"`
 	// backend-specific parameters; use ex: bdocker.CreateInstanceParams, baws.CreateInstanceParams, bgcp.CreateInstanceParams, etc
-	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecificParams" json:"backendSpecificParams" required:"true"`
+	BackendSpecificParams map[BackendType]any `yaml:"backendSpecificParams" json:"backendSpecificParams" required:"true"`
 	// optional: the name of the ssh key to use for the instances(nodes); if not set, the default ssh key for the project will be used
 	SSHKeyName string `yaml:"sshKeyName" json:"sshKeyName"`
 	// optional: the name of the instance(node); if not set, the default name will be used (project-clusterName-nodeNo)
@@ -184,7 +184,7 @@ type Instance struct {
 	Description      string            `yaml:"description" json:"description"`       // from description or tags if no description field
 	CustomDNS        *InstanceDNS      `yaml:"customDNS" json:"customDNS"`
 	AccessURL        string            `yaml:"accessURL" json:"accessURL"`             // computed access URL for web-accessible clients (vscode, ams, graph, etc)
-	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific  any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Instance to handle AttachedVolumes
@@ -307,7 +307,6 @@ type InstanceList []*Instance
 func (v InstanceList) WithBackendType(types ...BackendType) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(types, instance.BackendType) {
 			continue
 		}
@@ -319,7 +318,6 @@ func (v InstanceList) WithBackendType(types ...BackendType) Instances {
 func (v InstanceList) WithArchitecture(architecture Architecture) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if instance.Architecture != architecture {
 			continue
 		}
@@ -331,7 +329,6 @@ func (v InstanceList) WithArchitecture(architecture Architecture) Instances {
 func (v InstanceList) WithOSName(osName string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if instance.OperatingSystem.Name != osName {
 			continue
 		}
@@ -343,7 +340,6 @@ func (v InstanceList) WithOSName(osName string) Instances {
 func (v InstanceList) WithOSVersion(osVersion string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if instance.OperatingSystem.Version != osVersion {
 			continue
 		}
@@ -355,7 +351,6 @@ func (v InstanceList) WithOSVersion(osVersion string) Instances {
 func (v InstanceList) WithType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		instanceType := instance.Tags["aerolab.type"]
 		if !slices.Contains(types, instanceType) {
 			continue
@@ -369,7 +364,6 @@ func (v InstanceList) WithType(types ...string) Instances {
 func (v InstanceList) WithOldType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		oldType := instance.Tags["aerolab.old.type"]
 		if !slices.Contains(types, oldType) {
 			continue
@@ -382,7 +376,6 @@ func (v InstanceList) WithOldType(types ...string) Instances {
 func (v InstanceList) WithOwner(owners ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(owners, instance.Owner) {
 			continue
 		}
@@ -394,7 +387,6 @@ func (v InstanceList) WithOwner(owners ...string) Instances {
 func (v InstanceList) WithZoneName(zoneNames ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(zoneNames, instance.ZoneName) {
 			continue
 		}
@@ -406,7 +398,6 @@ func (v InstanceList) WithZoneName(zoneNames ...string) Instances {
 func (v InstanceList) WithZoneID(zoneIDs ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(zoneIDs, instance.ZoneID) {
 			continue
 		}
@@ -418,7 +409,6 @@ func (v InstanceList) WithZoneID(zoneIDs ...string) Instances {
 func (v InstanceList) WithName(names ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(names, instance.Name) {
 			continue
 		}
@@ -430,7 +420,6 @@ func (v InstanceList) WithName(names ...string) Instances {
 func (v InstanceList) WithClusterName(names ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(names, instance.ClusterName) {
 			continue
 		}
@@ -442,7 +431,6 @@ func (v InstanceList) WithClusterName(names ...string) Instances {
 func (v InstanceList) WithNodeNo(number ...int) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(number, instance.NodeNo) {
 			continue
 		}
@@ -455,7 +443,6 @@ func (v InstanceList) WithTags(tags map[string]string) Instances {
 	ret := InstanceList{}
 NEXTINST:
 	for _, instance := range v {
-		instance := instance
 		for k, v := range tags {
 			if v == "" {
 				if _, ok := instance.Tags[k]; !ok {
@@ -475,7 +462,6 @@ NEXTINST:
 func (v InstanceList) WithExpired(expired bool) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		// Zero time means no expiry - skip when looking for expired instances
 		if expired && instance.Expires.IsZero() {
 			continue
@@ -494,7 +480,6 @@ func (v InstanceList) WithExpired(expired bool) Instances {
 func (v InstanceList) WithState(states ...LifeCycleState) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(states, instance.InstanceState) {
 			continue
 		}
@@ -506,7 +491,6 @@ func (v InstanceList) WithState(states ...LifeCycleState) Instances {
 func (v InstanceList) WithNotState(states ...LifeCycleState) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if slices.Contains(states, instance.InstanceState) {
 			continue
 		}
@@ -527,9 +511,7 @@ func (v InstanceList) AddTags(tags map[string]string) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -537,7 +519,7 @@ func (v InstanceList) AddTags(tags map[string]string) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -547,9 +529,7 @@ func (v InstanceList) RemoveTags(tagKeys []string) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -557,7 +537,7 @@ func (v InstanceList) RemoveTags(tagKeys []string) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -567,9 +547,7 @@ func (v InstanceList) Terminate(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -577,7 +555,7 @@ func (v InstanceList) Terminate(waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -587,9 +565,7 @@ func (v InstanceList) Stop(force bool, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -597,7 +573,7 @@ func (v InstanceList) Stop(force bool, waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -607,9 +583,7 @@ func (v InstanceList) Start(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -617,7 +591,7 @@ func (v InstanceList) Start(waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -627,15 +601,13 @@ func (v InstanceList) Exec(e *ExecInput) []*ExecOutput {
 	var outs []*ExecOutput
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
 			out := cloudList[c].InstancesExec(v.WithBackendType(c).Describe(), e)
 			outs = append(outs, out...)
-		}()
+		})
 	}
 	wait.Wait()
 	return outs
@@ -646,9 +618,7 @@ func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, err
 	wait := new(sync.WaitGroup)
 	var nerr error
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -658,7 +628,7 @@ func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, err
 				return
 			}
 			outs = append(outs, out...)
-		}()
+		})
 	}
 	wait.Wait()
 	return outs, nerr
@@ -668,15 +638,13 @@ func (v InstanceList) GetSSHKeyPath() []string {
 	var outs []string
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
 			out := cloudList[c].InstancesGetSSHKeyPath(v.WithBackendType(c).Describe())
 			outs = append(outs, out...)
-		}()
+		})
 	}
 	wait.Wait()
 	return outs
@@ -686,9 +654,7 @@ func (v InstanceList) AssignFirewalls(fw FirewallList) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -696,7 +662,7 @@ func (v InstanceList) AssignFirewalls(fw FirewallList) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -706,14 +672,12 @@ func (v InstanceList) RemoveFirewalls(fw FirewallList) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			err := cloudList[c].InstancesRemoveFirewalls(v.WithBackendType(c).Describe(), fw)
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -723,14 +687,12 @@ func (b *backend) CleanupDNS() error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for cname := range b.enabledBackends {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			err := b.enabledBackends[cname].CleanupDNS()
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -739,7 +701,6 @@ func (b *backend) CleanupDNS() error {
 func (v InstanceList) WithInstanceID(instanceIDs ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
-		instance := instance
 		if !slices.Contains(instanceIDs, instance.InstanceID) {
 			continue
 		}
@@ -752,9 +713,7 @@ func (v InstanceList) ChangeExpiry(expiry time.Time) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -762,7 +721,7 @@ func (v InstanceList) ChangeExpiry(expiry time.Time) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -830,9 +789,7 @@ func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads 
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -840,7 +797,7 @@ func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads 
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr

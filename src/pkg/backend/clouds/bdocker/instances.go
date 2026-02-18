@@ -116,7 +116,7 @@ func getImageDetail(img *backends.Image) *ImageDetail {
 		return id
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := img.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := img.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var id ImageDetail
@@ -779,9 +779,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if !input.Expires.IsZero() {
 		labels[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
 	}
-	for k, v := range input.Tags {
-		labels[k] = v
-	}
+	maps.Copy(labels, input.Tags)
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
@@ -907,7 +905,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					if err != nil {
 						return fmt.Errorf("failed to read userdata.sh: %v", err)
 					}
-					df = []byte(fmt.Sprintf(string(df), backendSpecificParams.Image.Name))
+					df = fmt.Appendf(nil, string(df), backendSpecificParams.Image.Name)
 					buf := new(bytes.Buffer)
 					tw := tar.NewWriter(buf)
 					tw.WriteHeader(&tar.Header{
@@ -1298,7 +1296,6 @@ func (s *b) InstancesUpdateHostsFile(instances backends.InstanceList, hostsEntri
 	sem := make(chan struct{}, parallelSSHThreads)
 
 	for _, config := range sshConfig {
-		config := config
 		wait.Add(1)
 		sem <- struct{}{}
 		go func(config *sshexec.ClientConf) {

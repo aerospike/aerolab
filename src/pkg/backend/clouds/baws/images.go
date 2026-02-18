@@ -87,7 +87,6 @@ func getImageDataMerge(data []*imageData, ami *types.Image, osName string, osVer
 
 func getImageData(amis []types.Image) (data []*imageData) {
 	for _, ami := range amis {
-		ami := ami
 		if ami.VirtualizationType != "hvm" || ami.Name == nil || ami.ImageId == nil || ami.CreationDate == nil {
 			continue
 		}
@@ -434,7 +433,6 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	volIds := make(map[string]backends.ImageList)
 	for _, volume := range images {
-		volume := volume
 		if !volume.InAccount {
 			return errors.New("at least one of the provided images is not in the owner's account")
 		}

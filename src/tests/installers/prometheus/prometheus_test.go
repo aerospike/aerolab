@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/prometheus"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ func TestPrometheusLatestUbuntu24(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := prometheus.GetLinuxInstallScript(nil, installers.Bool(false), false, false)
+	script, err := prometheus.GetLinuxInstallScript(nil, new(false), false, false)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -37,7 +36,7 @@ func TestPrometheusLatestCentos8(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := prometheus.GetLinuxInstallScript(nil, installers.Bool(false), false, false)
+	script, err := prometheus.GetLinuxInstallScript(nil, new(false), false, false)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)

@@ -464,7 +464,7 @@ func (c *AgiExecProxyCmd) resizeFilesystem(w http.ResponseWriter, r *http.Reques
 
 	log.Printf("INFO: resizeFilesystem: successfully resized filesystem on %s: %s", device, string(resizeOutput))
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("resized %s: %s", device, string(resizeOutput))))
+	w.Write(fmt.Appendf(nil, "resized %s: %s", device, string(resizeOutput)))
 }
 
 // loadTokensDo reads all token files from the token directory
@@ -1276,7 +1276,7 @@ func (c *AgiExecProxyCmd) handleInactivity(w http.ResponseWriter, r *http.Reques
 	}
 	log.Printf("INFO: Listener: inactivity status request from %s", r.RemoteAddr)
 	lastActivity := c.lastActivity.Get()
-	w.Write([]byte(fmt.Sprintf("lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity))))
+	w.Write(fmt.Appendf(nil, "lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity)))
 }
 
 // checkAuthOnly checks authentication without updating activity timestamp

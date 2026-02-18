@@ -38,7 +38,7 @@ func (e *ExecuteError) Unwrap() error {
 	return ErrExecuteError
 }
 
-func Error(err error, system *System, command []string, params interface{}, args []string) error {
+func Error(err error, system *System, command []string, params any, args []string) error {
 	// telemetry hook
 	TelemetryEvent(command, params, args, system, err)
 	if err == nil {
@@ -100,7 +100,7 @@ type InitBackend struct {
 	GCPClientSecret     string               // GCP client secret used for authentication - if not set, a default auth account will be used
 }
 
-func Initialize(i *Init, command []string, params interface{}, args ...string) (*System, error) {
+func Initialize(i *Init, command []string, params any, args ...string) (*System, error) {
 	s := &System{
 		Logger:             logger.NewLogger(),
 		Opts:               &Commands{},

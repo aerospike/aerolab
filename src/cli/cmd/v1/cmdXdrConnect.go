@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -256,7 +257,7 @@ func (c *XdrConnectCmd) modifyXdrConfig(conf string, xdrVersion string, destIpLi
 	lvl := 0
 	var xdrDcs []string
 
-	for i := 0; i < len(confs); i++ {
+	for i := range confs {
 		if strings.Contains(confs[i], "xdr {") {
 			xdrStart = i
 			lvl = 1
@@ -268,7 +269,7 @@ func (c *XdrConnectCmd) modifyXdrConfig(conf string, xdrVersion string, destIpLi
 
 		if strings.Contains(confs[i], dcStanzaName+" ") && xdrStart != -1 && strings.HasSuffix(confs[i], "{") {
 			tmp := strings.Split(confs[i], " ")
-			for j := 0; j < len(tmp); j++ {
+			for j := range tmp {
 				if strings.Contains(tmp[j], dcStanzaName) && j+1 < len(tmp) {
 					xdrDcs = append(xdrDcs, tmp[j+1])
 					break
@@ -292,13 +293,7 @@ func (c *XdrConnectCmd) modifyXdrConfig(conf string, xdrVersion string, destIpLi
 
 	for _, dest := range destinations {
 		// Check if DC already exists
-		found := false
-		for _, existingDc := range xdrDcs {
-			if dest == existingDc {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(xdrDcs, dest)
 
 		if !found {
 			usePort := "3000"
@@ -327,13 +322,7 @@ func (c *XdrConnectCmd) modifyXdrConfig(conf string, xdrVersion string, destIpLi
 						dc2namespace[dest] = []string{}
 					}
 					for _, nspace := range namespaces {
-						alreadyAdded := false
-						for _, existing := range dc2namespace[dest] {
-							if existing == nspace {
-								alreadyAdded = true
-								break
-							}
-						}
+						alreadyAdded := slices.Contains(dc2namespace[dest], nspace)
 						if !alreadyAdded {
 							dc2namespace[dest] = append(dc2namespace[dest], nspace)
 							dcToAdd += fmt.Sprintf("\t\tnamespace %s {\n\t\t}\n", nspace)
@@ -369,7 +358,7 @@ func (c *XdrConnectCmd) updateNamespacesForXDRv4(confs []string, namespaces []st
 		hasEnableXdr := false
 		var hasDcList []string
 
-		for j := 0; j < len(confs); j++ {
+		for j := range confs {
 			if strings.HasPrefix(confs[j], "namespace ") {
 				nsLoc = j
 				atmp := strings.Split(confs[j], " ")
@@ -385,7 +374,7 @@ func (c *XdrConnectCmd) updateNamespacesForXDRv4(confs []string, namespaces []st
 				hasEnableXdr = true
 			} else if strings.Contains(confs[j], "xdr-remote-datacenter ") && nsLoc != -1 && targetNs == nsName {
 				tmp := strings.Split(confs[j], " ")
-				for k := 0; k < len(tmp); k++ {
+				for k := range tmp {
 					if strings.Contains(tmp[k], "xdr-remote-datacenter") && k+1 < len(tmp) {
 						hasDcList = append(hasDcList, tmp[k+1])
 						break
@@ -401,13 +390,7 @@ func (c *XdrConnectCmd) updateNamespacesForXDRv4(confs []string, namespaces []st
 
 				// Add remote datacenters if not present
 				for _, dc := range destinations {
-					found := false
-					for _, existingDc := range hasDcList {
-						if dc == existingDc {
-							found = true
-							break
-						}
-					}
+					found := slices.Contains(hasDcList, dc)
 					if !found {
 						confs[nsLoc] = confs[nsLoc] + fmt.Sprintf("\nxdr-remote-datacenter %s", dc)
 					}

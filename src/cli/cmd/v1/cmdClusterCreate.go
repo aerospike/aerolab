@@ -963,12 +963,12 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 		scanner := bufio.NewScanner(bytes.NewReader(ffc))
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.HasPrefix(line, "feature-key-version") {
-				ffVer := strings.TrimLeft(strings.TrimPrefix(line, "feature-key-version"), " \t")
+			if after, ok := strings.CutPrefix(line, "feature-key-version"); ok {
+				ffVer := strings.TrimLeft(after, " \t")
 				ffVer = strings.TrimRight(ffVer, " \t\n")
 				ffFiles1.version = ffVer
-			} else if strings.HasPrefix(line, "valid-until-date") {
-				ffDate := strings.TrimLeft(strings.TrimPrefix(line, "valid-until-date"), " \t")
+			} else if after, ok := strings.CutPrefix(line, "valid-until-date"); ok {
+				ffDate := strings.TrimLeft(after, " \t")
 				ffDateSplit := strings.Split(strings.TrimRight(ffDate, " \t\n"), "-")
 				ffy := 3000
 				ffm := 1
@@ -989,12 +989,12 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 				}
 				// 2024-01-15
 				ffFiles1.validUntil = time.Date(ffy, time.Month(ffm), ffd, 0, 0, 0, 0, time.UTC)
-			} else if strings.HasPrefix(line, "serial-number") {
-				ffser := strings.TrimLeft(strings.TrimPrefix(line, "serial-number"), " \t")
+			} else if after, ok := strings.CutPrefix(line, "serial-number"); ok {
+				ffser := strings.TrimLeft(after, " \t")
 				ffser = strings.TrimRight(ffser, " \t\n")
 				ffFiles1.serial, _ = strconv.Atoi(ffser)
-			} else if strings.HasPrefix(line, "asdb-cluster-nodes-limit") {
-				ffser := strings.TrimLeft(strings.TrimPrefix(line, "asdb-cluster-nodes-limit"), " \t")
+			} else if after, ok := strings.CutPrefix(line, "asdb-cluster-nodes-limit"); ok {
+				ffser := strings.TrimLeft(after, " \t")
 				ffser = strings.TrimRight(ffser, " \t\n")
 				ffFiles1.maxNodes, _ = strconv.Atoi(ffser)
 			}

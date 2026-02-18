@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +20,6 @@ import (
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/protobuf/proto"
 )
 
 type CreateVolumeParams struct {
@@ -52,7 +52,7 @@ func getVolumeDetail(vol *backends.Volume) *VolumeDetail {
 		return vd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := vol.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := vol.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var vd VolumeDetail
@@ -105,7 +105,7 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 			defer client.Close()
 			it := client.List(ctx, &computepb.ListDisksRequest{
 				Project: s.credentials.Project,
-				Filter:  proto.String(LABEL_FILTER_AEROLAB),
+				Filter:  new(LABEL_FILTER_AEROLAB),
 				Zone:    zone,
 			})
 			for {
@@ -203,7 +203,6 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 	vols := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := vols[volume.ZoneName]; !ok {
 			vols[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -231,9 +230,7 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 			defer client.Close()
 			for _, vol := range vols {
 				data := vol.Tags
-				for k, v := range tags {
-					data[k] = v
-				}
+				maps.Copy(data, tags)
 				labels := encodeToLabels(data)
 				labels["usedby"] = "aerolab"
 				vd := getVolumeDetail(vol)
@@ -242,7 +239,7 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: proto.String(vd.LabelFingerprint),
+						LabelFingerprint: new(vd.LabelFingerprint),
 						Labels:           labels,
 					},
 				})
@@ -267,7 +264,6 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 	vols := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := vols[volume.ZoneName]; !ok {
 			vols[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -309,7 +305,7 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: proto.String(vd.LabelFingerprint),
+						LabelFingerprint: new(vd.LabelFingerprint),
 						Labels:           labels,
 					},
 				})
@@ -334,7 +330,6 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 	vols := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := vols[volume.ZoneName]; !ok {
 			vols[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -406,7 +401,6 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 	}
 	volIds := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := volIds[volume.ZoneName]; !ok {
 			volIds[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -440,7 +434,7 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 					Zone:    zone,
 					Disk:    vol.Name,
 					DisksResizeRequestResource: &computepb.DisksResizeRequest{
-						SizeGb: proto.Int64(int64(newSizeGiB * backends.StorageGiB / backends.StorageGB)),
+						SizeGb: new(int64(newSizeGiB * backends.StorageGiB / backends.StorageGB)),
 					},
 				})
 				if err != nil {
@@ -479,7 +473,6 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	attached := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := attached[volume.ZoneName]; !ok {
 			attached[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -527,12 +520,12 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					Zone:     zone,
 					Instance: instance.Name,
 					AttachedDiskResource: &computepb.AttachedDisk{
-						AutoDelete: proto.Bool(false),
-						Boot:       proto.Bool(false),
-						DeviceName: proto.String(nextDev),
-						Mode:       proto.String("READ_WRITE"),
-						Source:     proto.String(diskLink),
-						Type:       proto.String("PERSISTENT"),
+						AutoDelete: new(false),
+						Boot:       new(false),
+						DeviceName: new(nextDev),
+						Mode:       new("READ_WRITE"),
+						Source:     new(diskLink),
+						Type:       new("PERSISTENT"),
 					},
 				})
 				if err != nil {
@@ -652,7 +645,6 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	attached := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		if _, ok := attached[volume.ZoneName]; !ok {
 			attached[volume.ZoneName] = backends.VolumeList{}
 		}
@@ -837,16 +829,14 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 
 		var iops *int64
 		if backendSpecificParams.Iops > 0 {
-			iops = proto.Int64(int64(backendSpecificParams.Iops))
+			iops = new(int64(backendSpecificParams.Iops))
 		}
 		var throughput *int64
 		if backendSpecificParams.Throughput > 0 {
-			throughput = proto.Int64(int64(backendSpecificParams.Throughput))
+			throughput = new(int64(backendSpecificParams.Throughput))
 		}
 		tagsIn := make(map[string]string)
-		for k, v := range input.Tags {
-			tagsIn[k] = v
-		}
+		maps.Copy(tagsIn, input.Tags)
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_AEROLAB_OWNER] = input.Owner
 		tagsIn[TAG_AEROLAB_DESCRIPTION] = input.Description
@@ -865,13 +855,13 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			Project: s.credentials.Project,
 			Zone:    zone,
 			DiskResource: &computepb.Disk{
-				Name:                  proto.String(input.Name),
+				Name:                  new(input.Name),
 				Labels:                labels,
-				SizeGb:                proto.Int64(int64(backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB / backends.StorageGB)),
-				Zone:                  proto.String(zone),
+				SizeGb:                new(int64(backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB / backends.StorageGB)),
+				Zone:                  new(zone),
 				ProvisionedIops:       iops,
 				ProvisionedThroughput: throughput,
-				Type:                  proto.String(diskTypeFull),
+				Type:                  new(diskTypeFull),
 			},
 		})
 		if err != nil {

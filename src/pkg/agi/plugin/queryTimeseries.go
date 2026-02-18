@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 type timeseriesResponse struct {
@@ -355,10 +355,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 
 	log.Printf("DETAIL: Post-processing (type:timeseries) (remote:%s) (datapoints:%d) (legendSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	ntime = time.Now()
-	reduceIntervalWindow := req.Range.To.Sub(req.Range.From).Milliseconds() / int64(req.MaxDataPoints)
-	if reduceIntervalWindow > int64(req.IntervalMs) {
-		reduceIntervalWindow = int64(req.IntervalMs)
-	}
+	reduceIntervalWindow := min(req.Range.To.Sub(req.Range.From).Milliseconds()/int64(req.MaxDataPoints), int64(req.IntervalMs))
 	reduceIntervalWindow *= 2 // 2 real datapoints per window
 	datapointCount = 0
 	nullDatapoints := 0
@@ -469,7 +466,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	return resp, nil
 }
 
-func singularSeriesExtend(extender interface{}, point []float64) []*responsePoint {
+func singularSeriesExtend(extender any, point []float64) []*responsePoint {
 	defaultPoints := []*responsePoint{
 		{
 			isDataNull: false,
@@ -543,7 +540,7 @@ func stringToFloat(s string) (f float64, ok bool) {
 	return f, true
 }
 
-func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64, extender interface{}) (datapoints []*responsePoint, dpCount int, nullCount int) {
+func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64, extender any) (datapoints []*responsePoint, dpCount int, nullCount int) {
 	nullTsBefore := float64(-1)
 	nullTsAfter := float64(-1)
 	nullTsMid := float64(-1)

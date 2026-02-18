@@ -113,7 +113,7 @@ func (c *WebUICmd) handleFileDownload(w http.ResponseWriter, r *http.Request, cm
 }
 
 // logError logs an error message safely, handling nil system/logger
-func (c *WebUICmd) logError(format string, args ...interface{}) {
+func (c *WebUICmd) logError(format string, args ...any) {
 	if c.system != nil && c.system.Logger != nil {
 		c.system.Logger.Error(format, args...)
 	} else {
@@ -122,7 +122,7 @@ func (c *WebUICmd) logError(format string, args ...interface{}) {
 }
 
 // logDebug logs a debug message safely, handling nil system/logger
-func (c *WebUICmd) logDebug(format string, args ...interface{}) {
+func (c *WebUICmd) logDebug(format string, args ...any) {
 	if c.system != nil && c.system.Logger != nil {
 		c.system.Logger.Debug(format, args...)
 	} else {
@@ -343,7 +343,7 @@ func (c *WebUICmd) handleFileUpload(w http.ResponseWriter, r *http.Request, cmdP
 	}
 
 	// Build response
-	response := map[string]interface{}{
+	response := map[string]any{
 		"success": len(errors) == 0,
 		"results": results,
 	}

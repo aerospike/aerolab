@@ -90,7 +90,7 @@ type OpenAPISchema struct {
 	Type        string                    `json:"type,omitempty"`
 	Format      string                    `json:"format,omitempty"`
 	Description string                    `json:"description,omitempty"`
-	Default     interface{}               `json:"default,omitempty"`
+	Default     any                       `json:"default,omitempty"`
 	Enum        []string                  `json:"enum,omitempty"`
 	Items       *OpenAPISchema            `json:"items,omitempty"`
 	Properties  map[string]*OpenAPISchema `json:"properties,omitempty"`

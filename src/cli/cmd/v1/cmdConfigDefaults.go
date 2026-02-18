@@ -158,7 +158,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 			if def == "" {
 				value = "false"
 			}
-		case reflect.Int, reflect.String, reflect.Float64, reflect.Ptr, reflect.Int64:
+		case reflect.Int, reflect.String, reflect.Float64, reflect.Pointer, reflect.Int64:
 			if keyField.Type().String() == "time.Duration" {
 				if value == "" {
 					value = "0"
@@ -218,7 +218,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 			return errors.New("ERROR: value must be a number")
 		}
 		keyField.SetFloat(v)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		switch keyField.Type().Elem().String() {
 		case "flags.Filename":
 			strVal := flags.Filename(value)
@@ -350,7 +350,7 @@ func (c *ConfigDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 				ret <- ConfigValueCmd{start, fmt.Sprintf("%v", val)}
 			}
 		}
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if !keyField.IsNil() {
 			c.getValuesNext(reflect.Indirect(keyField), start, ret, tags, onlyChanged)
 		} else {

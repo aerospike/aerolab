@@ -417,9 +417,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	var processLogsEndTime, processCollectInfoStartTime, processCollectInfoEndTime time.Time
 	if !steps.ProcessLogs {
 		steps.ProcessLogsStartTime = time.Now().UTC()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			system.Logger.Info("Processing logs")
 			err := i.ProcessLogs(foundLogs, meta)
 			processLogsEndTime = time.Now().UTC()
@@ -428,15 +426,13 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 				nerr = append(nerr, fmt.Errorf("ProcessLogs: %s", err))
 				nerrLock.Unlock()
 			}
-		}()
+		})
 	}
 	if !c.Async {
 		wg.Wait()
 	}
 	if !steps.ProcessCollectInfo {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			processCollectInfoStartTime = time.Now().UTC()
 			system.Logger.Info("Processing collectinfo files")
 			err := i.ProcessCollectInfo()
@@ -446,7 +442,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 				nerr = append(nerr, fmt.Errorf("ProcessCollectInfo: %s", err))
 				nerrLock.Unlock()
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	// Copy timing data from goroutines

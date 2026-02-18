@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 func (p *Plugin) queryAndCache() {
@@ -46,7 +46,7 @@ func (p *Plugin) cacheSetList() error {
 			return fmt.Errorf("aerospike.RequestInfo: %s", err)
 		}
 		nsets := setList[fmt.Sprintf("sets/%s", p.config.Aerospike.Namespace)]
-		for _, nset := range strings.Split(nsets, ":") {
+		for nset := range strings.SplitSeq(nsets, ":") {
 			if strings.HasPrefix(nset, "set=") {
 				nsetname := strings.Split(nset, "=")[1]
 				if !slices.Contains(sets, nsetname) {
@@ -92,7 +92,7 @@ func (p *Plugin) cacheBinListOld() error {
 		if strings.HasPrefix(nbins, "ERROR") {
 			return fmt.Errorf("aerospike.RequestInfo: %s", nbins)
 		}
-		for _, nbin := range strings.Split(nbins, ",") {
+		for nbin := range strings.SplitSeq(nbins, ",") {
 			if !strings.Contains(nbin, "=") {
 				nbin := strings.Trim(nbin, ";\n")
 				if !slices.Contains(bins, nbin) {

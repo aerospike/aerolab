@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/easytc"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
@@ -57,7 +56,7 @@ func TestEasytcLatestStable(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := easytc.GetLinuxInstallScript(nil, installers.Bool(false), false)
+	script, err := easytc.GetLinuxInstallScript(nil, new(false), false)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)

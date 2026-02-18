@@ -160,20 +160,21 @@ type colorPrint struct {
 	enable bool
 }
 
-func (c *colorPrint) Sprint(a ...interface{}) string {
+func (c *colorPrint) Sprint(a ...any) string {
 	if c.enable {
 		return c.c.Sprint(a...)
 	}
 	return fmt.Sprint(a...)
 }
 
-func (c *colorPrint) Sprintf(format string, a ...interface{}) string {
+func (c *colorPrint) Sprintf(format string, a ...any) string {
 	if c.enable {
 		return c.c.Sprintf(format, a...)
 	}
 	return fmt.Sprintf(format, a...)
 }
 
+//go:fix inline
 func String(s string) *string {
-	return &s
+	return new(s)
 }

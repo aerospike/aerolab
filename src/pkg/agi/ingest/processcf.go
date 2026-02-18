@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -83,13 +84,9 @@ func (i *Ingest) ProcessCollectInfo() error {
 	// merge list
 	log.Printf("DEBUG: ProcessCollectInfo: merging lists")
 	i.progress.Lock()
-	for n, f := range i.progress.CollectinfoProcessor.Files {
-		foundFiles[n] = f
-	}
+	maps.Copy(foundFiles, i.progress.CollectinfoProcessor.Files)
 	i.progress.CollectinfoProcessor.Files = make(map[string]*CfFile)
-	for n, f := range foundFiles {
-		i.progress.CollectinfoProcessor.Files[n] = f
-	}
+	maps.Copy(i.progress.CollectinfoProcessor.Files, foundFiles)
 	i.progress.CollectinfoProcessor.changed = true
 	i.progress.Unlock()
 
@@ -352,7 +349,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	}
 	if ct.infoNetJson != nil && len(ct.infoNetJson.Groups) > 0 {
 		for _, record := range ct.infoNetJson.Groups[0].Records {
-			bins := make(map[string]interface{})
+			bins := make(map[string]any)
 			bins["cfName"] = fname
 			bins["build"] = record.Build.Converted
 			bins["clientConns"] = record.ClientConns.Converted
@@ -422,7 +419,7 @@ func (i *Ingest) processCollectInfoInfoNetwork(path string, logs map[string]map[
 	}
 	jsonString := ""
 	jsonStart := false
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		line = strings.Trim(line, "\n\r")
 		if jsonStart {
 			jsonString = jsonString + "\n" + line
@@ -484,7 +481,7 @@ func (i *Ingest) processCollectInfoClusterName(npath string, logs map[string]map
 	}
 	jsonString := ""
 	jsonStart := false
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		line = strings.Trim(line, "\n\r")
 		if jsonStart {
 			jsonString = jsonString + "\n" + line
@@ -572,40 +569,40 @@ func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfC
 				return fmt.Errorf("could not read file from tar archive: %s", err)
 			}
 			defer fr.Close()
-			ret := make(map[string]interface{})
+			ret := make(map[string]any)
 			err = json.NewDecoder(fr).Decode(&ret)
 			if err != nil {
 				return fmt.Errorf("could not decode ascinfo.json: %s", err)
 			}
 			for _, inDtVal := range ret {
-				if _, ok := inDtVal.(map[string]interface{}); !ok {
+				if _, ok := inDtVal.(map[string]any); !ok {
 					continue
 				}
-				for clusterName, inClusterNameVal := range inDtVal.(map[string]interface{}) {
-					if _, ok := inClusterNameVal.(map[string]interface{}); !ok {
+				for clusterName, inClusterNameVal := range inDtVal.(map[string]any) {
+					if _, ok := inClusterNameVal.(map[string]any); !ok {
 						continue
 					}
-					for _, inIPVal := range inClusterNameVal.(map[string]interface{}) {
-						if _, ok := inIPVal.(map[string]interface{}); !ok {
+					for _, inIPVal := range inClusterNameVal.(map[string]any) {
+						if _, ok := inIPVal.(map[string]any); !ok {
 							continue
 						}
-						inAsStat := inIPVal.(map[string]interface{})["as_stat"]
-						if _, ok := inAsStat.(map[string]interface{}); !ok {
+						inAsStat := inIPVal.(map[string]any)["as_stat"]
+						if _, ok := inAsStat.(map[string]any); !ok {
 							continue
 						}
-						meta := inAsStat.(map[string]interface{})["meta_data"]
-						if _, ok := meta.(map[string]interface{}); !ok {
+						meta := inAsStat.(map[string]any)["meta_data"]
+						if _, ok := meta.(map[string]any); !ok {
 							continue
 						}
-						nodeId := meta.(map[string]interface{})["node_id"]
+						nodeId := meta.(map[string]any)["node_id"]
 						if _, ok := nodeId.(string); !ok {
 							continue
 						}
-						ip := meta.(map[string]interface{})["ip"]
+						ip := meta.(map[string]any)["ip"]
 						if _, ok := ip.(string); !ok {
 							continue
 						}
-						asdBuild := meta.(map[string]interface{})["asd_build"]
+						asdBuild := meta.(map[string]any)["asd_build"]
 						if _, ok := asdBuild.(string); ok {
 							ct.asdBuild = asdBuild.(string)
 						}

@@ -78,7 +78,7 @@ type Image struct {
 	OSVersion       string            `yaml:"osVersion" json:"osVersion"`
 	InAccount       bool              `yaml:"inAccount" json:"inAccount"`             // whether this AMI can be deleted as it's owned by this account
 	Username        string            `yaml:"username" json:"username"`               // default username to use for SSH
-	BackendSpecific interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // list of all volumes, for the Inventory interface
@@ -87,7 +87,6 @@ type ImageList []*Image
 func (v ImageList) WithBackendType(types ...BackendType) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}
@@ -99,7 +98,6 @@ func (v ImageList) WithBackendType(types ...BackendType) Images {
 func (v ImageList) WithOSName(names ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(names, volume.OSName) {
 			continue
 		}
@@ -111,7 +109,6 @@ func (v ImageList) WithOSName(names ...string) Images {
 func (v ImageList) WithOSVersion(version ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(version, volume.OSVersion) {
 			continue
 		}
@@ -123,7 +120,6 @@ func (v ImageList) WithOSVersion(version ...string) Images {
 func (v ImageList) WithZoneName(zoneNames ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneNames, volume.ZoneName) {
 			continue
 		}
@@ -135,7 +131,6 @@ func (v ImageList) WithZoneName(zoneNames ...string) Images {
 func (v ImageList) WithZoneID(zoneIDs ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneIDs, volume.ZoneID) {
 			continue
 		}
@@ -147,7 +142,6 @@ func (v ImageList) WithZoneID(zoneIDs ...string) Images {
 func (v ImageList) WithName(names ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(names, volume.Name) {
 			continue
 		}
@@ -159,7 +153,6 @@ func (v ImageList) WithName(names ...string) Images {
 func (v ImageList) WithImageID(id ...string) Images {
 	ret := ImageList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(id, volume.ImageId) {
 			continue
 		}
@@ -172,7 +165,6 @@ func (v ImageList) WithTags(tags map[string]string) Images {
 	ret := ImageList{}
 NEXTVOL:
 	for _, image := range v {
-		image := image
 		for k, v := range tags {
 			if v == "" {
 				if _, ok := image.Tags[k]; !ok {
@@ -192,7 +184,6 @@ NEXTVOL:
 func (v ImageList) WithArchitecture(arch Architecture) Images {
 	ret := ImageList{}
 	for _, image := range v {
-		image := image
 		if image.Architecture != arch {
 			continue
 		}
@@ -204,7 +195,6 @@ func (v ImageList) WithArchitecture(arch Architecture) Images {
 func (v ImageList) WithInAccount(inOwnerAccount bool) Images {
 	ret := ImageList{}
 	for _, image := range v {
-		image := image
 		if image.InAccount != inOwnerAccount {
 			continue
 		}
@@ -216,7 +206,6 @@ func (v ImageList) WithInAccount(inOwnerAccount bool) Images {
 func (v ImageList) WithOwner(owner string) Images {
 	ret := ImageList{}
 	for _, image := range v {
-		image := image
 		if image.Owner != owner {
 			continue
 		}
@@ -237,9 +226,7 @@ func (v ImageList) DeleteImages(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -247,7 +234,7 @@ func (v ImageList) DeleteImages(waitDur time.Duration) error {
 			if err != nil {
 				retErr = errors.Join(retErr, err)
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -17,8 +18,8 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/types"
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 type MetaEntries map[string]*metaEntries
@@ -67,13 +68,9 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 	// merge list
 	log.Printf("DEBUG: ProcessLogs: merging lists")
 	i.progress.Lock()
-	for n, f := range i.progress.LogProcessor.Files {
-		foundLogs[n] = f
-	}
+	maps.Copy(foundLogs, i.progress.LogProcessor.Files)
 	i.progress.LogProcessor.Files = make(map[string]*LogFile)
-	for n, f := range foundLogs {
-		i.progress.LogProcessor.Files[n] = f
-	}
+	maps.Copy(i.progress.LogProcessor.Files, foundLogs)
 	i.progress.LogProcessor.changed = true
 	meta = make(map[string]*metaEntries)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
@@ -130,7 +127,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 		if data.Data != nil && data.SetName != "" && data.LogLine != "" {
 			wg.Add(1)
 			threads <- true
-			go func(metadata map[string]interface{}, data map[string]interface{}, fn string, logLine string, setName string, nodeIdentifier string) {
+			go func(metadata map[string]any, data map[string]any, fn string, logLine string, setName string, nodeIdentifier string) {
 				metaLock.Lock()
 				for k, v := range metadata {
 					if _, ok := meta[k]; !ok {
@@ -282,7 +279,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 				<-threads
 				defer wg.Done()
 			}()
-			labels := map[string]interface{}{
+			labels := map[string]any{
 				"ClusterName": f.ClusterName,
 				"NodeIdent":   f.NodePrefix + "_" + f.NodeID,
 			}
@@ -311,15 +308,15 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 
 type processResult struct {
 	FileName       string
-	Data           map[string]interface{}
-	Metadata       map[string]interface{}
+	Data           map[string]any
+	Metadata       map[string]any
 	Error          error
 	SetName        string
 	LogLine        string
 	UniqNodeString string
 }
 
-func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int, uniqNodeString string) {
+func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]any, nodePrefix int, uniqNodeString string) {
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.LogProcessor.changed = true
@@ -370,7 +367,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			continue
 		}
 		for _, d := range out {
-			results := make(map[string]interface{})
+			results := make(map[string]any)
 			for k, v := range d.Data {
 				switch vt := v.(type) {
 				case string:
@@ -385,9 +382,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 				}
 			}
 			meta := d.Metadata
-			for k, v := range labels {
-				meta[k] = v
-			}
+			maps.Copy(meta, labels)
 			resultsChan <- &processResult{
 				FileName:       fileName,
 				Data:           results,
@@ -414,9 +409,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	out, startTime, endTime := stream.Close()
 	for _, d := range out {
 		meta := d.Metadata
-		for k, v := range labels {
-			meta[k] = v
-		}
+		maps.Copy(meta, labels)
 		resultsChan <- &processResult{
 			FileName:       fileName,
 			Data:           d.Data,
@@ -436,14 +429,12 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		if err != nil {
 			continue
 		}
-		meta := make(map[string]interface{})
-		for k, v := range labels {
-			meta[k] = v
-		}
+		meta := make(map[string]any)
+		maps.Copy(meta, labels)
 		meta["fileName"] = clusterName + "/" + fileNameOnly
 		resultsChan <- &processResult{
 			FileName: fileName,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"nodePrefix":                        nodePrefix,
 				i.config.Aerospike.TimestampBinName: point.UnixMilli(),
 			},

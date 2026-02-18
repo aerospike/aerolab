@@ -246,10 +246,7 @@ func processInterrupts(cancel context.CancelFunc, in io.ReadCloser, showCommands
 				fmt.Printf(formatter+"\n", "CPU:", cpustring)
 				formatter = formatter + " %s"
 				for _, n := range usemap {
-					curCpuCount := cpucount + 1
-					if len(n) < cpucount+1 {
-						curCpuCount = len(n)
-					}
+					curCpuCount := min(len(n), cpucount+1)
 					fmt.Printf(formatter+"\n", n[0], strings.Join(n[1:curCpuCount], ""), strings.Join(n[curCpuCount:], " "))
 				}
 				cancel()

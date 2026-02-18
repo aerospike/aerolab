@@ -66,9 +66,9 @@ func (c *InventoryAnsibleCmd) InventoryAnsible(system *System, cmd []string, arg
 		SSHKey     string            `json:"ansible_ssh_private_key_file"`
 		Tags       map[string]string `json:"tags"`
 	}
-	ansible := make(map[string]interface{})
-	ansible["_meta"] = make(map[string]interface{})
-	ansible["_meta"].(map[string]interface{})["hostvars"] = make(map[string]ansibleHost)
+	ansible := make(map[string]any)
+	ansible["_meta"] = make(map[string]any)
+	ansible["_meta"].(map[string]any)["hostvars"] = make(map[string]ansibleHost)
 	for _, inst := range instances.Describe() {
 		ip := inst.IP.Private
 		if c.IPType == "public" {
@@ -77,7 +77,7 @@ func (c *InventoryAnsibleCmd) InventoryAnsible(system *System, cmd []string, arg
 		// get ssh key path
 		sshKeyPath := inst.GetSSHKeyPath()
 		// add instance to hostvars
-		ansible["_meta"].(map[string]interface{})["hostvars"].(map[string]ansibleHost)[ip] = ansibleHost{
+		ansible["_meta"].(map[string]any)["hostvars"].(map[string]ansibleHost)[ip] = ansibleHost{
 			Cluster:    inst.ClusterName,
 			Node:       strconv.Itoa(inst.NodeNo),
 			Host:       ip,

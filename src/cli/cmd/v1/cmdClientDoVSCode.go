@@ -3,6 +3,7 @@ package cmd
 import (
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -281,11 +282,8 @@ func (c *ClientCreateVSCodeCmd) buildCompilersScript(kernelsToInstall []string) 
 
 	// Add aerospike client for python if python is being installed
 	pythonPipPackages := []string{}
-	for _, kernel := range kernelsToInstall {
-		if kernel == "python" {
-			pythonPipPackages = []string{"aerospike"}
-			break
-		}
+	if slices.Contains(kernelsToInstall, "python") {
+		pythonPipPackages = []string{"aerospike"}
 	}
 
 	return compilers.GetInstallScript(

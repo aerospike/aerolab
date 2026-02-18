@@ -84,20 +84,20 @@ func (c *CloudClustersDeleteCmd) Execute(args []string) error {
 func (c *CloudClustersDeleteCmd) deleteRouteIfExists(system *System, client *cloud.Client, logger *logger.Logger) error {
 	// Get cluster information to extract CIDR block and region
 	logger.Info("Getting cluster information to extract route details...")
-	var clusterResult interface{}
+	var clusterResult any
 	clusterPath := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err := client.Get(clusterPath, &clusterResult)
 	if err != nil {
 		return fmt.Errorf("failed to get cluster information: %w", err)
 	}
 
-	clusterMap, ok := clusterResult.(map[string]interface{})
+	clusterMap, ok := clusterResult.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected cluster response type: %T", clusterResult)
 	}
 
 	// Extract CIDR block from infrastructure
-	infrastructure, ok := clusterMap["infrastructure"].(map[string]interface{})
+	infrastructure, ok := clusterMap["infrastructure"].(map[string]any)
 	if !ok {
 		logger.Debug("Infrastructure field not found in cluster response, skipping route deletion")
 		return nil
@@ -119,7 +119,7 @@ func (c *CloudClustersDeleteCmd) deleteRouteIfExists(system *System, client *clo
 
 	// Get VPC peerings to find peering connection ID and VPC ID
 	logger.Info("Getting VPC peerings to find peering connection details...")
-	var peeringsResult interface{}
+	var peeringsResult any
 	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.ClusterID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
@@ -127,13 +127,13 @@ func (c *CloudClustersDeleteCmd) deleteRouteIfExists(system *System, client *clo
 		return nil
 	}
 
-	peeringsMap, ok := peeringsResult.(map[string]interface{})
+	peeringsMap, ok := peeringsResult.(map[string]any)
 	if !ok {
 		logger.Debug("Unexpected VPC peerings response type: %T, skipping route deletion", peeringsResult)
 		return nil
 	}
 
-	peerings, ok := peeringsMap["vpcPeerings"].([]interface{})
+	peerings, ok := peeringsMap["vpcPeerings"].([]any)
 	if !ok {
 		logger.Debug("No VPC peerings found, skipping route deletion")
 		return nil
@@ -143,7 +143,7 @@ func (c *CloudClustersDeleteCmd) deleteRouteIfExists(system *System, client *clo
 	var peeringConnectionID string
 	var vpcID string
 	for _, peering := range peerings {
-		peeringMap, ok := peering.(map[string]interface{})
+		peeringMap, ok := peering.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -204,7 +204,7 @@ func (c *CloudClustersDeleteCmd) waitForClusterDecommissioned(client *cloud.Clie
 			return fmt.Errorf("timeout waiting for cluster decommissioning after %v", timeout)
 		}
 
-		var result interface{}
+		var result any
 		// Call list endpoint without status_ne filter to include decommissioned clusters
 		path := cloudDbPath
 		err := client.Get(path, &result)
@@ -212,12 +212,12 @@ func (c *CloudClustersDeleteCmd) waitForClusterDecommissioned(client *cloud.Clie
 			return fmt.Errorf("failed to get cluster list: %w", err)
 		}
 
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			return fmt.Errorf("unexpected response type: %T", result)
 		}
 
-		clusters, ok := resultMap["clusters"].([]interface{})
+		clusters, ok := resultMap["clusters"].([]any)
 		if !ok {
 			return fmt.Errorf("clusters field not found or invalid in cluster response")
 		}
@@ -225,7 +225,7 @@ func (c *CloudClustersDeleteCmd) waitForClusterDecommissioned(client *cloud.Clie
 		// Look for the cluster with the matching ID
 		found := false
 		for _, db := range clusters {
-			dbMap, ok := db.(map[string]interface{})
+			dbMap, ok := db.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -250,7 +250,7 @@ func (c *CloudClustersDeleteCmd) waitForClusterDecommissioned(client *cloud.Clie
 
 			// If not found at top level, try health.status
 			if !statusOK {
-				health, healthExists := dbMap["health"].(map[string]interface{})
+				health, healthExists := dbMap["health"].(map[string]any)
 				if healthExists {
 					healthStatusVal, healthStatusExists := health["status"]
 					if healthStatusExists && healthStatusVal != nil {

@@ -26,8 +26,8 @@ type logStream struct {
 }
 
 type logStreamOutput struct {
-	Data     map[string]interface{}
-	Metadata map[string]interface{}
+	Data     map[string]any
+	Metadata map[string]any
 	Line     string
 	Error    error
 	SetName  string
@@ -273,11 +273,11 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 				continue
 			}
 			resultNames := r.SubexpNames()
-			nRes := make(map[string]interface{})
+			nRes := make(map[string]any)
 			if p.StoreNodePrefix != "" {
 				nRes[p.StoreNodePrefix] = nodePrefix
 			}
-			nMeta := make(map[string]interface{})
+			nMeta := make(map[string]any)
 			for rIndex, result := range results {
 				if rIndex == 0 {
 					continue

@@ -1,9 +1,11 @@
 package installers
 
+//go:fix inline
 func Bool(b bool) *bool {
-	return &b
+	return new(b)
 }
 
+//go:fix inline
 func String(s string) *string {
-	return &s
+	return new(s)
 }

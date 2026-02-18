@@ -193,7 +193,7 @@ func Init(config *Config) (*Ingest, error) {
 	metajson, _ := json.Marshal(&metaEntries{
 		Entries: []string{sources},
 	})
-	bin := map[string]interface{}{
+	bin := map[string]any{
 		"sources": string(metajson),
 	}
 	aerr := i.db.Put(i.wp, key, bin)
@@ -205,7 +205,7 @@ func Init(config *Config) (*Ingest, error) {
 		metajson, _ := json.Marshal(&metaEntries{
 			Entries: []string{i.config.IngestTimeRanges.From.String() + " - " + i.config.IngestTimeRanges.To.String()},
 		})
-		bin = map[string]interface{}{
+		bin = map[string]any{
 			"timerange": string(metajson),
 		}
 		aerr := i.db.Put(i.wp, key, bin)

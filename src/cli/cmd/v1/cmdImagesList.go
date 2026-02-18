@@ -147,7 +147,7 @@ func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("IMAGES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("IMAGES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

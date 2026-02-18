@@ -1347,11 +1347,11 @@ func normalizeAerospikeVersion(version string) string {
 	if version == "" {
 		return version
 	}
-	if strings.HasSuffix(version, "c") {
-		return strings.TrimSuffix(version, "c") + "-community"
+	if before, ok := strings.CutSuffix(version, "c"); ok {
+		return before + "-community"
 	}
-	if strings.HasSuffix(version, "f") {
-		return strings.TrimSuffix(version, "f") + "-federal"
+	if before, ok := strings.CutSuffix(version, "f"); ok {
+		return before + "-federal"
 	}
 	return version + "-enterprise"
 }

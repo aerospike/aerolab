@@ -36,7 +36,7 @@ func getExpirySystemDetail(expirySystem *backends.ExpirySystem) *ExpirySystemDet
 		return esd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := expirySystem.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := expirySystem.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var esd ExpirySystemDetail
@@ -208,11 +208,9 @@ func (s *b) allowUnauthenticated(ctx context.Context, projectID, region string) 
 	// Check if "allUsers" already has "roles/run.invoker"
 	for _, binding := range policyResp.Bindings {
 		if binding.Role == "roles/run.invoker" {
-			for _, member := range binding.Members {
-				if member == "allUsers" {
-					log.Detail("allUsers already has run.invoker role")
-					return nil
-				}
+			if slices.Contains(binding.Members, "allUsers") {
+				log.Detail("allUsers already has run.invoker role")
+				return nil
 			}
 		}
 	}

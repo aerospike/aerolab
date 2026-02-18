@@ -62,7 +62,7 @@ func (c *ClientStartCmd) startClients(system *System, inventory *backends.Invent
 	// Pre-validate client names exist
 	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
 		if strings.Contains(c.ClientName.String(), ",") {
-			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+			for clientName := range strings.SplitSeq(c.ClientName.String(), ",") {
 				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
 					return fmt.Errorf("client '%s' not found", clientName)
 				}
@@ -194,7 +194,7 @@ func (c *ClientStopCmd) stopClients(system *System, inventory *backends.Inventor
 	// Pre-validate client names exist
 	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
 		if strings.Contains(c.ClientName.String(), ",") {
-			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+			for clientName := range strings.SplitSeq(c.ClientName.String(), ",") {
 				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
 					return fmt.Errorf("client '%s' not found", clientName)
 				}
@@ -249,7 +249,7 @@ func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.In
 	// Pre-validate client names exist
 	if c.ClientName.String() != "all" && c.ClientName.String() != "ALL" {
 		if strings.Contains(c.ClientName.String(), ",") {
-			for _, clientName := range strings.Split(c.ClientName.String(), ",") {
+			for clientName := range strings.SplitSeq(c.ClientName.String(), ",") {
 				if inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(clientName).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
 					return fmt.Errorf("client '%s' not found", clientName)
 				}
@@ -384,7 +384,7 @@ func getClientInstancesHelper(inventory *backends.Inventory, clientName string, 
 	// Filter by machine numbers
 	if machines != "" && machines != "all" && machines != "ALL" {
 		machineNums := []int{}
-		for _, nodeString := range strings.Split(machines, ",") {
+		for nodeString := range strings.SplitSeq(machines, ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {
 				return nil, fmt.Errorf("invalid machine number: %s", nodeString)

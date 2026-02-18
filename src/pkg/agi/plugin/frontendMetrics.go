@@ -6,13 +6,13 @@ import (
 	"io"
 	"net/http"
 
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 type metricQuery struct {
-	Metric  string                 `json:"metric"`
-	Payload map[string]interface{} `json:"payload"`
+	Metric  string         `json:"metric"`
+	Payload map[string]any `json:"payload"`
 }
 
 type metricResponse struct {
@@ -51,7 +51,7 @@ func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func responseError(w http.ResponseWriter, httpStatus int, message string, tail ...interface{}) {
+func responseError(w http.ResponseWriter, httpStatus int, message string, tail ...any) {
 	log.Printf("WARN: "+message, tail...)
 	w.WriteHeader(httpStatus)
 	w.Write(sbs.StringToByteSlice(fmt.Sprintf(message, tail...)))

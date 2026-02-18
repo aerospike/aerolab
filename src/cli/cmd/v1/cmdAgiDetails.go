@@ -43,8 +43,8 @@ type AgiDetailsOutput struct {
 	Name     string              `json:"name"`
 	Label    string              `json:"label"`
 	Steps    AgiIngestSteps      `json:"steps"`
-	Download AgiDownloadProgress `json:"download,omitempty"`
-	Process  AgiProcessProgress  `json:"process,omitempty"`
+	Download AgiDownloadProgress `json:"download"`
+	Process  AgiProcessProgress  `json:"process"`
 	Errors   []AgiError          `json:"errors,omitempty"`
 }
 
@@ -57,18 +57,18 @@ type AgiIngestSteps struct {
 	ProcessLogs         bool      `json:"processLogs"`
 	ProcessCollect      bool      `json:"processCollectInfo"`
 	CriticalError       string    `json:"criticalError,omitempty"`
-	InitStart           time.Time `json:"initStart,omitempty"`
-	InitEnd             time.Time `json:"initEnd,omitempty"`
-	DownloadStart       time.Time `json:"downloadStart,omitempty"`
-	DownloadEnd         time.Time `json:"downloadEnd,omitempty"`
-	UnpackStart         time.Time `json:"unpackStart,omitempty"`
-	UnpackEnd           time.Time `json:"unpackEnd,omitempty"`
-	PreProcessStart     time.Time `json:"preProcessStart,omitempty"`
-	PreProcessEnd       time.Time `json:"preProcessEnd,omitempty"`
-	ProcessStart        time.Time `json:"processStart,omitempty"`
-	ProcessEnd          time.Time `json:"processEnd,omitempty"`
-	ProcessCollectStart time.Time `json:"processCollectStart,omitempty"`
-	ProcessCollectEnd   time.Time `json:"processCollectEnd,omitempty"`
+	InitStart           time.Time `json:"initStart"`
+	InitEnd             time.Time `json:"initEnd"`
+	DownloadStart       time.Time `json:"downloadStart"`
+	DownloadEnd         time.Time `json:"downloadEnd"`
+	UnpackStart         time.Time `json:"unpackStart"`
+	UnpackEnd           time.Time `json:"unpackEnd"`
+	PreProcessStart     time.Time `json:"preProcessStart"`
+	PreProcessEnd       time.Time `json:"preProcessEnd"`
+	ProcessStart        time.Time `json:"processStart"`
+	ProcessEnd          time.Time `json:"processEnd"`
+	ProcessCollectStart time.Time `json:"processCollectStart"`
+	ProcessCollectEnd   time.Time `json:"processCollectEnd"`
 }
 
 // AgiDownloadProgress represents download progress details.
@@ -589,7 +589,7 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 			stepsRows = append(stepsRows, table.Row{step.name, status, duration})
 		}
 
-		fmt.Fprintln(out, t.RenderTable(printer.String("INGEST STEPS"), stepsHeader, stepsRows))
+		fmt.Fprintln(out, t.RenderTable(new("INGEST STEPS"), stepsHeader, stepsRows))
 
 		// Critical error
 		if output.Steps.CriticalError != "" {
@@ -625,7 +625,7 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 				})
 			}
 
-			fmt.Fprintln(out, t.RenderTable(printer.String("PROGRESS"), progressHeader, progressRows))
+			fmt.Fprintln(out, t.RenderTable(new("PROGRESS"), progressHeader, progressRows))
 		}
 
 		// Errors summary
@@ -635,12 +635,9 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 			errRows := []table.Row{}
 
 			// Limit to first 10 errors in table view
-			maxErrors := 10
-			if len(output.Errors) < maxErrors {
-				maxErrors = len(output.Errors)
-			}
+			maxErrors := min(len(output.Errors), 10)
 
-			for i := 0; i < maxErrors; i++ {
+			for i := range maxErrors {
 				e := output.Errors[i]
 				errRows = append(errRows, table.Row{e.Stage, e.File, e.Message})
 			}
@@ -649,7 +646,7 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 			if len(output.Errors) > maxErrors {
 				title += fmt.Sprintf(" - showing first %d", maxErrors)
 			}
-			fmt.Fprintln(out, t.RenderTable(printer.String(title), errHeader, errRows))
+			fmt.Fprintln(out, t.RenderTable(new(title), errHeader, errRows))
 		}
 
 		fmt.Fprintln(out, "")

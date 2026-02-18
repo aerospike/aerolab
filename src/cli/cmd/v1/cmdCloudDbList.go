@@ -124,7 +124,7 @@ func (c *CloudClustersListCmd) Execute(args []string) error {
 //   - []Cluster: The list of clusters
 //   - map[string]interface{}: The raw JSON response for JSON output formats
 //   - error: nil on success, or an error describing what failed
-func (c *CloudClustersListCmd) GetClusters() ([]Cluster, map[string]interface{}, error) {
+func (c *CloudClustersListCmd) GetClusters() ([]Cluster, map[string]any, error) {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return nil, nil, err
@@ -136,7 +136,7 @@ func (c *CloudClustersListCmd) GetClusters() ([]Cluster, map[string]interface{},
 	}
 
 	// Get raw JSON response
-	var rawResult map[string]interface{}
+	var rawResult map[string]any
 	err = client.Get(path, &rawResult)
 	if err != nil {
 		return nil, nil, err
@@ -193,7 +193,7 @@ func (c *CloudClustersListCmd) getVPCPeeringStatuses(system *System, inventory *
 	return statuses
 }
 
-func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[string]interface{}, vpcStatuses map[string]*VPCPeeringStatusResponse, out io.Writer) error {
+func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[string]any, vpcStatuses map[string]*VPCPeeringStatusResponse, out io.Writer) error {
 	var err error
 	var page *pager.Pager
 
@@ -315,7 +315,7 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 				return err
 			}
 		}
-		title := printer.String("AEROSPIKE CLOUD CLUSTERS")
+		title := new("AEROSPIKE CLOUD CLUSTERS")
 		fmt.Fprintln(out, t.RenderTable(title, header, rows))
 		fmt.Fprintln(out, "")
 	}
@@ -323,7 +323,7 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 }
 
 // buildJSONOutput builds the JSON output with optional VPC peering status
-func (c *CloudClustersListCmd) buildJSONOutput(clusters []Cluster, rawResult map[string]interface{}, vpcStatuses map[string]*VPCPeeringStatusResponse) interface{} {
+func (c *CloudClustersListCmd) buildJSONOutput(clusters []Cluster, rawResult map[string]any, vpcStatuses map[string]*VPCPeeringStatusResponse) any {
 	if vpcStatuses == nil {
 		return rawResult
 	}
@@ -339,7 +339,7 @@ func (c *CloudClustersListCmd) buildJSONOutput(clusters []Cluster, rawResult map
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"count":    len(extendedClusters),
 		"clusters": extendedClusters,
 	}

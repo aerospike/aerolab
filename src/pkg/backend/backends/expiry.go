@@ -21,7 +21,7 @@ type ExpirySystem struct {
 	Version             string      `yaml:"version" json:"version"`
 	InstallationSuccess bool        `yaml:"installationSuccess" json:"installationSuccess"`
 	FrequencyMinutes    int         `yaml:"frequencyMinutes" json:"frequencyMinutes"`
-	BackendSpecific     interface{} `yaml:"backendSpecific" json:"backendSpecific"`
+	BackendSpecific     any         `yaml:"backendSpecific" json:"backendSpecific"`
 }
 
 func (b *backend) ExpiryList() (*ExpiryList, error) {

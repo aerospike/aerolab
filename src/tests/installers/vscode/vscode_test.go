@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/vscode"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ func TestVscodeLatestCentos8(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := vscode.GetLinuxInstallScript(false, false, installers.String("testpw"), installers.String("0.0.0.0:8080"), []string{"golang.go"}, []string{"some-does-not-exist"}, true, installers.String("/opt"), "/root", "root")
+	script, err := vscode.GetLinuxInstallScript(false, false, new("testpw"), new("0.0.0.0:8080"), []string{"golang.go"}, []string{"some-does-not-exist"}, true, new("/opt"), "/root", "root")
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)

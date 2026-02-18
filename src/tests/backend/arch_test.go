@@ -51,7 +51,7 @@ func (at *archTest) testDeployAmd64(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getArchImage(t, backends.ArchitectureX8664)
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: Options.TestRegions[0] + "a",
@@ -109,7 +109,7 @@ func (at *archTest) testDeployArm64(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getArchImage(t, backends.ArchitectureARM64)
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: Options.TestRegions[0] + "a",

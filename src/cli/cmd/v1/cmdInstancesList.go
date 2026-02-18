@@ -211,10 +211,10 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 	case "text":
 		system.Logger.Info("Instances:")
 		for _, instance := range instances {
-		expiresIn := "never"
-		if !instance.Expires.IsZero() && instance.Expires.After(time.Now()) {
-			expiresIn = time.Until(instance.Expires).Truncate(time.Second).String()
-		}
+			expiresIn := "never"
+			if !instance.Expires.IsZero() && instance.Expires.After(time.Now()) {
+				expiresIn = time.Until(instance.Expires).Truncate(time.Second).String()
+			}
 			if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
 				expiresIn = "expired"
 			}
@@ -265,16 +265,16 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			}
 		}
 		for _, instance := range instances {
-		expiresIn := t.ColorErr.Sprint("NEVER")
-		if !instance.Expires.IsZero() && instance.Expires.After(time.Now()) {
-			if instance.Expires.Before(time.Now().Add(time.Hour * 6)) {
-				expiresIn = t.ColorWarn.Sprint(time.Until(instance.Expires).Truncate(time.Second).String())
-			} else {
-				expiresIn = time.Until(instance.Expires).Truncate(time.Second).String()
+			expiresIn := t.ColorErr.Sprint("NEVER")
+			if !instance.Expires.IsZero() && instance.Expires.After(time.Now()) {
+				if instance.Expires.Before(time.Now().Add(time.Hour * 6)) {
+					expiresIn = t.ColorWarn.Sprint(time.Until(instance.Expires).Truncate(time.Second).String())
+				} else {
+					expiresIn = time.Until(instance.Expires).Truncate(time.Second).String()
+				}
+			} else if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
+				expiresIn = t.ColorErr.Sprint(time.Until(instance.Expires).Truncate(time.Second).String())
 			}
-		} else if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
-			expiresIn = t.ColorErr.Sprint(time.Until(instance.Expires).Truncate(time.Second).String())
-		}
 			if system.Opts.Config.Backend.Type == "docker" {
 				rows = append(rows, table.Row{
 					instance.BackendType,
@@ -328,7 +328,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 				})
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("INSTANCES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("INSTANCES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

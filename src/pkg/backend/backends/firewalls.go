@@ -81,7 +81,7 @@ type PortIn struct {
 
 type PortOut struct {
 	Port
-	BackendSpecific interface{} `yaml:"backendSpecific" json:"backendSpecific"`
+	BackendSpecific any `yaml:"backendSpecific" json:"backendSpecific"`
 }
 
 type PortAction string
@@ -103,7 +103,7 @@ type Firewall struct {
 	Tags            map[string]string `yaml:"tags" json:"tags"`   // all tags
 	Ports           PortsOut          `yaml:"ports" json:"ports"`
 	Network         *Network          `yaml:"network" json:"network"`
-	BackendSpecific interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // list of all volumes, for the Inventory interface
@@ -112,7 +112,6 @@ type FirewallList []*Firewall
 func (v FirewallList) WithBackendType(types ...BackendType) Firewalls {
 	ret := FirewallList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}
@@ -124,7 +123,6 @@ func (v FirewallList) WithBackendType(types ...BackendType) Firewalls {
 func (v FirewallList) WithZoneName(zoneNames ...string) Firewalls {
 	ret := FirewallList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneNames, volume.ZoneName) {
 			continue
 		}
@@ -136,7 +134,6 @@ func (v FirewallList) WithZoneName(zoneNames ...string) Firewalls {
 func (v FirewallList) WithZoneID(zoneIDs ...string) Firewalls {
 	ret := FirewallList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneIDs, volume.ZoneID) {
 			continue
 		}
@@ -148,7 +145,6 @@ func (v FirewallList) WithZoneID(zoneIDs ...string) Firewalls {
 func (v FirewallList) WithName(names ...string) Firewalls {
 	ret := FirewallList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(names, volume.Name) {
 			continue
 		}
@@ -160,7 +156,6 @@ func (v FirewallList) WithName(names ...string) Firewalls {
 func (v FirewallList) WithFirewallID(id ...string) Firewalls {
 	ret := FirewallList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(id, volume.FirewallID) {
 			continue
 		}
@@ -172,7 +167,6 @@ func (v FirewallList) WithFirewallID(id ...string) Firewalls {
 func (v FirewallList) WithOwner(owner ...string) Firewalls {
 	ret := FirewallList{}
 	for _, fw := range v {
-		fw := fw
 		if !slices.Contains(owner, fw.Owner) {
 			continue
 		}
@@ -185,7 +179,6 @@ func (v FirewallList) WithTags(tags map[string]string) Firewalls {
 	ret := FirewallList{}
 NEXTVOL:
 	for _, volume := range v {
-		volume := volume
 		for k, v := range tags {
 			if v == "" {
 				if _, ok := volume.Tags[k]; !ok {
@@ -214,9 +207,7 @@ func (v FirewallList) AddTags(tags map[string]string, waitDur time.Duration) err
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -224,7 +215,7 @@ func (v FirewallList) AddTags(tags map[string]string, waitDur time.Duration) err
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -234,9 +225,7 @@ func (v FirewallList) RemoveTags(tagKeys []string, waitDur time.Duration) error 
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -244,7 +233,7 @@ func (v FirewallList) RemoveTags(tagKeys []string, waitDur time.Duration) error 
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -254,9 +243,7 @@ func (v FirewallList) Delete(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -264,7 +251,7 @@ func (v FirewallList) Delete(waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr
@@ -274,9 +261,7 @@ func (v FirewallList) Update(ports PortsIn, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			if v.WithBackendType(c).Count() == 0 {
 				return
 			}
@@ -284,7 +269,7 @@ func (v FirewallList) Update(ports PortsIn, waitDur time.Duration) error {
 			if err != nil {
 				retErr = err
 			}
-		}()
+		})
 	}
 	wait.Wait()
 	return retErr

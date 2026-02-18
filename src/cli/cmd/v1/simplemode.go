@@ -157,8 +157,8 @@ func simpleModePatternMatches(pattern, path string) bool {
 	}
 
 	// Wildcard: "agi.*" matches "agi" itself and anything under "agi."
-	if strings.HasSuffix(pattern, ".*") {
-		prefix := strings.TrimSuffix(pattern, ".*")
+	if before, ok := strings.CutSuffix(pattern, ".*"); ok {
+		prefix := before
 		return path == prefix || strings.HasPrefix(path, prefix+".")
 	}
 

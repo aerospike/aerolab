@@ -3,6 +3,7 @@ package bgcp
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/protobuf/proto"
 )
 
 type FirewallDetail struct {
@@ -38,7 +38,7 @@ func getPortDetail(port *backends.PortOut) *PortDetail {
 		return pd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := port.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := port.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var pd PortDetail
@@ -65,7 +65,7 @@ func getFirewallDetail(fw *backends.Firewall) *FirewallDetail {
 		return fd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := fw.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := fw.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var fd FirewallDetail
@@ -403,9 +403,7 @@ func (s *b) FirewallsAddTags(fw backends.FirewallList, tags map[string]string, w
 		if err != nil {
 			return err
 		}
-		for k, v := range tags {
-			m[k] = v
-		}
+		maps.Copy(m, tags)
 		desc := encodeToDescriptionField(m)
 		fd := getFirewallDetail(fw)
 		res := fd.Resource
@@ -494,9 +492,7 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 	defer log.Detail("End")
 	// generate all tags in tags variable
 	m := make(map[string]string)
-	for k, v := range input.Tags {
-		m[k] = v
-	}
+	maps.Copy(m, input.Tags)
 	m[TAG_AEROLAB_OWNER] = input.Owner
 	m[TAG_AEROLAB_PROJECT] = s.project
 	m[TAG_AEROLAB_VERSION] = s.aerolabVersion
@@ -560,7 +556,7 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 			Description: &description,
 			Allowed: []*computepb.Allowed{
 				{
-					IPProtocol: proto.String("tcp"),
+					IPProtocol: new("tcp"),
 					Ports:      []string{"22"},
 				},
 			},

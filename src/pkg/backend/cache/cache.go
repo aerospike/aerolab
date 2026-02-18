@@ -23,7 +23,7 @@ func (b *Cache) Delete() error {
 	return os.RemoveAll(b.Dir)
 }
 
-func (b *Cache) Get(name string, dataPointer interface{}) error {
+func (b *Cache) Get(name string, dataPointer any) error {
 	if b == nil || !b.Enabled || b.Dir == "" {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (b *Cache) Get(name string, dataPointer interface{}) error {
 	return json.NewDecoder(f).Decode(dataPointer)
 }
 
-func (b *Cache) Store(name string, data interface{}) error {
+func (b *Cache) Store(name string, data any) error {
 	if b == nil || !b.Enabled || b.Dir == "" {
 		return nil
 	}

@@ -304,13 +304,13 @@ func (c *AgiAddTokenCmd) buildAccessURL(inst *backends.Instance, system *System)
 			var hp, cp string
 			for _, part := range parts {
 				part = strings.TrimSpace(part)
-				if strings.HasPrefix(part, "host=") {
-					hostPart := strings.TrimPrefix(part, "host=")
+				if after, ok := strings.CutPrefix(part, "host="); ok {
+					hostPart := after
 					if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx >= 0 {
 						hp = hostPart[colonIdx+1:]
 					}
-				} else if strings.HasPrefix(part, "container=") {
-					cp = strings.TrimPrefix(part, "container=")
+				} else if after, ok := strings.CutPrefix(part, "container="); ok {
+					cp = after
 				}
 			}
 			if cp == containerPort && hp != "" {

@@ -30,7 +30,7 @@ type telemetryItem struct {
 	CmdLine         []string           // actual os.Args[1:]
 	Command         []string           // command name, e.g. "cluster","create"
 	Args            []string           // tail args passed to the command's Execute function
-	Params          interface{}        // actual params struct for the command being executed
+	Params          any                // actual params struct for the command being executed
 	UUID            string             // unique identifier for the telemetry event
 	StartTime       int64              // start time of the Execute function
 	EndTime         int64              // end time of the Execute function
@@ -128,7 +128,7 @@ func TelemetrySend(logger *logger.Logger) {
 	logger.Detail("Telemetry sent")
 }
 
-func TelemetryEvent(command []string, params interface{}, args []string, system *System, err error) {
+func TelemetryEvent(command []string, params any, args []string, system *System, err error) {
 	// get err value
 	var errString *string
 	if err != nil {

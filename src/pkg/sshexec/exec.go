@@ -59,15 +59,12 @@ type ExecOutput struct {
 	Warn   []string
 }
 
-func (o *ExecOutput) addWarn(f string, params ...interface{}) {
+func (o *ExecOutput) addWarn(f string, params ...any) {
 	o.Warn = append(o.Warn, fmt.Sprintf(f, params...))
 }
 
 func Exec(i *ExecInput) *ExecOutput {
-	maxRetries := i.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
+	maxRetries := max(i.MaxRetries, 0)
 	retrySleep := i.RetrySleep
 	if retrySleep <= 0 {
 		retrySleep = 5 * time.Second

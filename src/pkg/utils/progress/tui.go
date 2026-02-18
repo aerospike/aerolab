@@ -19,7 +19,7 @@ var (
 			Foreground(lipgloss.Color("241"))
 
 	progressBarFull = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("42"))
+			Foreground(lipgloss.Color("42"))
 
 	progressBarEmpty = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("238"))
@@ -88,10 +88,7 @@ func (m TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		if m.width < 40 {
-			m.width = 40
-		}
+		m.width = max(msg.Width, 40)
 		return m, nil
 
 	case tickMsg:
@@ -143,10 +140,7 @@ func (m TUIModel) View() string {
 
 			// Calculate bar width: total width - "Total: " (7) - stats length
 			statsLen := len(pctStr) + len(sizeStr) + len(speedStr)
-			barWidth := m.width - 7 - statsLen
-			if barWidth < 10 {
-				barWidth = 10
-			}
+			barWidth := max(m.width-7-statsLen, 10)
 			bar := renderProgressBar(pct, barWidth)
 
 			b.WriteString(headerStyle.Render("Total: "))
@@ -195,10 +189,7 @@ func renderProgressBar(pct float64, width int) string {
 		return ""
 	}
 
-	filled := int(pct / 100 * float64(width))
-	if filled > width {
-		filled = width
-	}
+	filled := min(int(pct/100*float64(width)), width)
 	empty := width - filled
 
 	return progressBarFull.Render(strings.Repeat("█", filled)) +
@@ -231,13 +222,7 @@ func renderFileProgress(fp *FileProgress, barWidth int, totalWidth int) string {
 		prefix := fmt.Sprintf("  Node %d: ", fp.NodeNo)
 		prefixLen := len(prefix) + maxNameLen + 1
 		statsLen := len(pctStr) + len(speedStr)
-		dynamicBarWidth := totalWidth - prefixLen - statsLen
-		if dynamicBarWidth < 10 {
-			dynamicBarWidth = 10
-		}
-		if dynamicBarWidth > barWidth {
-			dynamicBarWidth = barWidth
-		}
+		dynamicBarWidth := min(max(totalWidth-prefixLen-statsLen, 10), barWidth)
 
 		bar := renderProgressBar(pct, dynamicBarWidth)
 		status = fmt.Sprintf("%s%s%s", bar, pctStr, speedStyle.Render(speedStr))

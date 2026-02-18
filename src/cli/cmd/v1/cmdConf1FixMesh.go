@@ -232,7 +232,7 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 				}
 			}
 			vals = []*string{}
-			for j := 0; j < len(intIps); j++ {
+			for j := range intIps {
 				val := fmt.Sprintf("%s %s", intIps[j], port)
 				vals = append(vals, &val)
 			}
@@ -254,7 +254,7 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 				}
 			}
 			vals = []*string{}
-			for j := 0; j < len(intIps); j++ {
+			for j := range intIps {
 				val := fmt.Sprintf("%s %s", intIps[j], port)
 				vals = append(vals, &val)
 			}

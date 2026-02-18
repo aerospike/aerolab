@@ -249,7 +249,7 @@ func shellEscape(s string) string {
 //   - includeDefaults: if true, include flags even when their value matches the default
 //
 // Returns a shell-safe command string like: aerolab cluster create --name=mydc --count=3
-func ReconstructCommandLine(cmdPath []string, cmdStruct interface{}, preferShort bool, includeDefaults ...bool) string {
+func ReconstructCommandLine(cmdPath []string, cmdStruct any, preferShort bool, includeDefaults ...bool) string {
 	showDefaults := len(includeDefaults) > 0 && includeDefaults[0]
 	return ReconstructCommandLineForBackend(cmdPath, cmdStruct, preferShort, showDefaults, "")
 }
@@ -258,7 +258,7 @@ func ReconstructCommandLine(cmdPath []string, cmdStruct interface{}, preferShort
 // parameters belonging to non-active backends. Groups with description:"backend-X" where
 // X does not match activeBackend are omitted from the output.
 // If activeBackend is empty, no backend filtering is applied.
-func ReconstructCommandLineForBackend(cmdPath []string, cmdStruct interface{}, preferShort bool, includeDefaults bool, activeBackend string) string {
+func ReconstructCommandLineForBackend(cmdPath []string, cmdStruct any, preferShort bool, includeDefaults bool, activeBackend string) string {
 	var parts []string
 	parts = append(parts, "aerolab")
 	parts = append(parts, cmdPath...)
@@ -276,7 +276,7 @@ func extractFlags(val reflect.Value, namespacePrefix string, preferShort bool, i
 	var flags []string
 
 	// Handle pointer types
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
 			return flags
 		}
@@ -310,8 +310,8 @@ func extractFlags(val reflect.Value, namespacePrefix string, preferShort bool, i
 			// Backend groups have description:"backend-X" (e.g. "backend-aws").
 			if activeBackend != "" {
 				desc := field.Tag.Get("description")
-				if strings.HasPrefix(desc, "backend-") {
-					backendName := strings.TrimPrefix(desc, "backend-")
+				if after, ok := strings.CutPrefix(desc, "backend-"); ok {
+					backendName := after
 					if backendName != activeBackend {
 						continue // Skip this entire group
 					}
@@ -390,7 +390,7 @@ func extractFlags(val reflect.Value, namespacePrefix string, preferShort bool, i
 // getFieldValueStringForced returns the string representation of a field value
 // without checking against defaults. Used when includeDefaults is true.
 func getFieldValueStringForced(fieldVal reflect.Value) string {
-	if fieldVal.Kind() == reflect.Ptr {
+	if fieldVal.Kind() == reflect.Pointer {
 		if fieldVal.IsNil() {
 			return ""
 		}
@@ -428,7 +428,7 @@ func getFieldValueStringForced(fieldVal reflect.Value) string {
 // Returns the string representation and whether the flag should be included in output
 func getFieldValueString(fieldVal reflect.Value, defaultVal string) (string, bool) {
 	// Handle pointer types
-	if fieldVal.Kind() == reflect.Ptr {
+	if fieldVal.Kind() == reflect.Pointer {
 		if fieldVal.IsNil() {
 			return "", false
 		}
@@ -612,7 +612,7 @@ func buildSliceFlags(shortName, longName string, fieldVal reflect.Value, preferS
 		var elemStr string
 
 		// Handle pointer elements
-		if elem.Kind() == reflect.Ptr {
+		if elem.Kind() == reflect.Pointer {
 			if elem.IsNil() {
 				continue
 			}

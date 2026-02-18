@@ -105,7 +105,7 @@ func (c *Client) authenticate() error {
 	return nil
 }
 
-func (c *Client) Get(path string, result interface{}) error {
+func (c *Client) Get(path string, result any) error {
 	resp, err := c.httpClient.R().
 		SetResult(result).
 		Get(path)
@@ -121,7 +121,7 @@ func (c *Client) Get(path string, result interface{}) error {
 	return nil
 }
 
-func (c *Client) Post(path string, body interface{}, result interface{}) error {
+func (c *Client) Post(path string, body any, result any) error {
 	resp, err := c.httpClient.R().
 		SetBody(body).
 		SetResult(result).
@@ -138,7 +138,7 @@ func (c *Client) Post(path string, body interface{}, result interface{}) error {
 	return nil
 }
 
-func (c *Client) Patch(path string, body interface{}, result interface{}) error {
+func (c *Client) Patch(path string, body any, result any) error {
 	resp, err := c.httpClient.R().
 		SetBody(body).
 		SetResult(result).
@@ -170,7 +170,7 @@ func (c *Client) Delete(path string) error {
 	return nil
 }
 
-func (c *Client) Put(path string, body interface{}, result interface{}) error {
+func (c *Client) Put(path string, body any, result any) error {
 	resp, err := c.httpClient.R().
 		SetBody(body).
 		SetResult(result).
@@ -188,7 +188,7 @@ func (c *Client) Put(path string, body interface{}, result interface{}) error {
 }
 
 // Helper method to pretty print JSON
-func (c *Client) PrettyPrint(data interface{}) error {
+func (c *Client) PrettyPrint(data any) error {
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err

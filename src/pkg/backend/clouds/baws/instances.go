@@ -49,7 +49,7 @@ func getImageDetail(img *backends.Image) *ImageDetail {
 		return id
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := img.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := img.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var id ImageDetail
@@ -76,7 +76,7 @@ func getInstanceDetail(inst *backends.Instance) *InstanceDetail {
 		return id
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := inst.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := inst.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var id InstanceDetail
@@ -550,9 +550,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 
 	// cleanup dns records in the background
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if len(zoneDNS) == 0 && len(agiDNSToCleanup) == 0 {
 			return
 		}
@@ -676,7 +674,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 				}
 			}
 		}
-	}()
+	})
 	defer wg.Wait()
 
 	for zone, ids := range instanceIds {
@@ -758,9 +756,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 	var reterr error
 	retLock := new(sync.Mutex)
 	retWait := new(sync.WaitGroup)
-	retWait.Add(1)
-	go func() {
-		defer retWait.Done()
+	retWait.Go(func() {
 		log.Detail("tag instances start")
 		defer log.Detail("tag instances end")
 		for _, instance := range instances {
@@ -774,7 +770,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 				retLock.Unlock()
 			}
 		}
-	}()
+	})
 	// wait
 	if waitDur > 0 {
 		for zone, ids := range instanceIds {
@@ -1047,7 +1043,6 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 	instanceIds := make(map[string][]*backends.Instance)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
-		instance := instance
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
 			instanceIds[instance.ZoneID] = []*backends.Instance{}
 			cli, err := getEc2Client(s.credentials, &instance.ZoneID)
@@ -1099,7 +1094,6 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 	instanceIds := make(map[string][]*backends.Instance)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
-		instance := instance
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
 			instanceIds[instance.ZoneID] = []*backends.Instance{}
 			cli, err := getEc2Client(s.credentials, &instance.ZoneID)
@@ -1879,7 +1873,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				},
 			},
 			BlockDeviceMappings: blockDeviceMappings,
-			UserData:            aws.String(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(string(userData), string(publicKeyBytes))))),
+			UserData:            aws.String(base64.StdEncoding.EncodeToString(fmt.Appendf(nil, string(userData), string(publicKeyBytes)))),
 		}
 
 		// Get retry configuration from input
@@ -1963,9 +1957,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// handle DNS creation if required
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if backendSpecificParams.CustomDNS == nil {
 			return
 		}
@@ -2026,7 +2018,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				return
 			}
 		}
-	}()
+	})
 	defer wg.Wait()
 
 	// using ssh, wait for the instances to be ready
@@ -2249,7 +2241,6 @@ func (s *b) InstancesUpdateHostsFile(instances backends.InstanceList, hostsEntri
 	sem := make(chan struct{}, parallelSSHThreads)
 
 	for _, config := range sshConfig {
-		config := config
 		wait.Add(1)
 		sem <- struct{}{}
 		go func(config *sshexec.ClientConf) {

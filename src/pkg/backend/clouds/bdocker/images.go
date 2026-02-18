@@ -268,7 +268,6 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	volIds := make(map[string]backends.ImageList)
 	for _, volume := range images {
-		volume := volume
 		if _, ok := volIds[volume.ZoneName]; !ok {
 			volIds[volume.ZoneName] = backends.ImageList{}
 		}

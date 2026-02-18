@@ -193,7 +193,7 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("INSTANCE TYPES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("INSTANCE TYPES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

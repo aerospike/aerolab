@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -61,7 +62,7 @@ func getVolumeDetail(vol *backends.Volume) *VolumeDetail {
 		return vd
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := vol.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := vol.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var vd VolumeDetail
@@ -704,7 +705,6 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	attached := make(map[string]backends.VolumeList)
 	shared := make(map[string]backends.VolumeList)
 	for _, volume := range volumes {
-		volume := volume
 		switch volume.VolumeType {
 		case backends.VolumeTypeAttachedDisk:
 			if _, ok := attached[volume.ZoneName]; !ok {
@@ -1030,7 +1030,6 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	attached := make(map[string]backends.VolumeList)
 	shared := backends.VolumeList{}
 	for _, volume := range volumes {
-		volume := volume
 		switch volume.VolumeType {
 		case backends.VolumeTypeAttachedDisk:
 			if _, ok := attached[volume.ZoneName]; !ok {
@@ -1270,9 +1269,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			throughput = aws.Int32(int32(backendSpecificParams.Throughput))
 		}
 		tagsIn := make(map[string]string)
-		for k, v := range input.Tags {
-			tagsIn[k] = v
-		}
+		maps.Copy(tagsIn, input.Tags)
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_OWNER] = input.Owner
 		tagsIn[TAG_DESCRIPTION] = input.Description
@@ -1360,9 +1357,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			throughputMode = etypes.ThroughputModeBursting
 		}
 		tagsIn := make(map[string]string)
-		for k, v := range input.Tags {
-			tagsIn[k] = v
-		}
+		maps.Copy(tagsIn, input.Tags)
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_OWNER] = input.Owner
 		tagsIn[TAG_DESCRIPTION] = input.Description
@@ -1494,10 +1489,7 @@ func (b *exponentialBackoff) Wait(ctx context.Context) error {
 		return fmt.Errorf("exceeded timeout of %v", b.timeout)
 	}
 
-	delay := b.minDelay * time.Duration(math.Pow(2, float64(b.attempt)))
-	if delay > b.maxDelay {
-		delay = b.maxDelay
-	}
+	delay := min(b.minDelay*time.Duration(math.Pow(2, float64(b.attempt))), b.maxDelay)
 
 	b.attempt++
 

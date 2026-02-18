@@ -83,7 +83,7 @@ func (a LifeCycleState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
-func (a LifeCycleState) MarshalYAML() (interface{}, error) {
+func (a LifeCycleState) MarshalYAML() (any, error) {
 	return a.String(), nil
 }
 
@@ -140,7 +140,7 @@ func (a NetworkState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
-func (a NetworkState) MarshalYAML() (interface{}, error) {
+func (a NetworkState) MarshalYAML() (any, error) {
 	return a.String(), nil
 }
 
@@ -235,7 +235,7 @@ func (a VolumeState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
-func (a VolumeState) MarshalYAML() (interface{}, error) {
+func (a VolumeState) MarshalYAML() (any, error) {
 	return a.String(), nil
 }
 
@@ -316,7 +316,7 @@ func (a Architecture) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
-func (a Architecture) MarshalYAML() (interface{}, error) {
+func (a Architecture) MarshalYAML() (any, error) {
 	return a.String(), nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path"
@@ -17,8 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/sftp"
-	"log"
 	"golang.org/x/crypto/ssh"
+	"log"
 )
 
 type safeError struct {
@@ -54,14 +55,12 @@ func (i *Ingest) Download() error {
 	wg := new(sync.WaitGroup)
 	if i.config.Downloader.S3Source != nil && i.config.Downloader.S3Source.Enabled {
 		log.Printf("DEBUG: DOWNLOAD: pulling from S3 source")
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			err := i.DownloadS3()
 			if err != nil {
 				errs.Set(err)
 			}
-		}()
+		})
 	}
 	if !i.config.Downloader.ConcurrentSources {
 		wg.Wait()
@@ -71,14 +70,12 @@ func (i *Ingest) Download() error {
 	}
 	if i.config.Downloader.SftpSource != nil && i.config.Downloader.SftpSource.Enabled {
 		log.Printf("DEBUG: DOWNLOAD: pulling from sftp source")
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			err := i.DownloadAsftp()
 			if err != nil {
 				errs.Set(err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if err := errs.Get(); err != nil {
@@ -171,9 +168,7 @@ func (i *Ingest) DownloadS3() error {
 	log.Printf("DEBUG: S3 Enumeration complete, saving results")
 	i.progress.Lock()
 	i.progress.Downloader.changed = true
-	for k, v := range fileList {
-		i.progress.Downloader.S3Files[k] = v
-	}
+	maps.Copy(i.progress.Downloader.S3Files, fileList)
 	i.progress.Unlock()
 
 	log.Printf("DEBUG: S3 Beginning download")
@@ -329,9 +324,7 @@ func (i *Ingest) DownloadAsftp() error {
 	log.Printf("DEBUG: sftp Enumeration complete, saving results")
 	i.progress.Lock()
 	i.progress.Downloader.changed = true
-	for k, v := range fileList {
-		i.progress.Downloader.SftpFiles[k] = v
-	}
+	maps.Copy(i.progress.Downloader.SftpFiles, fileList)
 	i.progress.Unlock()
 
 	log.Printf("DEBUG: sftp Beginning download")

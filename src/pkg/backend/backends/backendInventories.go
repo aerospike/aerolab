@@ -27,7 +27,7 @@ type InstanceType struct {
 	NvmeTotalSizeGiB int
 	Arch             Architectures
 	PricePerHour     InstanceTypePrice
-	BackendSpecific  interface{}
+	BackendSpecific  any
 }
 
 type Architectures []Architecture
@@ -254,8 +254,8 @@ type Inventory struct {
 	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
 }
 
-func (i *Inventory) ToMap() map[string]interface{} {
-	return map[string]interface{}{
+func (i *Inventory) ToMap() map[string]any {
+	return map[string]any{
 		"networks":  i.Networks.Describe(),
 		"firewalls": i.Firewalls.Describe(),
 		"volumes":   i.Volumes.Describe(),
@@ -403,9 +403,7 @@ func (b *backend) poll(items []string) []error {
 	imgWg := new(sync.WaitGroup)
 
 	// images can run immediately
-	imgWg.Add(1)
-	go func() {
-		defer imgWg.Done()
+	imgWg.Go(func() {
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
 			log.Debug("Getting images")
 			for n, v := range b.enabledBackends {
@@ -421,12 +419,10 @@ func (b *backend) poll(items []string) []error {
 				errs = append(errs, err)
 			}
 		}
-	}()
+	})
 
 	// volumes can run immediately
-	volWg.Add(1)
-	go func() {
-		defer volWg.Done()
+	volWg.Go(func() {
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
 			log.Debug("Getting volumes")
 			for n, v := range b.enabledBackends {
@@ -442,11 +438,9 @@ func (b *backend) poll(items []string) []error {
 				errs = append(errs, err)
 			}
 		}
-	}()
+	})
 
-	netWg.Add(1)
-	go func() {
-		defer netWg.Done()
+	netWg.Go(func() {
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateNetwork) {
 			log.Debug("Getting networks")
 			for n, v := range b.enabledBackends {
@@ -462,12 +456,10 @@ func (b *backend) poll(items []string) []error {
 				errs = append(errs, err)
 			}
 		}
-	}()
+	})
 
 	netWg.Wait() // must complete networks before we can do firewalls
-	fwWg.Add(1)
-	go func() {
-		defer fwWg.Done()
+	fwWg.Go(func() {
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
 			log.Debug("Getting firewalls")
 			for n, v := range b.enabledBackends {
@@ -483,13 +475,11 @@ func (b *backend) poll(items []string) []error {
 				errs = append(errs, err)
 			}
 		}
-	}()
+	})
 
 	fwWg.Wait()  // must complete firewalls before we can do instances; this ensures networks completed too
 	volWg.Wait() // must complete volumes before we can do instances
-	instWg.Add(1)
-	go func() {
-		defer instWg.Done()
+	instWg.Go(func() {
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
 			log.Debug("Getting instances")
 			for n, v := range b.enabledBackends {
@@ -505,7 +495,7 @@ func (b *backend) poll(items []string) []error {
 				errs = append(errs, err)
 			}
 		}
-	}()
+	})
 
 	// wait for all the above to complete
 	instWg.Wait()

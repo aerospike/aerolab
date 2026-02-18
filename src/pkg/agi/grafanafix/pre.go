@@ -52,7 +52,7 @@ func EarlySetup(iniPath string, provisioningDir string, pluginsDir string, plugi
 		return err
 	}
 	// datasource json
-	err = os.WriteFile(path.Join(provisioningDir, "datasources", "json.yaml"), []byte(fmt.Sprintf(dataSourceYaml, pluginUrl)), 0644)
+	err = os.WriteFile(path.Join(provisioningDir, "datasources", "json.yaml"), fmt.Appendf(nil, dataSourceYaml, pluginUrl), 0644)
 	if err != nil {
 		return err
 	}

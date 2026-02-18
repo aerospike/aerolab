@@ -242,8 +242,8 @@ exit 1
 
 			if c.Wait {
 				// Parse wait script output
-				lines := strings.Split(outputStr, "\n")
-				for _, line := range lines {
+				lines := strings.SplitSeq(outputStr, "\n")
+				for line := range lines {
 					if strings.HasPrefix(line, "AEROLAB-SUCCESS-CLUSTER-KEY:") {
 						key := strings.TrimRight(strings.Split(line, "-SUCCESS-CLUSTER-KEY:")[1], "\r\n ")
 						keysLock.Lock()

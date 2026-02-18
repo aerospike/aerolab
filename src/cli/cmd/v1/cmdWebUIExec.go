@@ -19,8 +19,8 @@ type WebUIExecCmd struct {
 
 // webUIExecInput is the JSON input format for the exec command
 type webUIExecInput struct {
-	CommandPath string                 `json:"commandPath"`
-	Parameters  map[string]interface{} `json:"parameters"`
+	CommandPath string         `json:"commandPath"`
+	Parameters  map[string]any `json:"parameters"`
 }
 
 func (c *WebUIExecCmd) Execute(args []string) error {
@@ -76,7 +76,7 @@ func (w *execLogWriter) Write(p []byte) (n int, err error) {
 
 // ExecuteCommandByPathDirect executes a command by its path with given parameters,
 // writing all output to the provided io.Writer. This is used for subprocess execution.
-func ExecuteCommandByPathDirect(system *System, path string, params map[string]interface{}, logWriter io.Writer) error {
+func ExecuteCommandByPathDirect(system *System, path string, params map[string]any, logWriter io.Writer) error {
 	// Enforce simple mode restrictions
 	if system.SimpleModeConfig != nil && system.SimpleModeConfig.ForceEnabled {
 		dotPath := SimpleModePathFromSlash(path)

@@ -50,7 +50,7 @@ func splitCamelCase(s string) string {
 // that unset fields match their declared defaults and are excluded from CLI
 // generation (which compares field values against tag defaults).
 func applyTagDefaults(v reflect.Value) {
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return
 		}
@@ -220,7 +220,7 @@ func buildCommandInfo(field reflect.StructField, fieldVal reflect.Value, name st
 
 	// Handle pointer types
 	elemType := field.Type
-	if elemType.Kind() == reflect.Ptr {
+	if elemType.Kind() == reflect.Pointer {
 		elemType = elemType.Elem()
 	}
 
@@ -246,7 +246,7 @@ func buildCommandInfo(field reflect.StructField, fieldVal reflect.Value, name st
 			}
 			// Get the field value for the subcommand
 			var subFieldVal reflect.Value
-			if fieldVal.Kind() == reflect.Ptr && !fieldVal.IsNil() {
+			if fieldVal.Kind() == reflect.Pointer && !fieldVal.IsNil() {
 				subFieldVal = fieldVal.Elem().Field(i)
 			} else if fieldVal.Kind() == reflect.Struct {
 				subFieldVal = fieldVal.Field(i)
@@ -296,8 +296,7 @@ func buildCommandInfo(field reflect.StructField, fieldVal reflect.Value, name st
 
 // extractEmbeddedParameters recursively extracts parameters from an anonymous embedded struct type.
 func extractEmbeddedParameters(t reflect.Type, cmd *CommandInfo, path string) {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		if field.PkgPath != "" {
 			continue // skip unexported
 		}
@@ -373,7 +372,7 @@ func extractParameter(field reflect.StructField) *ParameterInfo {
 
 	// Mark pointer-type fields as optional - these represent parameters
 	// where nil means "not set" (e.g., *string, *bool, *int in AgiRetriggerCmd).
-	if field.Type.Kind() == reflect.Ptr {
+	if field.Type.Kind() == reflect.Pointer {
 		param.Optional = true
 		param.NoDefault = true // ensures ToggleInput uses ON/UNSET/OFF for *bool
 	}
@@ -381,8 +380,8 @@ func extractParameter(field reflect.StructField) *ParameterInfo {
 	// Handle webchoice
 	webchoice := tags.Get("webchoice")
 	if webchoice != "" {
-		if strings.HasPrefix(webchoice, "method::") {
-			param.ChoicesMethod = strings.TrimPrefix(webchoice, "method::")
+		if after, ok := strings.CutPrefix(webchoice, "method::"); ok {
+			param.ChoicesMethod = after
 		} else {
 			param.Choices = strings.Split(webchoice, ",")
 		}
@@ -409,7 +408,7 @@ func extractGroupParameters(field reflect.StructField, parentPath string) []Para
 
 	// Get the underlying type
 	elemType := field.Type
-	if elemType.Kind() == reflect.Ptr {
+	if elemType.Kind() == reflect.Pointer {
 		elemType = elemType.Elem()
 	}
 
@@ -417,8 +416,7 @@ func extractGroupParameters(field reflect.StructField, parentPath string) []Para
 		return params
 	}
 
-	for i := 0; i < elemType.NumField(); i++ {
-		structField := elemType.Field(i)
+	for structField := range elemType.Fields() {
 
 		// Skip unexported fields
 		if structField.PkgPath != "" {
@@ -434,7 +432,7 @@ func extractGroupParameters(field reflect.StructField, parentPath string) []Para
 
 		param := extractParameter(structField)
 		if param != nil {
-			if structField.Type.Kind() == reflect.Ptr {
+			if structField.Type.Kind() == reflect.Pointer {
 				param.Optional = true
 				param.NoDefault = true
 			}
@@ -458,7 +456,7 @@ func extractPositionalParameters(field reflect.StructField, parentPath string) [
 	params := []ParameterInfo{}
 
 	elemType := field.Type
-	if elemType.Kind() == reflect.Ptr {
+	if elemType.Kind() == reflect.Pointer {
 		elemType = elemType.Elem()
 	}
 
@@ -466,8 +464,7 @@ func extractPositionalParameters(field reflect.StructField, parentPath string) [
 		return params
 	}
 
-	for i := 0; i < elemType.NumField(); i++ {
-		structField := elemType.Field(i)
+	for structField := range elemType.Fields() {
 
 		// Skip unexported fields
 		if structField.PkgPath != "" {
@@ -540,26 +537,26 @@ func filterBackendParameters(root *CommandInfo, activeBackend string) {
 // e.g., "AWS (backend-aws)" returns "aws", "GCP (backend-gcp)" returns "gcp".
 // Returns "" if the group is not backend-specific.
 func extractBackendFromGroup(group string) string {
-	idx := strings.Index(group, "(backend-")
-	if idx < 0 {
+	_, after, ok := strings.Cut(group, "(backend-")
+	if !ok {
 		return ""
 	}
-	rest := group[idx+len("(backend-"):]
-	endIdx := strings.Index(rest, ")")
-	if endIdx < 0 {
+	rest := after
+	before, _, ok := strings.Cut(rest, ")")
+	if !ok {
 		return ""
 	}
-	return rest[:endIdx]
+	return before
 }
 
 // cleanBackendGroupName removes the "(backend-X)" suffix from a group name.
 // e.g., "AWS (backend-aws)" -> "AWS"
 func cleanBackendGroupName(group string) string {
-	idx := strings.Index(group, " (backend-")
-	if idx < 0 {
+	before, _, ok := strings.Cut(group, " (backend-")
+	if !ok {
 		return group
 	}
-	return group[:idx]
+	return before
 }
 
 // getTypeName returns a human-readable type name
@@ -581,7 +578,7 @@ func getTypeName(t reflect.Type) string {
 	case reflect.Slice:
 		elemType := getTypeName(t.Elem())
 		return "[]" + elemType
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return getTypeName(t.Elem())
 	case reflect.Struct:
 		return "object"
@@ -627,7 +624,7 @@ func findFieldInStruct(structVal reflect.Value, paramName string, fieldName stri
 		if field.Tag.Get("group") != "" {
 			elemType := field.Type
 			elemVal := fVal
-			if elemType.Kind() == reflect.Ptr {
+			if elemType.Kind() == reflect.Pointer {
 				if elemVal.IsNil() {
 					continue
 				}
@@ -719,7 +716,7 @@ func getCommandValueByPath(opts *Commands, path string) (reflect.Value, error) {
 			field := current.Type().Field(i)
 			if field.Tag.Get("command") == part {
 				current = current.Field(i)
-				if current.Kind() == reflect.Ptr {
+				if current.Kind() == reflect.Pointer {
 					if current.IsNil() {
 						current = reflect.New(current.Type().Elem()).Elem()
 					} else {
@@ -739,7 +736,7 @@ func getCommandValueByPath(opts *Commands, path string) (reflect.Value, error) {
 }
 
 // ExecuteCommandByPath executes a command by its path with given parameters (synchronous)
-func ExecuteCommandByPath(system *System, path string, params map[string]interface{}) (*ExecuteResult, error) {
+func ExecuteCommandByPath(system *System, path string, params map[string]any) (*ExecuteResult, error) {
 	// Find the command struct type by path
 	cmdVal, err := getCommandValueByPath(system.Opts, path)
 	if err != nil {
@@ -788,7 +785,7 @@ func ExecuteCommandByPath(system *System, path string, params map[string]interfa
 
 // ExecuteCommandByPathWithLogger executes a command by its path with given parameters,
 // writing logs to the provided io.Writer (for async job execution)
-func ExecuteCommandByPathWithLogger(system *System, path string, params map[string]interface{}, logWriter io.Writer) error {
+func ExecuteCommandByPathWithLogger(system *System, path string, params map[string]any, logWriter io.Writer) error {
 	// Find the command struct type by path
 	cmdVal, err := getCommandValueByPath(system.Opts, path)
 	if err != nil {
@@ -856,14 +853,14 @@ func ExecuteCommandByPathWithLogger(system *System, path string, params map[stri
 // applyParameters applies a map of parameters to a command struct.
 // It supports both nested maps ({"Aws": {"InstanceType": "t3.xlarge"}}) and
 // flat maps ({"InstanceType": "t3.xlarge"}) for group parameters.
-func applyParameters(cmdVal reflect.Value, params map[string]interface{}) error {
+func applyParameters(cmdVal reflect.Value, params map[string]any) error {
 	return applyParametersWithPrefix(cmdVal, params, "")
 }
 
 // applyParametersWithPrefix applies parameters with a namespace prefix.
 // When prefix is "aws", param lookups for a field with long:"name" will try
 // "aws-name" first, then "name", then the field name.
-func applyParametersWithPrefix(cmdVal reflect.Value, params map[string]interface{}, prefix string) error {
+func applyParametersWithPrefix(cmdVal reflect.Value, params map[string]any, prefix string) error {
 	cmdType := cmdVal.Type()
 
 	for i := 0; i < cmdType.NumField(); i++ {
@@ -886,7 +883,7 @@ func applyParametersWithPrefix(cmdVal reflect.Value, params map[string]interface
 				groupKey = field.Name
 			}
 			if mapVal, ok := params[groupKey]; ok {
-				if nestedMap, mapOk := mapVal.(map[string]interface{}); mapOk {
+				if nestedMap, mapOk := mapVal.(map[string]any); mapOk {
 					namespace := field.Tag.Get("namespace")
 					if err := applyParametersWithPrefix(fieldVal, nestedMap, namespace); err != nil {
 						return err
@@ -962,7 +959,7 @@ func applyParametersWithPrefix(cmdVal reflect.Value, params map[string]interface
 }
 
 // setFieldValue sets a reflect.Value from an interface{}
-func setFieldValue(fieldVal reflect.Value, value interface{}) error {
+func setFieldValue(fieldVal reflect.Value, value any) error {
 	if !fieldVal.CanSet() {
 		return fmt.Errorf("cannot set field")
 	}
@@ -1072,7 +1069,7 @@ func setFieldValue(fieldVal reflect.Value, value interface{}) error {
 	case reflect.Slice:
 		// Handle slice types
 		switch v := value.(type) {
-		case []interface{}:
+		case []any:
 			slice := reflect.MakeSlice(fieldVal.Type(), len(v), len(v))
 			for i, elem := range v {
 				if err := setFieldValue(slice.Index(i), elem); err != nil {
@@ -1098,7 +1095,7 @@ func setFieldValue(fieldVal reflect.Value, value interface{}) error {
 			}
 			fieldVal.Set(newSlice.Elem())
 		}
-	case reflect.Ptr:
+	case reflect.Pointer:
 		// Handle pointer types
 		if fieldVal.IsNil() {
 			fieldVal.Set(reflect.New(fieldVal.Type().Elem()))

@@ -28,17 +28,17 @@ const (
 
 // Job represents a submitted command job
 type Job struct {
-	ID               string                 `json:"id"`
-	User             string                 `json:"user"`
-	CommandPath      string                 `json:"commandPath"`
-	Parameters       map[string]interface{} `json:"parameters"`
-	CLICommand       string                 `json:"cliCommand"`
-	Status           JobStatus              `json:"status"`
-	CreatedAt        time.Time              `json:"createdAt"`
-	StartedAt        *time.Time             `json:"startedAt,omitempty"`
-	CompletedAt      *time.Time             `json:"completedAt,omitempty"`
-	Error            string                 `json:"error,omitempty"`
-	RefreshInventory bool                   `json:"refreshInventory,omitempty"`
+	ID               string         `json:"id"`
+	User             string         `json:"user"`
+	CommandPath      string         `json:"commandPath"`
+	Parameters       map[string]any `json:"parameters"`
+	CLICommand       string         `json:"cliCommand"`
+	Status           JobStatus      `json:"status"`
+	CreatedAt        time.Time      `json:"createdAt"`
+	StartedAt        *time.Time     `json:"startedAt,omitempty"`
+	CompletedAt      *time.Time     `json:"completedAt,omitempty"`
+	Error            string         `json:"error,omitempty"`
+	RefreshInventory bool           `json:"refreshInventory,omitempty"`
 
 	// Subprocess execution fields
 	PID       int  `json:"pid,omitempty"`
@@ -113,7 +113,7 @@ func GenerateJobID() string {
 // CreateJob creates a new job and saves it to disk.
 // If cliCommand is non-empty it is used as the display command; otherwise one
 // is generated from the params map (which includes all values, even defaults).
-func (jm *JobManager) CreateJob(user, commandPath string, params map[string]interface{}, refreshInventory bool, cliCommand string) (*Job, error) {
+func (jm *JobManager) CreateJob(user, commandPath string, params map[string]any, refreshInventory bool, cliCommand string) (*Job, error) {
 	jobID := GenerateJobID()
 
 	if cliCommand == "" {
@@ -583,7 +583,7 @@ func (jm *JobManager) KillAllRunningJobs() {
 // generateCLICommand builds the equivalent aerolab CLI command using map-based parameters.
 // This is a simplified version that works with JSON parameters directly.
 // For more accurate reconstruction with defaults handling, use generateCLICommandFromStruct.
-func generateCLICommand(cmdPath string, params map[string]interface{}) string {
+func generateCLICommand(cmdPath string, params map[string]any) string {
 	parts := []string{"aerolab"}
 
 	// Add command path
@@ -604,7 +604,7 @@ func generateCLICommand(cmdPath string, params map[string]interface{}) string {
 			if v {
 				parts = append(parts, fmt.Sprintf("--%s", key))
 			}
-		case []interface{}:
+		case []any:
 			for _, elem := range v {
 				parts = append(parts, fmt.Sprintf("--%s=%s", key, shellEscape(fmt.Sprintf("%v", elem))))
 			}

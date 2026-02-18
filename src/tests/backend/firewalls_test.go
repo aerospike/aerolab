@@ -162,7 +162,7 @@ func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: fw.network.NetworkId,

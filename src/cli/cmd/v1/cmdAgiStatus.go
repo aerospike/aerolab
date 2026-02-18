@@ -40,7 +40,7 @@ type AgiStatusOutput struct {
 	AccessURL string             `json:"accessURL"`
 	Services  []AgiServiceStatus `json:"services"`
 	System    AgiSystemStatus    `json:"system"`
-	Ingest    AgiIngestStatus    `json:"ingest,omitempty"`
+	Ingest    AgiIngestStatus    `json:"ingest"`
 	Errors    []string           `json:"errors,omitempty"`
 }
 
@@ -489,7 +489,7 @@ func (c *AgiStatusCmd) renderOutput(system *System, output AgiStatusOutput, out 
 			}
 			svcRows = append(svcRows, table.Row{svc.Name, status})
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("SERVICES"), svcHeader, svcRows))
+		fmt.Fprintln(out, t.RenderTable(new("SERVICES"), svcHeader, svcRows))
 
 		// System resources
 		fmt.Fprintln(out, "")

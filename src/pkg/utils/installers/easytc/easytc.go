@@ -35,8 +35,8 @@ func GetLinuxInstallScript(version *string, prerelease *bool, enable bool) ([]by
 		return nil, errors.New("no release found (1)")
 	}
 	if version != nil {
-		if strings.HasSuffix(*version, "*") {
-			releases = releases.WithTagPrefix(strings.TrimSuffix(*version, "*"))
+		if before, ok := strings.CutSuffix(*version, "*"); ok {
+			releases = releases.WithTagPrefix(before)
 		} else {
 			releases = github.Releases{*releases.WithTag(*version)}
 		}

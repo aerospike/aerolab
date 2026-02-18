@@ -29,10 +29,14 @@ type Networks interface {
 	NetworkAction
 }
 
+/* Should use the below once we are implementing network actions, for now 'any' type
 type NetworkAction interface {
 	//DeleteNetworks(waitDur time.Duration) error // delete networks
 	//DeleteSubnets(waitDur time.Duration) error // delete subnets
 }
+*/
+
+type NetworkAction any
 
 // any backend returning this struct, must implement the VolumeAction interface on it
 type Network struct {
@@ -49,7 +53,7 @@ type Network struct {
 	IsAerolabManaged bool              `yaml:"aerolabManaged" json:"aerolabManaged"`
 	State            NetworkState      `yaml:"networkState" json:"networkState"`
 	Subnets          SubnetList        `yaml:"subnets" json:"subnets"`
-	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific  any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 type Subnet struct {
@@ -68,7 +72,7 @@ type Subnet struct {
 	State            NetworkState      `yaml:"networkState" json:"networkState"`
 	PublicIP         bool              `yaml:"autoAssignPublicIP" json:"autoAssignPublicIP"`
 	Network          *Network          `json:"-" yaml:"-"`
-	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	BackendSpecific  any               `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // list of all volumes, for the Inventory interface
@@ -79,7 +83,6 @@ type SubnetList []*Subnet
 func (v NetworkList) WithBackendType(types ...BackendType) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}
@@ -91,7 +94,6 @@ func (v NetworkList) WithBackendType(types ...BackendType) Networks {
 func (v NetworkList) WithZoneName(zoneNames ...string) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneNames, volume.ZoneName) {
 			continue
 		}
@@ -103,7 +105,6 @@ func (v NetworkList) WithZoneName(zoneNames ...string) Networks {
 func (v NetworkList) WithZoneID(zoneIDs ...string) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(zoneIDs, volume.ZoneID) {
 			continue
 		}
@@ -115,7 +116,6 @@ func (v NetworkList) WithZoneID(zoneIDs ...string) Networks {
 func (v NetworkList) WithName(names ...string) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(names, volume.Name) {
 			continue
 		}
@@ -127,7 +127,6 @@ func (v NetworkList) WithName(names ...string) Networks {
 func (v NetworkList) WithNetID(id ...string) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(id, volume.NetworkId) {
 			continue
 		}
@@ -139,7 +138,6 @@ func (v NetworkList) WithNetID(id ...string) Networks {
 func (v NetworkList) WithDefault(d bool) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if d != volume.IsDefault {
 			continue
 		}
@@ -151,7 +149,6 @@ func (v NetworkList) WithDefault(d bool) Networks {
 func (v NetworkList) WithAerolabManaged(d bool) Networks {
 	ret := NetworkList{}
 	for _, volume := range v {
-		volume := volume
 		if d != volume.IsAerolabManaged {
 			continue
 		}
@@ -164,7 +161,6 @@ func (v NetworkList) WithTags(tags map[string]string) Networks {
 	ret := NetworkList{}
 NEXTVOL:
 	for _, image := range v {
-		image := image
 		for k, v := range tags {
 			if v == "" {
 				if _, ok := image.Tags[k]; !ok {
@@ -295,7 +291,6 @@ func (v *SubnetList) WithAerolabManaged(d bool) SubnetList {
 func (v SubnetList) WithBackendType(types ...BackendType) SubnetList {
 	ret := SubnetList{}
 	for _, volume := range v {
-		volume := volume
 		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}

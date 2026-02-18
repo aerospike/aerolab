@@ -457,7 +457,7 @@ func getGcpInstancePricing(t *backends.InstanceType) *gcpInstancePricing {
 		return p
 	}
 	// If it's a map (from JSON/YAML deserialization), try to convert it
-	if m, ok := t.BackendSpecific.(map[string]interface{}); ok {
+	if m, ok := t.BackendSpecific.(map[string]any); ok {
 		jsonBytes, err := json.Marshal(m)
 		if err == nil {
 			var p gcpInstancePricing
@@ -782,38 +782,38 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 					}
 				}
 				continue
-		} else {
-			// Check for valid pricing patterns:
-			// Pattern 1: "{Family} Instance Core/Ram running in..."
-			// Pattern 2: "{Family} {Modifier} Instance Core/Ram running in..." where Modifier is Predefined/AMD/Arm/Memory-optimized
-			// Pattern 3: "Compute optimized Core/Ram running in..." (for C2 instances)
-			// Pattern 4: "Compute optimized Instance Core/Ram running in..." (for C2 instances)
-			// Pattern 5: "Memory-optimized Instance Core/Ram running in..." (for M1/M2 instances)
-			isValidPattern := false
+			} else {
+				// Check for valid pricing patterns:
+				// Pattern 1: "{Family} Instance Core/Ram running in..."
+				// Pattern 2: "{Family} {Modifier} Instance Core/Ram running in..." where Modifier is Predefined/AMD/Arm/Memory-optimized
+				// Pattern 3: "Compute optimized Core/Ram running in..." (for C2 instances)
+				// Pattern 4: "Compute optimized Instance Core/Ram running in..." (for C2 instances)
+				// Pattern 5: "Memory-optimized Instance Core/Ram running in..." (for M1/M2 instances)
+				isValidPattern := false
 
-			// Pattern 1: {Family} Instance Core/Ram running in...
-			if iGroup[1] == "Instance" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
-				isValidPattern = true
-			}
-			// Pattern 2: {Family} {Modifier} Instance Core/Ram running in...
-			if (iGroup[1] == "Predefined" || iGroup[1] == "AMD" || iGroup[1] == "Arm" || iGroup[1] == "Memory-optimized") &&
-				iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
-				isValidPattern = true
-			}
-			// Pattern 3: Compute optimized Core/Ram running in...
-			if iGroup[1] == "optimized" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
-				isValidPattern = true
-			}
-			// Pattern 4: Compute optimized Instance Core/Ram running in...
-			if iGroup[1] == "optimized" && iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
-				isValidPattern = true
-			}
+				// Pattern 1: {Family} Instance Core/Ram running in...
+				if iGroup[1] == "Instance" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
+					isValidPattern = true
+				}
+				// Pattern 2: {Family} {Modifier} Instance Core/Ram running in...
+				if (iGroup[1] == "Predefined" || iGroup[1] == "AMD" || iGroup[1] == "Arm" || iGroup[1] == "Memory-optimized") &&
+					iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
+					isValidPattern = true
+				}
+				// Pattern 3: Compute optimized Core/Ram running in...
+				if iGroup[1] == "optimized" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
+					isValidPattern = true
+				}
+				// Pattern 4: Compute optimized Instance Core/Ram running in...
+				if iGroup[1] == "optimized" && iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
+					isValidPattern = true
+				}
 
-			if !isValidPattern {
-				continue
+				if !isValidPattern {
+					continue
+				}
 			}
-		}
-		grp := strings.ToLower(iGroup[0])
+			grp := strings.ToLower(iGroup[0])
 			if i.Category.ResourceGroup != "CPU" && i.Category.ResourceGroup != "RAM" && iGroup[1] == "Predefined" {
 				if iGroup[3] == "Core" {
 					i.Category.ResourceGroup = "CPU"

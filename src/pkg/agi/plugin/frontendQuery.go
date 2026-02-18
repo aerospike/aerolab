@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"log"
 	"github.com/rglonek/sbs"
+	"log"
 )
 
 func isSocketTimeout(ctx context.Context) bool {
@@ -77,7 +77,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			} else {
 				req.selectedVars[n] = []string{vv}
 			}
-		case []interface{}:
+		case []any:
 			for _, item := range vv {
 				switch vva := item.(type) {
 				case string:
@@ -116,7 +116,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}()
 	log.Printf("INFO: QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.jobs), r.RemoteAddr, time.Since(jtime).String())
 	dtime := time.Now()
-	responses := []interface{}{}
+	responses := []any{}
 	for i := range req.Targets {
 		if isSocketTimeout(r.Context()) {
 			err = r.Context().Err()

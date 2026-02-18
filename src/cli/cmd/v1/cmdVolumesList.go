@@ -113,10 +113,10 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 	case "text":
 		system.Logger.Info("Volumes:")
 		for _, volume := range volumes {
-		expiresIn := "NEVER"
-		if !volume.Expires.IsZero() && volume.Expires.After(time.Now()) {
-			expiresIn = time.Until(volume.Expires).Truncate(time.Second).String()
-		}
+			expiresIn := "NEVER"
+			if !volume.Expires.IsZero() && volume.Expires.After(time.Now()) {
+				expiresIn = time.Until(volume.Expires).Truncate(time.Second).String()
+			}
 			if !volume.Expires.IsZero() && volume.Expires.Before(time.Now()) {
 				expiresIn = "expired"
 			}
@@ -158,16 +158,16 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 			}
 		}
 		for _, volume := range volumes {
-		expiresIn := t.ColorErr.Sprint("NEVER")
-		if !volume.Expires.IsZero() && volume.Expires.After(time.Now()) {
-			if volume.Expires.Before(time.Now().Add(time.Hour * 6)) {
-				expiresIn = t.ColorWarn.Sprint(time.Until(volume.Expires).Truncate(time.Second).String())
-			} else {
-				expiresIn = time.Until(volume.Expires).Truncate(time.Second).String()
+			expiresIn := t.ColorErr.Sprint("NEVER")
+			if !volume.Expires.IsZero() && volume.Expires.After(time.Now()) {
+				if volume.Expires.Before(time.Now().Add(time.Hour * 6)) {
+					expiresIn = t.ColorWarn.Sprint(time.Until(volume.Expires).Truncate(time.Second).String())
+				} else {
+					expiresIn = time.Until(volume.Expires).Truncate(time.Second).String()
+				}
+			} else if !volume.Expires.IsZero() && volume.Expires.Before(time.Now()) {
+				expiresIn = t.ColorErr.Sprint(time.Until(volume.Expires).Truncate(time.Second).String())
 			}
-		} else if !volume.Expires.IsZero() && volume.Expires.Before(time.Now()) {
-			expiresIn = t.ColorErr.Sprint(time.Until(volume.Expires).Truncate(time.Second).String())
-		}
 			rows = append(rows, table.Row{
 				volume.BackendType,
 				volume.ZoneName,
@@ -190,7 +190,7 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 				volume.CreationTime.Format(time.RFC3339),
 			})
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("VOLUMES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("VOLUMES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

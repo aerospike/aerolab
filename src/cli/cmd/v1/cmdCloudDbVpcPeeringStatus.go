@@ -98,19 +98,19 @@ func (c *CloudClustersVPCPeeringStatusCmd) GetVPCPeeringStatus(system *System, i
 		return nil, fmt.Errorf("failed to create cloud client: %w", err)
 	}
 
-	var peeringsResult interface{}
+	var peeringsResult any
 	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.ClusterID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VPC peerings: %w", err)
 	}
 
-	peeringsMap, ok := peeringsResult.(map[string]interface{})
+	peeringsMap, ok := peeringsResult.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("unexpected VPC peerings response type: %T", peeringsResult)
 	}
 
-	peerings, ok := peeringsMap["vpcPeerings"].([]interface{})
+	peerings, ok := peeringsMap["vpcPeerings"].([]any)
 	if !ok {
 		// No peerings exist
 		return &VPCPeeringStatusResponse{
@@ -120,20 +120,20 @@ func (c *CloudClustersVPCPeeringStatusCmd) GetVPCPeeringStatus(system *System, i
 	}
 
 	// Get cluster details for CIDR block
-	var clusterResult interface{}
+	var clusterResult any
 	clusterPath := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err = client.Get(clusterPath, &clusterResult)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster details: %w", err)
 	}
 
-	clusterMap, ok := clusterResult.(map[string]interface{})
+	clusterMap, ok := clusterResult.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("unexpected cluster response type: %T", clusterResult)
 	}
 
 	var clusterCIDR string
-	if infrastructure, ok := clusterMap["infrastructure"].(map[string]interface{}); ok {
+	if infrastructure, ok := clusterMap["infrastructure"].(map[string]any); ok {
 		if cidr, ok := infrastructure["cidrBlock"].(string); ok {
 			clusterCIDR = cidr
 		}
@@ -145,7 +145,7 @@ func (c *CloudClustersVPCPeeringStatusCmd) GetVPCPeeringStatus(system *System, i
 	}
 
 	for _, peering := range peerings {
-		peeringMap, ok := peering.(map[string]interface{})
+		peeringMap, ok := peering.(map[string]any)
 		if !ok {
 			continue
 		}

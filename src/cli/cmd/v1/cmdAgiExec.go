@@ -61,7 +61,7 @@ func (c *AgiExecSimulateCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	v := make(map[string]interface{})
+	v := make(map[string]any)
 	err = json.Unmarshal(data, &v)
 	if err != nil {
 		return err
@@ -246,4 +246,3 @@ func splitMultiple(s string, sep string) []string {
 	}
 	return result
 }
-

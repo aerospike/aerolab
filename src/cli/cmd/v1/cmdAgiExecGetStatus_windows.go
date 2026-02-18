@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package cmd
 
@@ -20,4 +19,3 @@ import (
 func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatusStruct, error) {
 	return new(ingest.IngestStatusStruct), nil
 }
-

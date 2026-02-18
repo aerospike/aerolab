@@ -164,7 +164,7 @@ func (c *DataInsertCmd) insert8(args []string, log *logger.Logger) error {
 			if err != nil {
 				return fmt.Errorf("partition-info error: %w", err)
 			}
-			for _, partition := range strings.Split(partitionInfo["partition-info"], ";") {
+			for partition := range strings.SplitSeq(partitionInfo["partition-info"], ";") {
 				partitionSplit := strings.Split(partition, ":")
 				if partitionSplit[0] == c.Namespace && partitionSplit[4] == "0" {
 					if strings.EqualFold(node.GetName(), partitionSplit[6]) {
@@ -184,8 +184,8 @@ func (c *DataInsertCmd) insert8(args []string, log *logger.Logger) error {
 	}
 
 	if c.InsertToPartitionList != "" {
-		partitionsToInsertToString := strings.Split(c.InsertToPartitionList, ",")
-		for _, pTo := range partitionsToInsertToString {
+		partitionsToInsertToString := strings.SplitSeq(c.InsertToPartitionList, ",")
+		for pTo := range partitionsToInsertToString {
 			pToInt, err := strconv.Atoi(pTo)
 			if err != nil {
 				return fmt.Errorf("partition list not numeric: %w", err)

@@ -125,7 +125,7 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		for _, envVar := range envVars {
 			rows = append(rows, table.Row{envVar.Key, envVar.Value, envVar.Description})
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("ENV VARS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("ENV VARS"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

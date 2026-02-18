@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
@@ -110,8 +111,8 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 		}
 
 		// Get existing authorized roles
-		if logging, ok := currentCluster["logging"].(map[string]interface{}); ok {
-			if roles, ok := logging["authorizedRoles"].([]interface{}); ok {
+		if logging, ok := currentCluster["logging"].(map[string]any); ok {
+			if roles, ok := logging["authorizedRoles"].([]any); ok {
 				for _, role := range roles {
 					if roleStr, ok := role.(string); ok {
 						rolesToSet = append(rolesToSet, roleStr)
@@ -123,13 +124,7 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 
 		// Add new roles (avoiding duplicates)
 		for _, newRole := range rolesToAuthorize {
-			found := false
-			for _, existingRole := range rolesToSet {
-				if existingRole == newRole {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(rolesToSet, newRole)
 			if !found {
 				rolesToSet = append(rolesToSet, newRole)
 			}
@@ -148,7 +143,7 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 		},
 	}
 
-	var result interface{}
+	var result any
 
 	// Pretty print the request for debugging
 	requestJson, err := json.MarshalIndent(request, "", "  ")
@@ -169,11 +164,11 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 	if err != nil {
 		logger.Warn("Failed to get updated cluster details: %s", err)
 	} else {
-		if logging, ok := updatedCluster["logging"].(map[string]interface{}); ok {
+		if logging, ok := updatedCluster["logging"].(map[string]any); ok {
 			if logBucket, ok := logging["logBucket"].(string); ok && logBucket != "" {
 				logger.Info("Log bucket: %s", logBucket)
 			}
-			if roles, ok := logging["authorizedRoles"].([]interface{}); ok {
+			if roles, ok := logging["authorizedRoles"].([]any); ok {
 				logger.Info("Authorized roles configured: %d", len(roles))
 				for _, role := range roles {
 					logger.Debug("  - %v", role)
@@ -188,20 +183,20 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 
 // resolveClusterID resolves a cluster name to its ID
 func (c *CloudClustersEnableLogsAccessCmd) resolveClusterID(client *cloud.Client, name string) (string, error) {
-	var result map[string]interface{}
+	var result map[string]any
 	path := cloudDbPath + "?status_ne=decommissioned"
 	err := client.Get(path, &result)
 	if err != nil {
 		return "", fmt.Errorf("failed to list clusters: %w", err)
 	}
 
-	clusters, ok := result["clusters"].([]interface{})
+	clusters, ok := result["clusters"].([]any)
 	if !ok {
 		return "", fmt.Errorf("no clusters found")
 	}
 
 	for _, db := range clusters {
-		dbMap, ok := db.(map[string]interface{})
+		dbMap, ok := db.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -217,8 +212,8 @@ func (c *CloudClustersEnableLogsAccessCmd) resolveClusterID(client *cloud.Client
 }
 
 // getClusterDetails gets the full cluster details
-func (c *CloudClustersEnableLogsAccessCmd) getClusterDetails(client *cloud.Client, clusterID string) (map[string]interface{}, error) {
-	var result map[string]interface{}
+func (c *CloudClustersEnableLogsAccessCmd) getClusterDetails(client *cloud.Client, clusterID string) (map[string]any, error) {
+	var result map[string]any
 	path := fmt.Sprintf("%s/%s", cloudDbPath, clusterID)
 	err := client.Get(path, &result)
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 	"path"
 )
 
-func StoreJSON(name string, tmpExt string, flag int, perm os.FileMode, data interface{}) error {
+func StoreJSON(name string, tmpExt string, flag int, perm os.FileMode, data any) error {
 	fdir, _ := path.Split(name)
 	if _, err := os.Stat(fdir); err != nil {
 		if !os.IsNotExist(err) {
@@ -25,7 +25,7 @@ func StoreJSON(name string, tmpExt string, flag int, perm os.FileMode, data inte
 	return os.Rename(name+tmpExt, name)
 }
 
-func storeJSON(name string, tmpExt string, flag int, perm os.FileMode, data interface{}) error {
+func storeJSON(name string, tmpExt string, flag int, perm os.FileMode, data any) error {
 	f, err := os.OpenFile(name+tmpExt, flag, perm)
 	if err != nil {
 		return err

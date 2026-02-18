@@ -9,9 +9,9 @@ import (
 )
 
 type tableResponse struct {
-	Type    string          `json:"type"` // must be "table"
-	Columns []*tableColumn  `json:"columns"`
-	Rows    [][]interface{} `json:"rows"` // a list of column data
+	Type    string         `json:"type"` // must be "table"
+	Columns []*tableColumn `json:"columns"`
+	Rows    [][]any        `json:"rows"` // a list of column data
 }
 
 type tableColumn struct {
@@ -100,7 +100,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 			return nil, fmt.Errorf("%s", rec.Err)
 		}
 		bins := rec.Record.Bins
-		row := []interface{}{}
+		row := []any{}
 		for _, col := range resp.Columns {
 			if v, ok := bins[col.binName]; ok {
 				row = append(row, v)
@@ -157,7 +157,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 		})
 	}
 	if resp.Rows == nil {
-		resp.Rows = [][]interface{}{}
+		resp.Rows = [][]any{}
 	}
 	log.Printf("DETAIL: Return data (type:table) (remote:%s)", remote)
 	return resp, nil

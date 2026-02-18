@@ -1213,9 +1213,7 @@ func (c *InventoryMigrateCmd) installExpiryIfNeeded(system *System, backendType 
 
 	// Install expiry system in background, but wait for completion
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := system.Backend.ExpiryInstall(backendType, 15, 4, false, false, false, true, regions...)
 		if err != nil {
 			system.Logger.Error("Error installing expiry system: %s", err)
@@ -1224,7 +1222,7 @@ func (c *InventoryMigrateCmd) installExpiryIfNeeded(system *System, backendType 
 		} else {
 			system.Logger.Info("Expiry system installed successfully for regions: %s", strings.Join(regions, ", "))
 		}
-	}()
+	})
 	wg.Wait()
 }
 

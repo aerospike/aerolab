@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -240,7 +241,7 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 	}
 
 	// Build aerospike cloud configuration
-	var aerospikeCloud interface{}
+	var aerospikeCloud any
 	switch c.DataStorage {
 	case "memory":
 		aerospikeCloud = cloud.AerospikeCloudMemory{
@@ -273,8 +274,8 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 	// Build aerospike server configuration
 	// Always create aerospikeServer object with at least one namespace as it's required by the API
 	// Use json.RawMessage to preserve all fields from custom configs
-	defaultAerospikeServer := map[string]interface{}{
-		"namespaces": []map[string]interface{}{
+	defaultAerospikeServer := map[string]any{
+		"namespaces": []map[string]any{
 			{"name": "test"},
 		},
 	}
@@ -388,14 +389,14 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 		return nil
 	}
 
-	var result interface{}
+	var result any
 
 	err = client.Post(cloudDbPath, request, &result)
 	if err != nil {
 		cleanupBlackhole()
 		return err
 	}
-	dbId := result.(map[string]interface{})["id"].(string)
+	dbId := result.(map[string]any)["id"].(string)
 
 	logger.Info("Cluster create queued: %s", dbId)
 	fmt.Printf("db-id=%s\n", dbId)
@@ -516,19 +517,19 @@ func (c *CloudClustersCreateCmd) waitForClusterProvisioning(client *cloud.Client
 			return fmt.Errorf("timeout waiting for cluster provisioning after %v", timeout)
 		}
 
-		var result interface{}
+		var result any
 		path := fmt.Sprintf("%s/%s", cloudDbPath, dbId)
 		err := client.Get(path, &result)
 		if err != nil {
 			return fmt.Errorf("failed to get cluster status: %w", err)
 		}
 
-		resultMap, ok := result.(map[string]interface{})
+		resultMap, ok := result.(map[string]any)
 		if !ok {
 			return fmt.Errorf("unexpected response type: %T", result)
 		}
 
-		health, ok := resultMap["health"].(map[string]interface{})
+		health, ok := resultMap["health"].(map[string]any)
 		if !ok {
 			return fmt.Errorf("health field not found or invalid in response")
 		}
@@ -560,7 +561,7 @@ type existingCluster struct {
 // getClusterByName checks if a cluster with the given name already exists
 // Returns nil if no cluster with that name exists
 func (c *CloudClustersCreateCmd) getClusterByName(client *cloud.Client, name string) (*existingCluster, error) {
-	var result map[string]interface{}
+	var result map[string]any
 	// Exclude decommissioned clusters from the check
 	path := cloudDbPath + "?status_ne=decommissioned"
 	err := client.Get(path, &result)
@@ -568,14 +569,14 @@ func (c *CloudClustersCreateCmd) getClusterByName(client *cloud.Client, name str
 		return nil, err
 	}
 
-	clusters, ok := result["clusters"].([]interface{})
+	clusters, ok := result["clusters"].([]any)
 	if !ok {
 		// No clusters found
 		return nil, nil
 	}
 
 	for _, db := range clusters {
-		dbMap, ok := db.(map[string]interface{})
+		dbMap, ok := db.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -585,7 +586,7 @@ func (c *CloudClustersCreateCmd) getClusterByName(client *cloud.Client, name str
 			dbID, _ := dbMap["id"].(string)
 			// Get status from health.status
 			var status string
-			if health, ok := dbMap["health"].(map[string]interface{}); ok {
+			if health, ok := dbMap["health"].(map[string]any); ok {
 				status, _ = health["status"].(string)
 			}
 			return &existingCluster{
@@ -610,7 +611,7 @@ func (c *CloudClustersCreateCmd) loadAndMergeCustomConfig(filePath string, baseR
 	}
 
 	// Parse as generic map to detect the type
-	var rawConfig map[string]interface{}
+	var rawConfig map[string]any
 	if err := json.Unmarshal(data, &rawConfig); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom config JSON: %w", err)
 	}
@@ -649,13 +650,13 @@ func (c *CloudClustersCreateCmd) mergeFullRequest(data []byte, baseRequest cloud
 		return baseRequest, fmt.Errorf("failed to marshal base request: %w", err)
 	}
 
-	var baseMap map[string]interface{}
+	var baseMap map[string]any
 	if err := json.Unmarshal(baseData, &baseMap); err != nil {
 		return baseRequest, fmt.Errorf("failed to unmarshal base request: %w", err)
 	}
 
 	// Parse custom config
-	var customMap map[string]interface{}
+	var customMap map[string]any
 	if err := json.Unmarshal(data, &customMap); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom config: %w", err)
 	}
@@ -680,19 +681,19 @@ func (c *CloudClustersCreateCmd) mergeFullRequest(data []byte, baseRequest cloud
 // mergeAerospikeServerOnly merges an aerospikeServer-only JSON with the base request
 func (c *CloudClustersCreateCmd) mergeAerospikeServerOnly(data []byte, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (cloud.CreateClusterRequest, error) {
 	// Parse the aerospikeServer section
-	var customServer map[string]interface{}
+	var customServer map[string]any
 	if err := json.Unmarshal(data, &customServer); err != nil {
 		return baseRequest, fmt.Errorf("failed to parse custom aerospikeServer config: %w", err)
 	}
 
 	// Convert base aerospikeServer to map
-	var baseServerMap map[string]interface{}
+	var baseServerMap map[string]any
 	if baseRequest.AerospikeServer != nil {
 		if err := json.Unmarshal(baseRequest.AerospikeServer, &baseServerMap); err != nil {
 			return baseRequest, fmt.Errorf("failed to unmarshal base aerospikeServer: %w", err)
 		}
 	} else {
-		baseServerMap = make(map[string]interface{})
+		baseServerMap = make(map[string]any)
 	}
 
 	// Deep merge: custom config takes precedence
@@ -709,20 +710,18 @@ func (c *CloudClustersCreateCmd) mergeAerospikeServerOnly(data []byte, baseReque
 }
 
 // deepMerge recursively merges two maps, with the override map taking precedence
-func deepMerge(base, override map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
+func deepMerge(base, override map[string]any) map[string]any {
+	result := make(map[string]any)
 
 	// Copy all base values
-	for k, v := range base {
-		result[k] = v
-	}
+	maps.Copy(result, base)
 
 	// Override/merge with custom values
 	for k, v := range override {
 		if baseVal, exists := result[k]; exists {
 			// If both are maps, merge recursively
-			baseMap, baseIsMap := baseVal.(map[string]interface{})
-			overrideMap, overrideIsMap := v.(map[string]interface{})
+			baseMap, baseIsMap := baseVal.(map[string]any)
+			overrideMap, overrideIsMap := v.(map[string]any)
 			if baseIsMap && overrideIsMap {
 				result[k] = deepMerge(baseMap, overrideMap)
 				continue

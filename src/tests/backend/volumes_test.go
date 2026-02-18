@@ -69,7 +69,7 @@ func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			DiskType:  "gp2",
 			Placement: Options.TestRegions[0],
@@ -106,7 +106,7 @@ func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			Placement: Options.TestRegions[0],
 		},
@@ -132,7 +132,7 @@ func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			DiskType:  "gp2",
 			Placement: Options.TestRegions[0],
@@ -168,7 +168,7 @@ func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 		t.Skip("GCP does not support shared volumes")
 		return
 	}
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			Placement: Options.TestRegions[0],
 		},
@@ -287,7 +287,7 @@ func (tv *testVolume) testCreateTestInstance(t *testing.T) {
 	if strings.Count(Options.TestRegions[0], "-") == 1 {
 		placement = Options.TestRegions[0] + "-a"
 	}
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: Options.TestRegions[0] + "a",
@@ -485,7 +485,7 @@ func (tv *testVolume) testCreateTestInstanceWithAttachedVolume(t *testing.T) {
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
 			Image: image,
 			Disks: []string{"test-shared-volume:/mnt/shared"},

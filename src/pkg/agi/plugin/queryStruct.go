@@ -13,7 +13,7 @@ type queryRequest struct {
 	MaxDataPoints int                        `json:"maxDataPoints"`
 	ScopedVars    map[string]*queryScopedVar `json:"scopedVars"`
 	selectedVars  map[string][]string        // extracted from ScopedVars
-	AdHocFilters  []interface{}              `json:"adHocFilters"` // not implemented
+	AdHocFilters  []any                      `json:"adHocFilters"` // not implemented
 }
 
 type queryTarget struct {
@@ -23,7 +23,7 @@ type queryTarget struct {
 }
 
 type queryScopedVar struct {
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 type queryPayload struct {
@@ -60,7 +60,7 @@ type bin struct {
 	DeltaToPerSecond     bool            `json:"convertToPerSecond"`  // timeseries: divide stat by timeX-timeY to get per-second values
 	MaxIntervalSeconds   int             `json:"maxIntervalSeconds"`  // timeseries: if breached, will insert 'null', value=0 disables
 	Limits               *responseLimits `json:"limits"`              // timeseries: floor/ceil at limit
-	SingularSeriesExtend interface{}     `json:"singlarSeriesExtend"` // timeseries: if series has 1 datapoint only, should we extend by adding data to left and right; either an int value, or "REPEAT" (repeat datapoint), or "DISABLE", enabled as 0 by default
+	SingularSeriesExtend any             `json:"singlarSeriesExtend"` // timeseries: if series has 1 datapoint only, should we extend by adding data to left and right; either an int value, or "REPEAT" (repeat datapoint), or "DISABLE", enabled as 0 by default
 }
 
 type responseLimits struct {

@@ -44,7 +44,7 @@ func (i *Ingest) loadProgress() error {
 }
 
 func (i *Ingest) loadProgressFile(fname string) error {
-	var item interface{}
+	var item any
 	switch fname {
 	case "downloader.json":
 		item = i.progress.Downloader
@@ -149,7 +149,7 @@ func (i *Ingest) saveProgress() error {
 	return nil
 }
 func (i *Ingest) saveProgressDo(file string) error {
-	var item interface{}
+	var item any
 	switch file {
 	case "downloader.json":
 		item = i.progress.Downloader
@@ -355,10 +355,7 @@ func (i *Ingest) printProgress() error {
 		}
 		if i.config.ProgressPrint.PrintOverallProgress {
 			timePassedx := time.Since(i.progress.LogProcessor.StartTime)
-			timePassed := int64(timePassedx.Seconds())
-			if timePassed < 1 {
-				timePassed = 1
-			}
+			timePassed := max(int64(timePassedx.Seconds()), 1)
 			totalSize := int64(0)
 			processedSize := int64(0)
 			for _, file := range i.progress.LogProcessor.Files {

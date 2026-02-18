@@ -137,7 +137,7 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: Options.TestRegions[0] + "a",
@@ -178,7 +178,7 @@ func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			DiskType:  "gp2",
 			Placement: Options.TestRegions[0],
@@ -217,7 +217,7 @@ func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateVolumeParams{
 			Placement: Options.TestRegions[0],
 		},

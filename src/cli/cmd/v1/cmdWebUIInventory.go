@@ -3,7 +3,9 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,11 +43,11 @@ func (c *WebUICmd) handleInventoryData(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode([]interface{}{})
+		enc.Encode([]any{})
 		return
 	}
 
-	var result interface{}
+	var result any
 	switch invType {
 	case "clusters":
 		instances := inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).
@@ -111,19 +113,19 @@ func (c *WebUICmd) handleInventoryData(w http.ResponseWriter, r *http.Request) {
 		result = subnets
 	case "expiry":
 		if c.system == nil || c.system.Backend == nil {
-			result = []interface{}{}
+			result = []any{}
 		} else {
 			expList, err := c.system.Backend.ExpiryList()
 			if err != nil {
 				c.logError("Failed to get expiry list: %s", err)
-				result = []interface{}{}
+				result = []any{}
 			} else {
 				result = expList.ExpirySystems
 			}
 		}
 	case "instance-types":
 		if c.system == nil || c.system.Backend == nil {
-			result = []interface{}{}
+			result = []any{}
 		} else {
 			backendType := "docker"
 			if c.system.Opts != nil && c.system.Opts.Config.Backend.Type != "" {
@@ -132,7 +134,7 @@ func (c *WebUICmd) handleInventoryData(w http.ResponseWriter, r *http.Request) {
 			instanceTypes, err := c.system.Backend.GetInstanceTypes(backends.BackendType(backendType))
 			if err != nil {
 				c.logError("Failed to get instance types: %s", err)
-				result = []interface{}{}
+				result = []any{}
 			} else {
 				result = instanceTypes
 			}
@@ -201,20 +203,20 @@ func (c *WebUICmd) handleInventorySchema(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	entities := map[string]interface{}{
+	entities := map[string]any{
 		"clusters":       instanceCols,
-		"clients":       instanceCols,
-		"agi":           agiCols,
-		"templates":     getImageSchema(),
-		"agi-templates": getImageSchema(),
-		"volumes":       getVolumeSchema(),
-		"firewalls":     getFirewallSchema(),
-		"subnets":       getSubnetSchema(),
-		"expiry":        getExpirySchema(),
+		"clients":        instanceCols,
+		"agi":            agiCols,
+		"templates":      getImageSchema(),
+		"agi-templates":  getImageSchema(),
+		"volumes":        getVolumeSchema(),
+		"firewalls":      getFirewallSchema(),
+		"subnets":        getSubnetSchema(),
+		"expiry":         getExpirySchema(),
 		"instance-types": getInstanceTypesSchema(),
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"backend":  backendType,
 		"entities": entities,
 	}
@@ -300,7 +302,7 @@ type inventoryActionRequest struct {
 	Items  []inventoryActionItem `json:"items"`
 	Action string                `json:"action"`
 	Type   string                `json:"type"`
-	Params map[string]interface{} `json:"params"`
+	Params map[string]any        `json:"params"`
 }
 
 type inventoryActionItem struct {
@@ -400,7 +402,7 @@ func (c *WebUICmd) handleInventoryAction(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusAccepted)
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode(map[string]interface{}{"jobId": jobID, "jobIds": jobIDs})
+		enc.Encode(map[string]any{"jobId": jobID, "jobIds": jobIDs})
 		return
 	}
 
@@ -408,19 +410,17 @@ func (c *WebUICmd) handleInventoryAction(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusAccepted)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]interface{}{"jobId": jobID})
+	enc.Encode(map[string]any{"jobId": jobID})
 }
 
-func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nodesStr string, params map[string]interface{}) (string, map[string]interface{}) {
-	baseParams := map[string]interface{}{
+func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nodesStr string, params map[string]any) (string, map[string]any) {
+	baseParams := map[string]any{
 		"name":  clusterName,
 		"nodes": nodesStr,
 	}
 
 	// Merge in extra params (e.g. expiry duration)
-	for k, v := range params {
-		baseParams[k] = v
-	}
+	maps.Copy(baseParams, params)
 
 	switch itemType {
 	case "cluster":
@@ -470,17 +470,17 @@ func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nod
 	case "agi":
 		switch action {
 		case "start":
-			return "agi/start", map[string]interface{}{"name": clusterName}
+			return "agi/start", map[string]any{"name": clusterName}
 		case "stop":
-			return "agi/stop", map[string]interface{}{"name": clusterName}
+			return "agi/stop", map[string]any{"name": clusterName}
 		case "destroy":
-			return "agi/destroy", map[string]interface{}{"name": clusterName}
+			return "agi/destroy", map[string]any{"name": clusterName}
 		case "delete":
-			return "agi/delete", map[string]interface{}{"name": clusterName}
+			return "agi/delete", map[string]any{"name": clusterName}
 		case "getShareLink":
-			return "agi/add-auth-token", map[string]interface{}{"name": clusterName, "url": "true"}
+			return "agi/add-auth-token", map[string]any{"name": clusterName, "url": "true"}
 		case "changeLabel":
-			p := map[string]interface{}{"name": clusterName}
+			p := map[string]any{"name": clusterName}
 			if label, ok := params["label"]; ok {
 				p["label"] = label
 			}
@@ -490,10 +490,10 @@ func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nod
 			if e, ok := params["expiry"]; ok && e != "" {
 				exp = fmt.Sprintf("%v", e)
 			}
-			return "instances/change-expiry", map[string]interface{}{
+			return "instances/change-expiry", map[string]any{
 				"filter-cluster-name": clusterName,
 				"filter-type":         "agi",
-				"expire-in":          exp,
+				"expire-in":           exp,
 			}
 		}
 	}
@@ -501,12 +501,7 @@ func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nod
 }
 
 func containsInt(s []int, v int) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, v)
 }
 
 func joinInts(nums []int) string {
@@ -543,7 +538,7 @@ func (c *WebUICmd) handleInventoryConnect(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 
 	switch connectType {
 	case "cluster", "client":
@@ -572,14 +567,14 @@ func (c *WebUICmd) handleInventoryConnect(w http.ResponseWriter, r *http.Request
 			return
 		}
 		inst := instances.Describe()[0]
-		result = map[string]interface{}{
-			"host":       inst.IP.Routable(),
-			"publicIP":   inst.IP.Public,
-			"privateIP":  inst.IP.Private,
+		result = map[string]any{
+			"host":        inst.IP.Routable(),
+			"publicIP":    inst.IP.Public,
+			"privateIP":   inst.IP.Private,
 			"clusterName": inst.ClusterName,
-			"nodeNo":     inst.NodeNo,
-			"sshUser":    "root",
-			"sshKeyPath": inst.GetSSHKeyPath(),
+			"nodeNo":      inst.NodeNo,
+			"sshUser":     "root",
+			"sshKeyPath":  inst.GetSSHKeyPath(),
 		}
 	case "agi":
 		if r.Method != "POST" {
@@ -619,7 +614,7 @@ func (c *WebUICmd) handleInventoryConnect(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		result = map[string]interface{}{
+		result = map[string]any{
 			"accessURL": urlBase + token,
 			"name":      inst.ClusterName,
 			"publicIP":  inst.IP.Public,
@@ -643,11 +638,11 @@ func (c *WebUICmd) handleInventoryConnect(w http.ResponseWriter, r *http.Request
 		}
 		inst := instances.Describe()[0]
 		port := 8090
-		result = map[string]interface{}{
+		result = map[string]any{
 			"host":      inst.IP.Routable(),
-			"port":     port,
+			"port":      port,
 			"namespace": namespace,
-			"url":      fmt.Sprintf("http://%s:%d", inst.IP.Routable(), port),
+			"url":       fmt.Sprintf("http://%s:%d", inst.IP.Routable(), port),
 		}
 	case "graph":
 		name := r.URL.Query().Get("name")
@@ -670,11 +665,11 @@ func (c *WebUICmd) handleInventoryConnect(w http.ResponseWriter, r *http.Request
 		if accessURL == "" {
 			accessURL = fmt.Sprintf("http://%s", inst.IP.Routable())
 		}
-		result = map[string]interface{}{
-			"accessURL": accessURL,
-			"host":      inst.IP.Routable(),
+		result = map[string]any{
+			"accessURL":   accessURL,
+			"host":        inst.IP.Routable(),
 			"clusterName": name,
-			"nodeNo":    nodeStr,
+			"nodeNo":      nodeStr,
 		}
 	default:
 		http.Error(w, fmt.Sprintf("unknown connect type: %s", connectType), http.StatusBadRequest)

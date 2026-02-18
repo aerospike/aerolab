@@ -17,7 +17,7 @@ import (
 // checks underlying type, just just main type, for exmple, if we have `type bob int`, it will perform int-check for if it's empty
 func CheckRequired(s any) error {
 	val := reflect.ValueOf(s)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -36,12 +36,12 @@ func CheckRequired(s any) error {
 		}
 
 		// recursively check nested structs
-		if field.Type() != reflect.TypeOf(time.Time{}) {
+		if field.Type() != reflect.TypeFor[time.Time]() {
 			if field.Kind() == reflect.Struct {
 				if err := CheckRequired(field.Interface()); err != nil {
 					return err
 				}
-			} else if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			} else if field.Kind() == reflect.Pointer && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
 				if err := CheckRequired(field.Interface()); err != nil {
 					return err
 				}
@@ -53,7 +53,7 @@ func CheckRequired(s any) error {
 
 func checkEmpty(v reflect.Value) error {
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if v.IsNil() {
 			return fmt.Errorf("nil value")
 		}
@@ -78,7 +78,7 @@ func checkEmpty(v reflect.Value) error {
 			return fmt.Errorf("zero float")
 		}
 	case reflect.Struct:
-		if v.Type() == reflect.TypeOf(time.Time{}) {
+		if v.Type() == reflect.TypeFor[time.Time]() {
 			if v.Interface().(time.Time).IsZero() {
 				return fmt.Errorf("zero time")
 			}

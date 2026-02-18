@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -55,7 +56,7 @@ func (c *CloudClustersWaitCmd) Execute(args []string) error {
 		}
 
 		// Get cluster by ID
-		var result interface{}
+		var result any
 		path := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 		err := client.Get(path, &result)
 		if err != nil {
@@ -72,7 +73,7 @@ func (c *CloudClustersWaitCmd) Execute(args []string) error {
 			continue
 		}
 
-		var clusterMap map[string]interface{}
+		var clusterMap map[string]any
 		err = json.Unmarshal(resultBytes, &clusterMap)
 		if err != nil {
 			system.Logger.Debug("Failed to unmarshal cluster result: %s, waiting %v...", err, interval)
@@ -110,13 +111,7 @@ func (c *CloudClustersWaitCmd) Execute(args []string) error {
 
 		// Check if status does NOT match any of the --status-ne values
 		if len(c.StatusNe) > 0 {
-			matchesAnyExcluded := false
-			for _, excludedStatus := range c.StatusNe {
-				if healthStatus == excludedStatus {
-					matchesAnyExcluded = true
-					break
-				}
-			}
+			matchesAnyExcluded := slices.Contains(c.StatusNe, healthStatus)
 			// Status doesn't match any excluded status, condition met
 			statusNeMatches = !matchesAnyExcluded
 			if statusNeMatches {
@@ -146,9 +141,9 @@ func (c *CloudClustersWaitCmd) Execute(args []string) error {
 }
 
 // getHealthStatus extracts health.status from the cluster response
-func getHealthStatus(clusterMap map[string]interface{}) (string, error) {
+func getHealthStatus(clusterMap map[string]any) (string, error) {
 	// Try health.status first
-	health, ok := clusterMap["health"].(map[string]interface{})
+	health, ok := clusterMap["health"].(map[string]any)
 	if ok {
 		healthStatusVal, exists := health["status"]
 		if exists && healthStatusVal != nil {

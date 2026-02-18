@@ -62,9 +62,7 @@ func (h *HTTPSNotify) NotifySlack(event string, message string, threadedMessage 
 	if !slices.Contains(h.slackEvents, event) {
 		return
 	}
-	h.wg.Add(1)
-	go func() {
-		defer h.wg.Done()
+	h.wg.Go(func() {
 		thrId, err := h.slack.Send(nil, message)
 		if err != nil {
 			log.Println(err)
@@ -74,10 +72,10 @@ func (h *HTTPSNotify) NotifySlack(event string, message string, threadedMessage 
 				log.Println(err)
 			}
 		}
-	}()
+	})
 }
 
-func (h *HTTPSNotify) NotifyJSON(payload interface{}) error {
+func (h *HTTPSNotify) NotifyJSON(payload any) error {
 	if h.Endpoint == "" && h.AGIMonitorUrl == "" {
 		return nil
 	}
@@ -95,11 +93,9 @@ func (h *HTTPSNotify) NotifyData(data []byte) error {
 	var httpErr error
 	if h.Endpoint != "" {
 		if !h.AbortOnFail && len(h.AbortOnCode) == 0 {
-			h.wg.Add(1)
-			go func() {
-				defer h.wg.Done()
+			h.wg.Go(func() {
 				h.notify(data)
-			}()
+			})
 		} else {
 			httpErr = h.notify(data)
 		}
@@ -303,7 +299,7 @@ func getJsonAuthData(a *AgiMonitorAuth) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range strings.Split(string(secgrp), "\n") {
+	for line := range strings.SplitSeq(string(secgrp), "\n") {
 		line = strings.Trim(line, "\r\n\t ")
 		if line == "" {
 			continue

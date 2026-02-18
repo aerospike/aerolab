@@ -16,7 +16,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory, out io.Writer, usePager bool, page *pager.Pager) error {
+func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c any, args []string, inventory *backends.Inventory, out io.Writer, usePager bool, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -125,13 +125,13 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil
 }
 
-func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory, owner string, out io.Writer, usePager bool, page *pager.Pager) error {
+func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c any, args []string, inventory *backends.Inventory, owner string, out io.Writer, usePager bool, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -246,13 +246,13 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("FIREWALLS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("FIREWALLS"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil
 }
 
-func CreateSecurityGroups(system *System, namePrefix string, ip string, portList []string, vpc string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+func CreateSecurityGroups(system *System, namePrefix string, ip string, portList []string, vpc string, backendType string, cmd []string, c any, args []string, inventory *backends.Inventory) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -299,7 +299,7 @@ func CreateSecurityGroups(system *System, namePrefix string, ip string, portList
 	return err
 }
 
-func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendType string, cmd []string, c any, args []string, inventory *backends.Inventory) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -323,7 +323,7 @@ func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendTy
 	return fw.Delete(time.Minute)
 }
 
-func LockSecurityGroups(system *System, namePrefix string, ip string, portList []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+func LockSecurityGroups(system *System, namePrefix string, ip string, portList []string, backendType string, cmd []string, c any, args []string, inventory *backends.Inventory) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)

@@ -80,9 +80,9 @@ func (d *InstanceDNS) makeInstanceDNS() *backends.InstanceDNS {
 }
 
 type InstancesCreateCmdAws struct {
-	ImageID            string        `long:"image" description:"Custom image ID to use for the instances; ignores OS, Version, Arch"`
-	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
-	NetworkPlacement   string        `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
+	ImageID            string          `long:"image" description:"Custom image ID to use for the instances; ignores OS, Version, Arch"`
+	Expire             time.Duration   `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	NetworkPlacement   string          `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string        `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
 	Firewalls          []string        `long:"firewall" description:"Extra security group names to assign to the instances"`
@@ -97,13 +97,13 @@ type InstancesCreateCmdGcp struct {
 	Expire             time.Duration   `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
 	Zone               guiZone         `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region" webchoice:"method::List"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
-	Disks              []string      `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
-	Firewalls          []string      `long:"firewall" description:"Extra firewall names to assign to the instances"`
-	SpotInstance       bool          `long:"spot" description:"Create spot instances"`
-	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
-	MinCPUPlatform     string        `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
-	OnHostMaintenance  string        `long:"on-host-maintenance" description:"On-host maintenance policy: MIGRATE or TERMINATE; defaults to MIGRATE (or TERMINATE for spot)"`
-	CustomDNS          InstanceDNS   `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
+	Disks              []string        `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
+	Firewalls          []string        `long:"firewall" description:"Extra firewall names to assign to the instances"`
+	SpotInstance       bool            `long:"spot" description:"Create spot instances"`
+	IAMInstanceProfile string          `long:"instance-profile" description:"IAM instance profile to use for the instances"`
+	MinCPUPlatform     string          `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
+	OnHostMaintenance  string          `long:"on-host-maintenance" description:"On-host maintenance policy: MIGRATE or TERMINATE; defaults to MIGRATE (or TERMINATE for spot)"`
+	CustomDNS          InstanceDNS     `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
 }
 
 type InstancesCreateCmdDocker struct {
@@ -502,12 +502,12 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				itype = itypes[selectedChoice]
 				madeInteractiveChoices = true
 				// Update the struct field so ReconstructCommandLine can pick it up
-			switch system.Opts.Config.Backend.Type {
-			case "aws":
-				c.AWS.InstanceType = guiInstanceType(itype)
-			case "gcp":
-				c.GCP.InstanceType = guiInstanceType(itype)
-			}
+				switch system.Opts.Config.Backend.Type {
+				case "aws":
+					c.AWS.InstanceType = guiInstanceType(itype)
+				case "gcp":
+					c.GCP.InstanceType = guiInstanceType(itype)
+				}
 			} else {
 				return nil, errors.New("instance type is required")
 			}
@@ -614,11 +614,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if quitting || selectedZone == "" {
 					return nil, errors.New("aborted")
 				}
-			c.GCP.Zone = guiZone(selectedZone)
-			madeInteractiveChoices = true
-			system.Logger.Info("Selected zone %s", c.GCP.Zone)
-		} else {
-			c.GCP.Zone = guiZone(system.Opts.Config.Backend.Region + "-a")
+				c.GCP.Zone = guiZone(selectedZone)
+				madeInteractiveChoices = true
+				system.Logger.Info("Selected zone %s", c.GCP.Zone)
+			} else {
+				c.GCP.Zone = guiZone(system.Opts.Config.Backend.Region + "-a")
 				system.Logger.Info("Using default zone %s", c.GCP.Zone)
 			}
 		}
@@ -844,7 +844,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			CapacityRetries:    c.CapacityRetries,
 			CapacityRetrySleep: c.CapacityRetrySleep,
 		},
-		BackendSpecificParams: map[backends.BackendType]interface{}{
+		BackendSpecificParams: map[backends.BackendType]any{
 			"aws": &baws.CreateInstanceParams{
 				Image:              nil,
 				NetworkPlacement:   c.AWS.NetworkPlacement,
@@ -1005,8 +1005,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			size := 0
 			count := 1
 			t := ""
-			parts := strings.Split(disk, ",")
-			for _, part := range parts {
+			parts := strings.SplitSeq(disk, ",")
+			for part := range parts {
 				parts2 := strings.SplitN(part, "=", 2)
 				if len(parts2) != 2 {
 					continue
@@ -1159,8 +1159,8 @@ func (w *prefixWriter) Write(p []byte) (n int, err error) {
 }
 
 func (w *prefixWriter) Flush() {
-	lines := strings.Split(string(w.buf), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(w.buf), "\n")
+	for line := range lines {
 		w.logger.Info("%s%s", w.prefix, line)
 	}
 	w.buf = []byte{}

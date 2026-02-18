@@ -1,5 +1,4 @@
 //go:build darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
-// +build darwin dragonfly freebsd linux netbsd openbsd solaris
 
 package cmd
 
@@ -351,4 +350,3 @@ func agiGetReader(ingestProgressPath string, fname string) (r io.ReadCloser, err
 	}
 	return ret, nil
 }
-

@@ -55,7 +55,7 @@ func (i *imageTest) testCreateVanillaInstance(t *testing.T) {
 	if strings.Count(Options.TestRegions[0], "-") == 1 {
 		placement = Options.TestRegions[0] + "-a"
 	}
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image,
 			NetworkPlacement: Options.TestRegions[0],
@@ -179,7 +179,7 @@ func (i *imageTest) testCreateInstanceFromImage(t *testing.T) {
 	if strings.Count(Options.TestRegions[0], "-") == 1 {
 		placement = Options.TestRegions[0] + "-a"
 	}
-	params := map[backends.BackendType]interface{}{
+	params := map[backends.BackendType]any{
 		backends.BackendTypeAWS: &baws.CreateInstanceParams{
 			Image:            image.Describe()[0],
 			NetworkPlacement: Options.TestRegions[0],

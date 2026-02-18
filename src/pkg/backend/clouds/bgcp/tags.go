@@ -60,36 +60,36 @@ const (
 
 // V7 label names for discovery (GCP uses lowercase with underscores)
 const (
-	V7_LABEL_USED_BY             = "used_by"
-	V7_LABEL_SERVER_MARKER       = "aerolab4"
-	V7_LABEL_CLIENT_MARKER       = "aerolab4client"
-	V7_LABEL_VOLUME_MARKER       = "aerolab7"
-	V7_LABEL_CLUSTER_NAME        = "aerolab4cluster_name"
-	V7_LABEL_NODE_NUMBER         = "aerolab4node_number"
-	V7_LABEL_OPERATING_SYSTEM    = "aerolab4operating_system"
-	V7_LABEL_OPERATING_SYS_VER   = "aerolab4operating_system_version"
-	V7_LABEL_AEROSPIKE_VERSION   = "aerolab4aerospike_version"
-	V7_LABEL_ARCH                = "arch"
-	V7_LABEL_EXPIRES             = "aerolab4expires"
-	V7_LABEL_OWNER               = "owner"
-	V7_LABEL_COST_PPH            = "aerolab_cost_ph"
-	V7_LABEL_COST_SO_FAR         = "aerolab_cost_sofar"
-	V7_LABEL_COST_START_TIME     = "aerolab_cost_starttime"
-	V7_LABEL_TELEMETRY           = "telemetry"
-	V7_LABEL_IS_SPOT             = "isspot"
-	V7_LABEL_CLIENT_NAME         = "aerolab4client_name"
-	V7_LABEL_CLIENT_NODE_NUMBER  = "aerolab4client_node_number"
-	V7_LABEL_CLIENT_OS           = "aerolab4client_operating_system"
-	V7_LABEL_CLIENT_OS_VER       = "aerolab4client_operating_system_version"
-	V7_LABEL_CLIENT_AS_VER       = "aerolab4client_aerospike_version"
-	V7_LABEL_CLIENT_TYPE         = "aerolab4client_type"
-	V7_LABEL_VOLUME_USED_BY      = "usedby"
-	V7_LABEL_VOLUME_LAST_USED    = "lastused"
-	V7_LABEL_VOLUME_EXPIRE_DUR   = "expireduration"
-	V7_LABEL_VOLUME_OWNER        = "aerolab7owner"
-	V7_LABEL_AGI_INSTANCE        = "agiinstance"
-	V7_LABEL_AGI_NODIM           = "aginodim"
-	V7_LABEL_TERM_ON_POW         = "termonpow"
+	V7_LABEL_USED_BY            = "used_by"
+	V7_LABEL_SERVER_MARKER      = "aerolab4"
+	V7_LABEL_CLIENT_MARKER      = "aerolab4client"
+	V7_LABEL_VOLUME_MARKER      = "aerolab7"
+	V7_LABEL_CLUSTER_NAME       = "aerolab4cluster_name"
+	V7_LABEL_NODE_NUMBER        = "aerolab4node_number"
+	V7_LABEL_OPERATING_SYSTEM   = "aerolab4operating_system"
+	V7_LABEL_OPERATING_SYS_VER  = "aerolab4operating_system_version"
+	V7_LABEL_AEROSPIKE_VERSION  = "aerolab4aerospike_version"
+	V7_LABEL_ARCH               = "arch"
+	V7_LABEL_EXPIRES            = "aerolab4expires"
+	V7_LABEL_OWNER              = "owner"
+	V7_LABEL_COST_PPH           = "aerolab_cost_ph"
+	V7_LABEL_COST_SO_FAR        = "aerolab_cost_sofar"
+	V7_LABEL_COST_START_TIME    = "aerolab_cost_starttime"
+	V7_LABEL_TELEMETRY          = "telemetry"
+	V7_LABEL_IS_SPOT            = "isspot"
+	V7_LABEL_CLIENT_NAME        = "aerolab4client_name"
+	V7_LABEL_CLIENT_NODE_NUMBER = "aerolab4client_node_number"
+	V7_LABEL_CLIENT_OS          = "aerolab4client_operating_system"
+	V7_LABEL_CLIENT_OS_VER      = "aerolab4client_operating_system_version"
+	V7_LABEL_CLIENT_AS_VER      = "aerolab4client_aerospike_version"
+	V7_LABEL_CLIENT_TYPE        = "aerolab4client_type"
+	V7_LABEL_VOLUME_USED_BY     = "usedby"
+	V7_LABEL_VOLUME_LAST_USED   = "lastused"
+	V7_LABEL_VOLUME_EXPIRE_DUR  = "expireduration"
+	V7_LABEL_VOLUME_OWNER       = "aerolab7owner"
+	V7_LABEL_AGI_INSTANCE       = "agiinstance"
+	V7_LABEL_AGI_NODIM          = "aginodim"
+	V7_LABEL_TERM_ON_POW        = "termonpow"
 )
 
 // volumes uses labels
@@ -137,10 +137,7 @@ func encodeToLabels(m map[string]string) map[string]string {
 	encoded := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(json))
 	// split encoded into 63 character chunks
 	for i := 0; i < len(encoded); i += 63 {
-		end := i + 63
-		if end > len(encoded) {
-			end = len(encoded)
-		}
+		end := min(i+63, len(encoded))
 		ret[fmt.Sprintf("aerolab-metadata-%d", i)] = encoded[i:end]
 	}
 	for k, v := range nativeLabels {

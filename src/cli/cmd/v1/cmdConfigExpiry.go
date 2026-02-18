@@ -299,7 +299,7 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("EXPIRIES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(new("EXPIRIES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil

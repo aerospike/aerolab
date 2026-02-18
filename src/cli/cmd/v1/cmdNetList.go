@@ -154,8 +154,8 @@ func (c *NetListCmd) listRules(system *System, inventory *backends.Inventory, lo
 func (c *NetListCmd) parseIptablesOutput(output string, ruleNode *backends.Instance, ipMap map[string]*backends.Instance, chain string, logger *logger.Logger) []*netRule {
 	var rules []*netRule
 
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		if !strings.Contains(line, "REJECT") && !strings.Contains(line, "DROP") {
 			continue
 		}
@@ -353,7 +353,7 @@ func (c *NetListCmd) outputTable(rules []*netRule, out io.Writer) error {
 		})
 	}
 
-	title := printer.String("RULES")
+	title := new("RULES")
 	fmt.Fprintln(out, t.RenderTable(title, header, rows))
 	fmt.Fprintln(out, "")
 

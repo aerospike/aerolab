@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +21,6 @@ import (
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/protobuf/proto"
 )
 
 // MigrateV7Resources discovers and migrates v7 GCP resources (instances, volumes, images)
@@ -353,7 +354,7 @@ func (s *b) discoverOldInstances(force bool) ([]backends.OldInstance, error) {
 
 	it := client.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
 		Project: s.credentials.Project,
-		Filter:  proto.String(filter),
+		Filter:  new(filter),
 	})
 
 	for {
@@ -371,13 +372,7 @@ func (s *b) discoverOldInstances(force bool) ([]backends.OldInstance, error) {
 			region := zoneToRegion(zone)
 
 			// Skip if not in enabled regions
-			found := false
-			for _, r := range enabledRegions {
-				if r == region {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(enabledRegions, region)
 			if !found {
 				continue
 			}
@@ -448,7 +443,7 @@ func (s *b) discoverOldVolumes(force bool) ([]backends.OldVolume, error) {
 
 	it := client.AggregatedList(ctx, &computepb.AggregatedListDisksRequest{
 		Project: s.credentials.Project,
-		Filter:  proto.String(filter),
+		Filter:  new(filter),
 	})
 
 	for {
@@ -466,13 +461,7 @@ func (s *b) discoverOldVolumes(force bool) ([]backends.OldVolume, error) {
 			region := zoneToRegion(zone)
 
 			// Skip if not in enabled regions
-			found := false
-			for _, r := range enabledRegions {
-				if r == region {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(enabledRegions, region)
 			if !found {
 				continue
 			}
@@ -980,12 +969,8 @@ func (s *b) applyInstanceLabels(instanceName, zone string, oldLabels, newLabels 
 
 	// Merge labels (keep old, add new)
 	mergedLabels := make(map[string]string)
-	for k, v := range inst.GetLabels() {
-		mergedLabels[k] = v
-	}
-	for k, v := range newLabels {
-		mergedLabels[k] = v
-	}
+	maps.Copy(mergedLabels, inst.GetLabels())
+	maps.Copy(mergedLabels, newLabels)
 
 	// Check 64-label limit
 	if len(mergedLabels) > 64 {
@@ -998,7 +983,7 @@ func (s *b) applyInstanceLabels(instanceName, zone string, oldLabels, newLabels 
 		Project:  s.credentials.Project,
 		Zone:     zone,
 		InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-			LabelFingerprint: proto.String(inst.GetLabelFingerprint()),
+			LabelFingerprint: new(inst.GetLabelFingerprint()),
 			Labels:           mergedLabels,
 		},
 	})
@@ -1036,12 +1021,8 @@ func (s *b) applyVolumeLabels(diskName, zone string, oldLabels, newLabels map[st
 
 	// Merge labels
 	mergedLabels := make(map[string]string)
-	for k, v := range disk.GetLabels() {
-		mergedLabels[k] = v
-	}
-	for k, v := range newLabels {
-		mergedLabels[k] = v
-	}
+	maps.Copy(mergedLabels, disk.GetLabels())
+	maps.Copy(mergedLabels, newLabels)
 
 	// Check 64-label limit
 	if len(mergedLabels) > 64 {
@@ -1053,7 +1034,7 @@ func (s *b) applyVolumeLabels(diskName, zone string, oldLabels, newLabels map[st
 		Project:  s.credentials.Project,
 		Zone:     zone,
 		ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-			LabelFingerprint: proto.String(disk.GetLabelFingerprint()),
+			LabelFingerprint: new(disk.GetLabelFingerprint()),
 			Labels:           mergedLabels,
 		},
 	})
@@ -1090,12 +1071,8 @@ func (s *b) applyImageLabels(imageName string, oldLabels, newLabels map[string]s
 
 	// Merge labels
 	mergedLabels := make(map[string]string)
-	for k, v := range img.GetLabels() {
-		mergedLabels[k] = v
-	}
-	for k, v := range newLabels {
-		mergedLabels[k] = v
-	}
+	maps.Copy(mergedLabels, img.GetLabels())
+	maps.Copy(mergedLabels, newLabels)
 
 	// Check 64-label limit
 	if len(mergedLabels) > 64 {
@@ -1106,7 +1083,7 @@ func (s *b) applyImageLabels(imageName string, oldLabels, newLabels map[string]s
 		Resource: imageName,
 		Project:  s.credentials.Project,
 		GlobalSetLabelsRequestResource: &computepb.GlobalSetLabelsRequest{
-			LabelFingerprint: proto.String(img.GetLabelFingerprint()),
+			LabelFingerprint: new(img.GetLabelFingerprint()),
 			Labels:           mergedLabels,
 		},
 	})
@@ -1145,9 +1122,7 @@ func (s *b) trimLabelsToLimit(labels map[string]string, limit int) map[string]st
 	}
 
 	result := make(map[string]string)
-	for k, v := range labels {
-		result[k] = v
-	}
+	maps.Copy(result, labels)
 
 	for _, key := range removable {
 		if len(result) <= limit {
@@ -1357,11 +1332,11 @@ func normalizeAerospikeVersion(version string) string {
 	if version == "" {
 		return version
 	}
-	if strings.HasSuffix(version, "c") {
-		return strings.TrimSuffix(version, "c") + "-community"
+	if before, ok := strings.CutSuffix(version, "c"); ok {
+		return before + "-community"
 	}
-	if strings.HasSuffix(version, "f") {
-		return strings.TrimSuffix(version, "f") + "-federal"
+	if before, ok := strings.CutSuffix(version, "f"); ok {
+		return before + "-federal"
 	}
 	return version + "-enterprise"
 }

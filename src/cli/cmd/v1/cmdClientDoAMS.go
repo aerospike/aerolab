@@ -667,7 +667,7 @@ func (c *ClientCreateAMSCmd) installDefaultDashboards(client *backends.Instance,
 	}
 
 	errors := parallelize.MapLimit(dashboards, c.ParallelSSHThreads, func(dashboard []string) error {
-		for tries := 0; tries < 3; tries++ {
+		for tries := range 3 {
 			output := client.Exec(&backends.ExecInput{
 				ExecDetail: sshexec.ExecDetail{
 					Command:        dashboard,

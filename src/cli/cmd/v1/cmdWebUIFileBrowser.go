@@ -116,7 +116,7 @@ func (c *WebUICmd) handleFSLs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"path":  absPath,
 		"dirs":  dirs,
 		"files": files,
