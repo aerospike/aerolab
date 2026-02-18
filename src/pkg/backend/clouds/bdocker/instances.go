@@ -18,6 +18,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -924,8 +925,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					tw.Flush()
 					tw.Close()
 					pf := "linux/amd64"
-					if backendSpecificParams.Image.Architecture == backends.ArchitectureARM64 {
+					switch backendSpecificParams.Image.Architecture {
+					case backends.ArchitectureARM64:
 						pf = "linux/arm64"
+					case backends.ArchitectureNative:
+						if runtime.GOARCH == "arm64" {
+							pf = "linux/arm64"
+						}
 					}
 					newNameTag := backendSpecificParams.Image.Architecture.String() + "-" + backendSpecificParams.Image.OSName + "-" + backendSpecificParams.Image.OSVersion
 					if s.isPodman[backendSpecificParams.Image.ZoneName] {
