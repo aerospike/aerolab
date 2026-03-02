@@ -5,6 +5,14 @@ linters:
       exclude-functions:
         - (*github.com/aerospike/aerolab/pkg/backend/backends.Architecture).FromString
         - (github.com/aerospike/aerolab/pkg/backend/backends.Backend).ForceRefreshInventory
+        - (github.com/rglonek/aerospike-config-file-parser.Stanza).SetValue
+        - (github.com/rglonek/aerospike-config-file-parser.Stanza).SetValues
+        - (github.com/rglonek/aerospike-config-file-parser.Stanza).Delete
+        - (github.com/rglonek/aerospike-config-file-parser.Stanza).NewStanza
+        - os.Remove
+        - os.RemoveAll
+        - os.Setenv
+        - os.Unsetenv
   exclusions:
     rules:
       - linters:
@@ -13,3 +21,15 @@ linters:
       - linters:
           - errcheck
         source: "PrintHelp"
+      - linters:
+          - errcheck
+        source: '\.Close\(\)'
+      - linters:
+          - errcheck
+        source: 'c\.Help\.Execute\(args\)'
+      - linters:
+          - errcheck
+        source: 'UpdateJobStatus'
+      - linters:
+          - errcheck
+        source: 'wsWrite\('

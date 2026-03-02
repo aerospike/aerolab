@@ -264,9 +264,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			idxI := -1
 			idxJ := -1
 			for gi, gg := range groupList {
-				if gg == dp.groups[i].name {
+				switch gg {
+				case dp.groups[i].name:
 					idxI = gi
-				} else if gg == dp.groups[j].name {
+				case dp.groups[j].name:
 					idxJ = gi
 				}
 				if idxI > -1 && idxJ > -1 {
@@ -285,17 +286,17 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			dpGroups := make([]string, 0, len(dp.groups)+1)
 			if p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
-				groupHash.Write(sbs.StringToByteSlice(k))
+				groupHash.Write(sbs.StringToByteSlice(k)) //nolint:errcheck // hash.Write never fails
 			}
 			for _, g := range dp.groups {
 				if g.value != "" {
 					dpGroups = append(dpGroups, g.value)
-					groupHash.Write(sbs.StringToByteSlice(g.value))
+					groupHash.Write(sbs.StringToByteSlice(g.value)) //nolint:errcheck // hash.Write never fails
 				}
 			}
 			if !p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
-				groupHash.Write(sbs.StringToByteSlice(k))
+				groupHash.Write(sbs.StringToByteSlice(k)) //nolint:errcheck // hash.Write never fails
 			}
 			grHash := groupHash.Sum(nil)
 			found := -1

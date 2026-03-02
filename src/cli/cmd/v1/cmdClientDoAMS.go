@@ -141,7 +141,7 @@ func (c *ClientCreateAMSCmd) createAMSClient(system *System, inventory *backends
 
 		// Determine access URL
 		var accessHost string
-		var accessPort string = "3000"
+		var accessPort = "3000"
 		if system.Opts.Config.Backend.Type == "docker" {
 			accessHost = "localhost"
 			for _, port := range c.Docker.ExposePorts {
@@ -369,7 +369,7 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 	if err != nil {
 		return "", fmt.Errorf("failed to get Prometheus install script: %w", err)
 	}
-	script.Write(prometheusScript)
+	script.Write(prometheusScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\necho 'Prometheus installed'\n\n")
 
 	// Part 2: Grafana installation (from installer package)
@@ -382,7 +382,7 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 	if err != nil {
 		return "", fmt.Errorf("failed to get Grafana install script: %w", err)
 	}
-	script.Write(grafanaScript)
+	script.Write(grafanaScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\necho 'Grafana installed'\n\n")
 
 	// Part 3: Configure Prometheus
@@ -439,8 +439,8 @@ func (c *ClientCreateAMSCmd) buildPrometheusConfig(clusterNodes, clientNodes map
 				nodeTargets = append(nodeTargets, node+":9100")
 			}
 		}
-		script.WriteString(fmt.Sprintf("sed -i.bakAsd -E \"s/.*TODO_ASD_TARGETS/      - targets: ['%s'] #TODO_ASD_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(asdTargets, "','")))
-		script.WriteString(fmt.Sprintf("sed -i.bakAsdNode -E \"s/.*TODO_ASDN_TARGETS/      - targets: ['%s'] #TODO_ASDN_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(nodeTargets, "','")))
+		fmt.Fprintf(&script, "sed -i.bakAsd -E \"s/.*TODO_ASD_TARGETS/      - targets: ['%s'] #TODO_ASD_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(asdTargets, "','"))     //nolint:errcheck
+		fmt.Fprintf(&script, "sed -i.bakAsdNode -E \"s/.*TODO_ASDN_TARGETS/      - targets: ['%s'] #TODO_ASDN_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(nodeTargets, "','")) //nolint:errcheck
 	}
 
 	if len(clientNodes) > 0 {
@@ -450,7 +450,7 @@ func (c *ClientCreateAMSCmd) buildPrometheusConfig(clusterNodes, clientNodes map
 				clientTargets = append(clientTargets, node+":9090")
 			}
 		}
-		script.WriteString(fmt.Sprintf("sed -i.bakGraph -E \"s/.*TODO_CLIENT_TARGETS/      - targets: ['%s'] #TODO_CLIENT_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(clientTargets, "','")))
+		fmt.Fprintf(&script, "sed -i.bakGraph -E \"s/.*TODO_CLIENT_TARGETS/      - targets: ['%s'] #TODO_CLIENT_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(clientTargets, "','")) //nolint:errcheck
 	}
 
 	return script.String()

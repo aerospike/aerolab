@@ -64,7 +64,7 @@ func (c *InventoryGendersCmd) InventoryGenders(system *System, cmd []string, arg
 		genders = append(genders, fmt.Sprintf("%s-%d\t%s,group=%s,project=%s,all,pdsh_rcmd_type=ssh", instance.ClusterName, instance.NodeNo, instance.ClusterName, group, project))
 	}
 	for _, line := range genders {
-		fmt.Fprintln(out, line)
+		fmt.Fprintln(out, line) //nolint:errcheck
 	}
 	return nil
 }

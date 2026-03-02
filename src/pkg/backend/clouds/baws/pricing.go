@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -202,11 +203,12 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
 			json.Unmarshal([]byte(price), p) //nolint:errcheck
-			if p.Product.Attributes.StorageClass == "One Zone-General Purpose" {
+			switch p.Product.Attributes.StorageClass {
+			case "One Zone-General Purpose":
 				p.Product.Attributes.VolumeApiName = "SharedDisk_OneZone"
-			} else if p.Product.Attributes.StorageClass == "General Purpose" {
+			case "General Purpose":
 				p.Product.Attributes.VolumeApiName = "SharedDisk_GeneralPurpose"
-			} else {
+			default:
 				continue
 			}
 			prices = append(prices, p)
@@ -298,7 +300,9 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 }
 
 func (s *b) putInstanceTypesToCache(types []*instanceType) error {
-	os.MkdirAll(s.workDir, 0755)
+	if err := os.MkdirAll(s.workDir, 0755); err != nil {
+		return fmt.Errorf("failed to create work directory: %w", err)
+	}
 	f := path.Join(s.workDir, "instance_types.json")
 	fd, err := os.Create(f)
 	if err != nil {
@@ -404,9 +408,10 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 						}
 						archs := []backends.Architecture{}
 						for _, arch := range itype.ProcessorInfo.SupportedArchitectures {
-							if arch == etypes.ArchitectureTypeX8664 {
+							switch arch {
+							case etypes.ArchitectureTypeX8664:
 								archs = append(archs, backends.ArchitectureX8664)
-							} else if arch == etypes.ArchitectureTypeArm64 {
+							case etypes.ArchitectureTypeArm64:
 								archs = append(archs, backends.ArchitectureARM64)
 							}
 						}

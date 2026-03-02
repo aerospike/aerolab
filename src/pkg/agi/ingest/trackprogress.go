@@ -20,7 +20,9 @@ func (i *Ingest) loadProgress() error {
 	i.progress.Unpacker = new(ProgressUnpacker)
 	i.progress.Downloader.S3Files = make(map[string]*DownloaderFile)
 	i.progress.Downloader.SftpFiles = make(map[string]*DownloaderFile)
-	os.MkdirAll(i.config.ProgressFile.OutputFilePath, 0755)
+	if err := os.MkdirAll(i.config.ProgressFile.OutputFilePath, 0755); err != nil {
+		return fmt.Errorf("failed to create progress directory: %w", err)
+	}
 	fileList := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	log.Printf("DEBUG: INIT: Loading progress")
 	for _, file := range fileList {

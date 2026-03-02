@@ -665,24 +665,24 @@ func (c *AgiExecProxyCmd) getLog(path string, journalName string) string {
 				for _, line := range lines {
 					if strings.HasSuffix(line, ": "+journalName) || strings.HasSuffix(line, ": "+journalName+".service") {
 						if strings.Contains(line, "Running") {
-							result.WriteString(fmt.Sprintf("=== Service %s status: active ===\n", journalName))
+							fmt.Fprintf(&result, "=== Service %s status: active ===\n", journalName) //nolint:errcheck
 						} else if strings.Contains(line, "Stopped") {
-							result.WriteString(fmt.Sprintf("=== Service %s status: inactive ===\n", journalName))
+							fmt.Fprintf(&result, "=== Service %s status: inactive ===\n", journalName) //nolint:errcheck
 						} else {
-							result.WriteString(fmt.Sprintf("=== Service %s status: %s ===\n", journalName, line))
+							fmt.Fprintf(&result, "=== Service %s status: %s ===\n", journalName, line) //nolint:errcheck
 						}
 						found = true
 						break
 					}
 				}
 				if !found {
-					result.WriteString(fmt.Sprintf("=== Service %s status: not found ===\n", journalName))
+					fmt.Fprintf(&result, "=== Service %s status: not found ===\n", journalName) //nolint:errcheck
 				}
 			} else {
-				result.WriteString(fmt.Sprintf("=== Service %s status: unknown (systemctl error) ===\n", journalName))
+				fmt.Fprintf(&result, "=== Service %s status: unknown (systemctl error) ===\n", journalName) //nolint:errcheck
 			}
 		} else {
-			result.WriteString(fmt.Sprintf("=== Service %s status: %s ===\n", journalName, statusStr))
+			fmt.Fprintf(&result, "=== Service %s status: %s ===\n", journalName, statusStr) //nolint:errcheck
 		}
 	}
 
@@ -691,7 +691,7 @@ func (c *AgiExecProxyCmd) getLog(path string, journalName string) string {
 		f, err := os.Open(path)
 		if err == nil {
 			defer f.Close()
-			result.WriteString(fmt.Sprintf("=== Log file: %s (size: %d bytes) ===\n", path, s.Size()))
+			fmt.Fprintf(&result, "=== Log file: %s (size: %d bytes) ===\n", path, s.Size()) //nolint:errcheck
 			if s.Size() > 20*1024 {
 				//nolint:errcheck
 				f.Seek(-20*1024, 2)
@@ -708,17 +708,17 @@ func (c *AgiExecProxyCmd) getLog(path string, journalName string) string {
 			}
 			return result.String()
 		} else {
-			result.WriteString(fmt.Sprintf("=== Error opening log file %s: %s ===\n", path, err))
+			fmt.Fprintf(&result, "=== Error opening log file %s: %s ===\n", path, err) //nolint:errcheck
 		}
 	} else {
-		result.WriteString(fmt.Sprintf("=== Log file %s not found: %s ===\n", path, err))
+		fmt.Fprintf(&result, "=== Log file %s not found: %s ===\n", path, err) //nolint:errcheck
 	}
 
 	if journalName == "" {
 		return result.String()
 	}
 
-	result.WriteString(fmt.Sprintf("=== Journalctl for %s ===\n", journalName))
+	fmt.Fprintf(&result, "=== Journalctl for %s ===\n", journalName) //nolint:errcheck
 	l, err := exec.Command("journalctl", "-u", journalName, "-n", "200", "--no-pager").CombinedOutput()
 	if err != nil {
 		result.WriteString(string(l))
@@ -1300,7 +1300,7 @@ func (c *AgiExecProxyCmd) handleInactivity(w http.ResponseWriter, r *http.Reques
 	}
 	log.Printf("INFO: Listener: inactivity status request from %s", r.RemoteAddr)
 	lastActivity := c.lastActivity.Get()
-	w.Write(fmt.Appendf(nil, "lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity)))
+	w.Write(fmt.Appendf(nil, "lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity))) //nolint:errcheck
 }
 
 // checkAuthOnly checks authentication without updating activity timestamp
@@ -1376,7 +1376,7 @@ func (c *AgiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http
 			return
 		}
 	}
-	w.Write([]byte(`<html><head><title>authenticate</title></head><body><form>Authentication Token: <input type=text name="` + c.TokenName + `"><input type=Submit name="Login" value="Login"></form></body></html>`))
+	w.Write([]byte(`<html><head><title>authenticate</title></head><body><form>Authentication Token: <input type=text name="` + c.TokenName + `"><input type=Submit name="Login" value="Login"></form></body></html>`)) //nolint:errcheck
 }
 
 // grafanaHandler proxies requests to Grafana

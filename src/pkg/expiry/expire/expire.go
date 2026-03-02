@@ -85,9 +85,9 @@ func (h *ExpiryHandler) Expire() error {
 
 	if len(instances) > 0 {
 		var logLine strings.Builder
-		logLine.WriteString(fmt.Sprintf("Terminating %d instances: ", len(instances)))
+		fmt.Fprintf(&logLine, "Terminating %d instances: ", len(instances)) //nolint:errcheck
 		for _, instance := range instances {
-			logLine.WriteString(fmt.Sprintf("clusterName=%s,nodeNo=%d,instanceID=%s;", instance.ClusterName, instance.NodeNo, instance.InstanceID))
+			fmt.Fprintf(&logLine, "clusterName=%s,nodeNo=%d,instanceID=%s;", instance.ClusterName, instance.NodeNo, instance.InstanceID) //nolint:errcheck
 		}
 		log.Print(logLine.String())
 
@@ -110,9 +110,9 @@ func (h *ExpiryHandler) Expire() error {
 	volumes := inventory.Volumes.WithDeleteOnTermination(false).WithExpired(true).Describe()
 	if len(volumes) > 0 {
 		var logLine strings.Builder
-		logLine.WriteString(fmt.Sprintf("Deleting %d volumes: ", len(volumes)))
+		fmt.Fprintf(&logLine, "Deleting %d volumes: ", len(volumes)) //nolint:errcheck
 		for _, volume := range volumes {
-			logLine.WriteString(fmt.Sprintf("volumeID=%s;", volume.FileSystemId))
+			fmt.Fprintf(&logLine, "volumeID=%s;", volume.FileSystemId) //nolint:errcheck
 		}
 		log.Print(logLine.String())
 

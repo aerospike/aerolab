@@ -34,7 +34,7 @@ func TestEksctlLatestUbuntu24(t *testing.T) {
 func TestEksctlLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := eksctl.GetInstallScript()
 	require.NoError(t, err)

@@ -74,18 +74,18 @@ func AeroLabTelemetry(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
 		switch err {
 		case io.EOF:
-			fmt.Fprint(w, "EOF")
+			fmt.Fprint(w, "EOF") //nolint:errcheck
 			return
 		default:
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			fmt.Fprintf(w, "json.NewDecoder: %v", err)
+			fmt.Fprintf(w, "json.NewDecoder: %v", err) //nolint:errcheck
 			return
 		}
 	}
 
 	if d.UUID == "" || (d.Time == 0 && d.StartTime == 0) || len(d.CmdLine) == 0 {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Fprint(w, "EMPTY OR MALFORMED MESSAGE")
+		fmt.Fprint(w, "EMPTY OR MALFORMED MESSAGE") //nolint:errcheck
 		return
 	}
 
@@ -95,7 +95,7 @@ func AeroLabTelemetry(w http.ResponseWriter, r *http.Request) {
 	telemetryString, err := json.Marshal(d)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Fprint(w, err.Error())
+		fmt.Fprint(w, err.Error()) //nolint:errcheck
 		return
 	}
 	log.Printf("%s", string(telemetryString))
@@ -103,7 +103,7 @@ func AeroLabTelemetry(w http.ResponseWriter, r *http.Request) {
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Fprint(w, err.Error())
+		fmt.Fprint(w, err.Error()) //nolint:errcheck
 		return
 	}
 	bkt := client.Bucket("aerolab-telemetrics")
@@ -124,14 +124,14 @@ func AeroLabTelemetry(w http.ResponseWriter, r *http.Request) {
 	wa := obj.NewWriter(ctx)
 	if _, err := fmt.Fprintf(wa, "%s", string(telemetryString)); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Fprint(w, err.Error())
+		fmt.Fprint(w, err.Error()) //nolint:errcheck
 		return
 	}
 	if err := wa.Close(); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Fprint(w, err.Error())
+		fmt.Fprint(w, err.Error()) //nolint:errcheck
 		return
 	}
 
-	fmt.Fprint(w, "OK")
+	fmt.Fprint(w, "OK") //nolint:errcheck
 }

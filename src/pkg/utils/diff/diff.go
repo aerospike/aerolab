@@ -52,9 +52,9 @@ func Diff(oldName string, old []byte, newName string, new []byte) []byte {
 
 	// Print diff header.
 	var out bytes.Buffer
-	fmt.Fprintf(&out, "diff %s %s\n", oldName, newName)
-	fmt.Fprintf(&out, "--- %s\n", oldName)
-	fmt.Fprintf(&out, "+++ %s\n", newName)
+	fmt.Fprintf(&out, "diff %s %s\n", oldName, newName) //nolint:errcheck
+	fmt.Fprintf(&out, "--- %s\n", oldName) //nolint:errcheck
+	fmt.Fprintf(&out, "+++ %s\n", newName) //nolint:errcheck
 
 	// Loop over matches to consider,
 	// expanding each match to include surrounding lines,
@@ -133,7 +133,7 @@ func Diff(oldName string, old []byte, newName string, new []byte) []byte {
 			if count.y > 0 {
 				chunk.y++
 			}
-			fmt.Fprintf(&out, "@@ -%d,%d +%d,%d @@\n", chunk.x, count.x, chunk.y, count.y)
+			fmt.Fprintf(&out, "@@ -%d,%d +%d,%d @@\n", chunk.x, count.x, chunk.y, count.y) //nolint:errcheck
 			for _, s := range ctext {
 				out.WriteString(s)
 			}

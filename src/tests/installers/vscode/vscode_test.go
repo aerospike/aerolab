@@ -14,7 +14,7 @@ import (
 func TestVscodeLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := vscode.GetLinuxInstallScript(false, false, nil, nil, nil, nil, false, nil, "/root", "root")
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestVscodeLatestUbuntu24(t *testing.T) {
 func TestVscodeLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := vscode.GetLinuxInstallScript(false, false, new("testpw"), new("0.0.0.0:8080"), []string{"golang.go"}, []string{"some-does-not-exist"}, true, new("/opt"), "/root", "root")
 	require.NoError(t, err)

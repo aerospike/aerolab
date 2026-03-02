@@ -56,11 +56,15 @@ type templateCreationRaceResult struct {
 //   - backendType: "docker", "aws", or "gcp"
 //   - templateVersionTag: unique identifier for this template version (used in tags)
 //   - logger: logger for output
-func newTemplateCreationRaceHandler(backendType, templateVersionTag string, logger *logger.Logger) *templateCreationRaceHandler {
-	// Create a unique session file path based on template version
-	homeDir, _ := os.UserHomeDir()
+func newTemplateCreationRaceHandler(backendType, templateVersionTag string, logger *logger.Logger) (*templateCreationRaceHandler, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
 	sessionDir := filepath.Join(homeDir, ".aerolab", "template-sessions")
-	os.MkdirAll(sessionDir, 0700)
+	if err := os.MkdirAll(sessionDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create session directory %s: %w", sessionDir, err)
+	}
 
 	return &templateCreationRaceHandler{
 		backendType:           backendType,
@@ -72,7 +76,7 @@ func newTemplateCreationRaceHandler(backendType, templateVersionTag string, logg
 		waitTimeout:           30 * time.Minute,
 		waitPollInterval:      30 * time.Second,
 		logger:                logger,
-	}
+	}, nil
 }
 
 // getOrCreateSessionID returns the session ID for this process, creating one if needed.

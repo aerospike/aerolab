@@ -266,17 +266,18 @@ func (c *DataInsertCmd) insert8do(i int, client *aerospike.Client, wp *aerospike
 	}
 
 	var bin string
-	if binData[0] == "static" {
+	switch binData[0] {
+	case "static":
 		bin = binData[1]
-	} else if binData[0] == "random" {
+	case "random":
 		binSizeNo, err := strconv.Atoi(binData[1])
 		if err != nil {
 			return fmt.Errorf("bin size error: %w", err)
 		}
 		bin = RandStringRunes(binSizeNo, src, srcLock)
-	} else if binData[0] == "unique" {
+	case "unique":
 		bin = fmt.Sprintf("%s%d", binData[1], i)
-	} else {
+	default:
 		return errors.New("bin name error")
 	}
 
@@ -286,17 +287,18 @@ func (c *DataInsertCmd) insert8do(i int, client *aerospike.Client, wp *aerospike
 	}
 
 	var binc string
-	if bincData[0] == "static" {
+	switch bincData[0] {
+	case "static":
 		binc = bincData[1]
-	} else if bincData[0] == "random" {
+	case "random":
 		bincSizeNo, err := strconv.Atoi(bincData[1])
 		if err != nil {
 			return fmt.Errorf("bin contents size error: %w", err)
 		}
 		binc = RandStringRunes(bincSizeNo, src, srcLock)
-	} else if bincData[0] == "unique" {
+	case "unique":
 		binc = fmt.Sprintf("%s%d", bincData[1], i)
-	} else {
+	default:
 		return errors.New("bin contents error")
 	}
 

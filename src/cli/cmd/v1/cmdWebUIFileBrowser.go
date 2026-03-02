@@ -58,7 +58,7 @@ func (c *WebUICmd) handleFSHomedir(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]string{"path": resultPath})
+	enc.Encode(map[string]string{"path": resultPath}) //nolint:errcheck
 }
 
 // handleFSLs handles GET /api/fs/ls

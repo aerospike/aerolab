@@ -131,7 +131,7 @@ func (c *WebUICmd) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(spec)
+	enc.Encode(spec) //nolint:errcheck
 }
 
 // generateOpenAPISpec generates the complete OpenAPI specification

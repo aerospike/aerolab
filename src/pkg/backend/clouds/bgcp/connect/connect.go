@@ -138,7 +138,7 @@ func getOAuth2Client(log *logger.Logger, tokenCacheFilePath string, browser bool
 		}
 
 		// Notify the user and send the token through the channel.
-		fmt.Fprintln(w, "Authentication complete. You may close this window.")
+		fmt.Fprintln(w, "Authentication complete. You may close this window.") //nolint:errcheck
 		tokenChan <- tok
 	}
 

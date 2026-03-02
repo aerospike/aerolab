@@ -160,11 +160,14 @@ func testCreateInstance(t *testing.T) {
 	require.Equal(t, insts.Instances.Count(), 3)
 	err = testBackend.RefreshChangedInventory()
 	require.NoError(t, err)
-	fwCount := 1
-	if cloud == "gcp" {
+	var fwCount int
+	switch cloud {
+	case "gcp":
 		fwCount = 2
-	} else if cloud == "docker" {
+	case "docker":
 		fwCount = 0
+	default:
+		fwCount = 1
 	}
 	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
 	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 3)
@@ -335,11 +338,14 @@ func testInstancesTerminate(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 0)
 	require.Equal(t, testBackend.GetInventory().Volumes.Count(), 0)
-	fwCount := 1
-	if cloud == "gcp" {
+	var fwCount int
+	switch cloud {
+	case "gcp":
 		fwCount = 2
-	} else if cloud == "docker" {
+	case "docker":
 		fwCount = 0
+	default:
+		fwCount = 1
 	}
 	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
 	if fwCount > 0 {

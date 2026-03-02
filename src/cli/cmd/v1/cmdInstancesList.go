@@ -195,7 +195,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(instances)
+			enc.Encode(instances) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -203,11 +203,11 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(instances)
+		json.NewEncoder(out).Encode(instances) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(instances)
+		enc.Encode(instances) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Instances:")
 		for _, instance := range instances {
@@ -218,7 +218,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
 				expiresIn = "expired"
 			}
-			fmt.Fprintf(out, "Backend: %s, Zone: %s, Owner: %s, Cluster: %s, Node: %d, Name: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, State: %s, Cost: %0.2f, Expires: %s, Firewalls: %s, Instance: %s, Type: %s, Version: %s, OS: %s, Arch: %s, ClusterUUID: %s, CreationTime: %s, Spot: %t, NetworkID: %s, SubnetID: %s, Tags: %s, Description: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Zone: %s, Owner: %s, Cluster: %s, Node: %d, Name: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, State: %s, Cost: %0.2f, Expires: %s, Firewalls: %s, Instance: %s, Type: %s, Version: %s, OS: %s, Arch: %s, ClusterUUID: %s, CreationTime: %s, Spot: %t, NetworkID: %s, SubnetID: %s, Tags: %s, Description: %s\n", //nolint:errcheck
 				instance.BackendType,
 				instance.ZoneName,
 				instance.Owner,
@@ -246,7 +246,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 				instance.Description,
 			)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Zone:asc", "Owner:asc", "Cluster:asc", "Node:ascnum", "Name:asc"}
@@ -328,8 +328,8 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 				})
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("INSTANCES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("INSTANCES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

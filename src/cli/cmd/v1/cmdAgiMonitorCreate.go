@@ -446,12 +446,12 @@ func (c *AgiMonitorCreateCmd) associateElasticIP(system *System, logger *logger.
 			return "", fmt.Errorf("failed to find Elastic IP %s: %w", elasticIPValue, err)
 		}
 		if len(describeResult.Addresses) == 0 {
-			return "", fmt.Errorf("Elastic IP %s not found in region %s", elasticIPValue, region)
+			return "", fmt.Errorf("elastic IP %s not found in region %s", elasticIPValue, region)
 		}
 		allocationID = aws.ToString(describeResult.Addresses[0].AllocationId)
 		publicIP = elasticIPValue
 		if allocationID == "" {
-			return "", fmt.Errorf("Elastic IP %s has no allocation ID (EC2-Classic is not supported)", elasticIPValue)
+			return "", fmt.Errorf("elastic IP %s has no allocation ID (EC2-Classic is not supported)", elasticIPValue)
 		}
 	}
 
@@ -473,11 +473,11 @@ func (c *AgiMonitorCreateCmd) associateElasticIP(system *System, logger *logger.
 			return "", fmt.Errorf("failed to describe Elastic IP %s: %w", allocationID, err)
 		}
 		if len(describeResult.Addresses) == 0 {
-			return "", fmt.Errorf("Elastic IP %s not found", allocationID)
+			return "", fmt.Errorf("elastic IP %s not found", allocationID)
 		}
 		publicIP = aws.ToString(describeResult.Addresses[0].PublicIp)
 		if publicIP == "" {
-			return "", fmt.Errorf("Elastic IP %s has no public IP address", allocationID)
+			return "", fmt.Errorf("elastic IP %s has no public IP address", allocationID)
 		}
 	}
 

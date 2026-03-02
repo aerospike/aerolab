@@ -45,5 +45,5 @@ func aerolabExpire(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Bootstrap output: %s", out)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	w.Write([]byte("OK")) //nolint:errcheck
 }

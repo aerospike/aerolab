@@ -112,9 +112,9 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		enc.Encode(envVars)
 	case "text":
 		for _, envVar := range envVars {
-			fmt.Fprintf(out, "%s=%s\n", envVar.Key, envVar.Value)
+			fmt.Fprintf(out, "%s=%s\n", envVar.Key, envVar.Value) //nolint:errcheck
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		header := table.Row{"Key", "Value", "Description"}
 		rows := []table.Row{}
@@ -129,8 +129,8 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		for _, envVar := range envVars {
 			rows = append(rows, table.Row{envVar.Key, envVar.Value, envVar.Description})
 		}
-		fmt.Fprintln(out, t.RenderTable(new("ENV VARS"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("ENV VARS"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

@@ -97,7 +97,7 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(volumes)
+			enc.Encode(volumes) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -105,11 +105,11 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(volumes)
+		json.NewEncoder(out).Encode(volumes) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(volumes)
+		enc.Encode(volumes) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Volumes:")
 		for _, volume := range volumes {
@@ -120,7 +120,7 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 			if !volume.Expires.IsZero() && volume.Expires.Before(time.Now()) {
 				expiresIn = "expired"
 			}
-			fmt.Fprintf(out, "Backend: %s, Zone: %s, Name: %s, Type: %s, Size: %d, Expires: %s, State: %s, DeleteOnTermination: %t, Owner: %s, AttachedTo: %v, DiskType: %s, FileSystemId: %s, EstimatedCost: %0.2f, Iops: %d, Throughput: %d, Encrypted: %t, Tags: %v, Description: %s, CreationTime: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Zone: %s, Name: %s, Type: %s, Size: %d, Expires: %s, State: %s, DeleteOnTermination: %t, Owner: %s, AttachedTo: %v, DiskType: %s, FileSystemId: %s, EstimatedCost: %0.2f, Iops: %d, Throughput: %d, Encrypted: %t, Tags: %v, Description: %s, CreationTime: %s\n", //nolint:errcheck
 				volume.BackendType,
 				volume.ZoneName,
 				volume.Name,
@@ -142,7 +142,7 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 				volume.CreationTime.Format(time.RFC3339),
 			)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Zone:asc", "Name:asc"}
@@ -190,8 +190,8 @@ func (c *VolumesListCmd) ListVolumes(system *System, inventory *backends.Invento
 				volume.CreationTime.Format(time.RFC3339),
 			})
 		}
-		fmt.Fprintln(out, t.RenderTable(new("VOLUMES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("VOLUMES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

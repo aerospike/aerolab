@@ -262,7 +262,7 @@ func sanitize(s string, withUUID bool) string {
 	// Final check: ensure it ends with [a-z0-9]
 	if len(ret) > 0 {
 		lastChar := ret[len(ret)-1]
-		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
+		if (lastChar < 'a' || lastChar > 'z') && (lastChar < '0' || lastChar > '9') {
 			ret = ret + "a"
 		}
 	}

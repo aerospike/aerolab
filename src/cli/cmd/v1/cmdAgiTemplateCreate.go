@@ -235,7 +235,10 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 	}
 
 	// Initialize race handler for template creation
-	raceHandler := newTemplateCreationRaceHandler(system.Opts.Config.Backend.Type, templateVersionTag, logger)
+	raceHandler, err := newTemplateCreationRaceHandler(system.Opts.Config.Backend.Type, templateVersionTag, logger)
+	if err != nil {
+		return "", err
+	}
 
 	// Check for existing dangling template creation instances
 	instances := inventory.Instances.WithTags(map[string]string{
@@ -657,7 +660,7 @@ func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, aerospikeInsta
 	script.WriteString("#!/bin/bash\n")
 	script.WriteString("set -e\n")
 	script.WriteString("echo '=== AGI Template Installation Script ==='\n")
-	script.WriteString(fmt.Sprintf("echo 'AGI Version: %d'\n", agi.AGIVersion))
+	fmt.Fprintf(&script, "echo 'AGI Version: %d'\n", agi.AGIVersion) //nolint:errcheck
 	script.WriteString("\n")
 
 	// Install base tools
@@ -689,12 +692,12 @@ func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, aerospikeInsta
 	}
 
 	script.WriteString("echo '=== Installing Base Tools ==='\n")
-	script.Write(baseToolsScript)
+	script.Write(baseToolsScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\n")
 
 	// Install Aerospike
 	script.WriteString("echo '=== Installing Aerospike Server ==='\n")
-	script.Write(aerospikeInstallScript)
+	script.Write(aerospikeInstallScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\n")
 	script.WriteString("echo 'Stopping Aerospike after installation'\n")
 	script.WriteString("systemctl stop aerospike || true\n")
@@ -721,7 +724,7 @@ systemctl daemon-reload
 		return nil, fmt.Errorf("could not create grafana install script: %w", err)
 	}
 	script.WriteString("echo '=== Installing Grafana ==='\n")
-	script.Write(grafanaScript)
+	script.Write(grafanaScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\n")
 
 	// Install ttyd
@@ -730,7 +733,7 @@ systemctl daemon-reload
 		return nil, fmt.Errorf("could not create ttyd install script: %w", err)
 	}
 	script.WriteString("echo '=== Installing ttyd ==='\n")
-	script.Write(ttydScript)
+	script.Write(ttydScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\n")
 
 	// Install filebrowser
@@ -739,7 +742,7 @@ systemctl daemon-reload
 		return nil, fmt.Errorf("could not create filebrowser install script: %w", err)
 	}
 	script.WriteString("echo '=== Installing filebrowser ==='\n")
-	script.Write(filebrowserScript)
+	script.Write(filebrowserScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\n")
 
 	// Install aerolab binary (same version as the user is running)
@@ -753,7 +756,7 @@ systemctl daemon-reload
 		if err != nil {
 			return nil, fmt.Errorf("could not create aerolab install script: %w", err)
 		}
-		script.Write(aerolabScript)
+		script.Write(aerolabScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	}
 	script.WriteString("\n")
 	script.WriteString("# Create symlinks for aerolab commands\n")
@@ -1002,7 +1005,7 @@ apt-get clean || yum clean all || true
 	script.WriteString("\n")
 
 	script.WriteString("echo '=== AGI Template Installation Complete ==='\n")
-	script.WriteString(fmt.Sprintf("echo 'AGI Version: %d'\n", agi.AGIVersion))
+	fmt.Fprintf(&script, "echo 'AGI Version: %d'\n", agi.AGIVersion) //nolint:errcheck
 
 	return script.Bytes(), nil
 }

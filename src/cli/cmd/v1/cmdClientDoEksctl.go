@@ -111,7 +111,7 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 	}
 	if c.EksAwsInstanceProfile != "" {
 		// Set instance profile for base client creation
-		c.ClientCreateNoneCmd.AWS.IAMInstanceProfile = c.EksAwsInstanceProfile
+		c.AWS.IAMInstanceProfile = c.EksAwsInstanceProfile
 	}
 
 	// Create base client first

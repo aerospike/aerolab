@@ -82,7 +82,7 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		p.cache.lock.RUnlock()
 		log.Printf("WARN: Query target %s does not exist (remote:%s)", target, r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("[]"))
+		w.Write([]byte("[]")) //nolint:errcheck
 		return
 	}
 	response := []*variableResponse{}

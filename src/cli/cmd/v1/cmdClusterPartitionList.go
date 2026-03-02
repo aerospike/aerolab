@@ -161,9 +161,10 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 			return nil, err
 		}
 	}
-	if c.FilterType == "local" {
+	switch c.FilterType {
+	case "local":
 		c.FilterType = "nvme"
-	} else if c.FilterType == "persistent" {
+	case "persistent":
 		c.FilterType = "ebs"
 	}
 	disksFilter, err := c.FilterDisks.Expand()

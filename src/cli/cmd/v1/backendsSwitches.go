@@ -9,7 +9,7 @@ import (
 
 func ShowHideBackend(parser *flags.Parser, enabledBackends []string) {
 	hideGroup(parser.Groups(), enabledBackends)
-	hideGroup(parser.Command.Groups(), enabledBackends)
+	hideGroup(parser.Command.Groups(), enabledBackends) //nolint:staticcheck
 	hideForCommand(parser.Command, enabledBackends)
 }
 

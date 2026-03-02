@@ -175,7 +175,7 @@ func (c *AgiStartCmd) StartAGI(system *System, inventory *backends.Inventory, lo
 		}
 		instances = instances.WithState(backends.LifeCycleStateStopped)
 		if instances.Count() == 0 {
-			return nil, fmt.Errorf("Stopped AGI instance and persistent volume %s not found", c.Name)
+			return nil, fmt.Errorf("stopped AGI instance and persistent volume %s not found", c.Name)
 		}
 	}
 
@@ -276,8 +276,7 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	// Check if EFS volume exists
 	volumes := inventory.Volumes.WithType(backends.VolumeTypeSharedDisk).WithName(volumeName)
 	if volumes.Count() == 0 {
-		return nil, fmt.Errorf("AGI instance %s not found and no EFS volume '%s' exists.\n"+
-			"  - Create a new AGI with: aerolab agi create -n %s --aws-with-efs ...",
+		return nil, fmt.Errorf("AGI instance %s not found and no EFS volume %q exists; create a new AGI with: aerolab agi create -n %s --aws-with-efs",
 			c.Name, volumeName, c.Name)
 	}
 
@@ -478,8 +477,7 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	// Check if GCP volume exists
 	volumes := inventory.Volumes.WithType(backends.VolumeTypeAttachedDisk).WithName(volumeName)
 	if volumes.Count() == 0 {
-		return nil, fmt.Errorf("AGI instance %s not found and no GCP volume '%s' exists.\n"+
-			"  - Create a new AGI with: aerolab agi create -n %s --gcp-with-vol ...",
+		return nil, fmt.Errorf("AGI instance %s not found and no GCP volume %q exists; create a new AGI with: aerolab agi create -n %s --gcp-with-vol",
 			c.Name, volumeName, c.Name)
 	}
 

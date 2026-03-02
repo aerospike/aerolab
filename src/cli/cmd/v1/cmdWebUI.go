@@ -749,7 +749,7 @@ func (c *WebUICmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
 func (c *WebUICmd) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	forceSimple := c.simpleModeConfig != nil && c.simpleModeConfig.ForceEnabled
-	json.NewEncoder(w).Encode(map[string]any{
+	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 		"status":            "ok",
 		"version":           getVersion(),
 		"forceSimpleMode":   forceSimple,
@@ -860,7 +860,7 @@ func (c *WebUICmd) serveIndexWithConfig(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Write([]byte(html))
+	w.Write([]byte(html)) //nolint:errcheck
 }
 
 // handleExplore handles GET /api/commands and GET /api/commands/{path}
@@ -902,7 +902,7 @@ func (c *WebUICmd) handleExplore(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(result)
+	enc.Encode(result) //nolint:errcheck
 }
 
 // handleCommandInfo returns command information for a path
@@ -912,7 +912,7 @@ func (c *WebUICmd) handleCommandInfo(w http.ResponseWriter, r *http.Request, pat
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode(c.commandTree)
+		enc.Encode(c.commandTree) //nolint:errcheck
 		return
 	}
 
@@ -928,7 +928,7 @@ func (c *WebUICmd) handleCommandInfo(w http.ResponseWriter, r *http.Request, pat
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(cmd)
+	enc.Encode(cmd) //nolint:errcheck
 }
 
 // handleExecute executes a command based on the path and JSON body
@@ -1016,7 +1016,7 @@ func (c *WebUICmd) handleDryRun(w http.ResponseWriter, r *http.Request, path str
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{
+	enc.Encode(map[string]any{ //nolint:errcheck
 		"dryRun":      true,
 		"commandPath": path,
 		"cli":         cliCmd,
@@ -1029,7 +1029,7 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 	if c.shuttingDown.Load() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Server is shutting down, no new commands accepted"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Server is shutting down, no new commands accepted"}) //nolint:errcheck
 		return
 	}
 
@@ -1138,10 +1138,10 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 			_ = c.jobManager.UpdateJobStatus(job.ID, JobStatusFailed, "Too many jobs queued. Please wait for some to complete.")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Too many jobs queued",
-				"jobId": job.ID,
-			})
+		json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
+			"error": "Too many jobs queued",
+			"jobId": job.ID,
+		})
 			return
 		}
 	}
@@ -1184,7 +1184,7 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 	w.WriteHeader(http.StatusAccepted) // 202 Accepted for async operations
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(response)
+	enc.Encode(response) //nolint:errcheck
 }
 
 // executeJobAsync runs the command as a subprocess for complete log capture and killability
@@ -1509,7 +1509,7 @@ func (c *WebUICmd) handleJobsList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(&JobListResponse{
+	enc.Encode(&JobListResponse{ //nolint:errcheck
 		Jobs:  jobs,
 		Count: len(jobs),
 	})
@@ -1570,7 +1570,7 @@ func (c *WebUICmd) handleJobDetails(w http.ResponseWriter, r *http.Request, jobI
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode(job)
+		enc.Encode(job) //nolint:errcheck
 
 	case "DELETE":
 		c.handleCancelJob(w, r, jobID)
@@ -1605,7 +1605,7 @@ func (c *WebUICmd) handleJobLogs(w http.ResponseWriter, r *http.Request, jobID s
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{
+	enc.Encode(map[string]any{ //nolint:errcheck
 		"jobId":  jobID,
 		"status": job.Status,
 		"logs":   logs,
@@ -1645,7 +1645,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 	defer ticker.Stop()
 
 	// Send initial status
-	fmt.Fprintf(w, "event: status\ndata: %s\n\n", job.Status)
+	fmt.Fprintf(w, "event: status\ndata: %s\n\n", job.Status) //nolint:errcheck
 	flusher.Flush()
 
 	// Helper to send any remaining logs
@@ -1660,9 +1660,9 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 			// \r is stripped because the SSE parser treats it as a line
 			// terminator, which would corrupt the data field.
 			for line := range strings.SplitSeq(content, "\n") {
-				fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r"))
+				fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r")) //nolint:errcheck
 			}
-			fmt.Fprintf(w, "\n")
+			fmt.Fprintf(w, "\n") //nolint:errcheck
 			flusher.Flush()
 		}
 	}
@@ -1675,7 +1675,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 			// Read new log content
 			content, newOffset, err := c.jobManager.ReadLogsFromOffset(job, offset)
 			if err != nil {
-				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error()) //nolint:errcheck
 				flusher.Flush()
 				return
 			}
@@ -1686,9 +1686,9 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 				// string) so the SSE event data retains trailing \n.  Strip
 				// \r to avoid SSE parser treating it as a line terminator.
 				for line := range strings.SplitSeq(content, "\n") {
-					fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r"))
+					fmt.Fprintf(w, "data: %s\n", strings.TrimRight(line, "\r")) //nolint:errcheck
 				}
-				fmt.Fprintf(w, "\n")
+				fmt.Fprintf(w, "\n") //nolint:errcheck
 				flusher.Flush()
 				offset = newOffset
 			}
@@ -1696,7 +1696,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 			// Refresh job status
 			job, err = c.jobManager.GetJob(jobID)
 			if err != nil {
-				fmt.Fprintf(w, "event: error\ndata: job not found\n\n")
+				fmt.Fprintf(w, "event: error\ndata: job not found\n\n") //nolint:errcheck
 				flusher.Flush()
 				return
 			}
@@ -1714,7 +1714,7 @@ func (c *WebUICmd) handleJobLogsStream(w http.ResponseWriter, r *http.Request, j
 					completePayload["reloadRequired"] = true
 				}
 				completeJSON, _ := json.Marshal(completePayload)
-				fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completeJSON)
+				fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completeJSON) //nolint:errcheck
 				flusher.Flush()
 				return
 			}
@@ -1768,7 +1768,7 @@ func (c *WebUICmd) handleGenerateCLI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]string{
+	enc.Encode(map[string]string{ //nolint:errcheck
 		"cli": cliCmd,
 	})
 }
@@ -1912,7 +1912,7 @@ func (c *WebUICmd) handleCancelJob(w http.ResponseWriter, r *http.Request, jobID
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 		"status":  "cancelling",
 		"signal":  sig.String(),
 		"force":   force,

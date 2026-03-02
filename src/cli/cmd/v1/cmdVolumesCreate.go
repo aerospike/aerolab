@@ -186,7 +186,7 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 		pf := &prefixWriter{prefix: "  ", logger: system.Logger}
 		enc := yaml.NewEncoder(pf)
 		enc.SetIndent(2)
-		enc.Encode(create)
+		enc.Encode(create) //nolint:errcheck
 		pf.Flush()
 		system.Logger.Info("Dry run, not creating volumes")
 		return nil, nil

@@ -81,7 +81,7 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(inv)
+			enc.Encode(inv) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -90,14 +90,14 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		}
 	case "json":
 		inv := c.getInventory(system, c.WithExpiries, c.WithAerospikeCloud)
-		json.NewEncoder(out).Encode(inv)
+		json.NewEncoder(out).Encode(inv) //nolint:errcheck
 	case "json-indent":
 		inv := c.getInventory(system, c.WithExpiries, c.WithAerospikeCloud)
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(inv)
+		enc.Encode(inv) //nolint:errcheck
 	default:
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 		if c.WithExpiries {
 			expiry := &ExpiryListCmd{
 				Output:     c.Output,

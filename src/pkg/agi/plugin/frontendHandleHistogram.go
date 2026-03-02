@@ -108,55 +108,56 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 		}
 		key := int64(0)
 		for k, v := range rec.Record.Bins {
-			if k == "00" {
+			switch k {
+			case "00":
 				key = 0
-			} else if k == "01" {
+			case "01":
 				key = 1
-			} else if k == "02" {
+			case "02":
 				key = 2
-			} else if k == "03" {
+			case "03":
 				key = 4
-			} else if k == "04" {
+			case "04":
 				key = 8
-			} else if k == "05" {
+			case "05":
 				key = 16
-			} else if k == "06" {
+			case "06":
 				key = 32
-			} else if k == "07" {
+			case "07":
 				key = 64
-			} else if k == "08" {
+			case "08":
 				key = 128
-			} else if k == "09" {
+			case "09":
 				key = 256
-			} else if k == "10" {
+			case "10":
 				key = 512
-			} else if k == "11" {
+			case "11":
 				key = 1024
-			} else if k == "12" {
+			case "12":
 				key = 2048
-			} else if k == "13" {
+			case "13":
 				key = 4096
-			} else if k == "14" {
+			case "14":
 				key = 8192
-			} else if k == "15" {
+			case "15":
 				key = 16384
-			} else if k == "16" {
+			case "16":
 				key = 32768
-			} else if k == "17" {
+			case "17":
 				key = 65536
-			} else if k == "18" {
+			case "18":
 				key = 131072
-			} else if k == "19" {
+			case "19":
 				key = 262144
-			} else if k == "20" {
+			case "20":
 				key = 524288
-			} else if k == "21" {
+			case "21":
 				key = 1048576
-			} else if k == "22" {
+			case "22":
 				key = 2097152
-			} else if k == "23" {
+			case "23":
 				key = 4194304
-			} else if k == "tail" {
+			case "tail":
 				key = 8388608
 			}
 

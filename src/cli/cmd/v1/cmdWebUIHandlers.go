@@ -355,7 +355,7 @@ func (c *WebUICmd) handleFileUpload(w http.ResponseWriter, r *http.Request, cmdP
 	if len(errors) > 0 && len(results) == 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 // streamTarToRemote extracts a tar.gz stream directly to remote SFTP

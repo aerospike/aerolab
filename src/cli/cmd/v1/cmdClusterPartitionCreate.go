@@ -76,9 +76,10 @@ func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inven
 		return nil, fmt.Errorf("cluster name is required")
 	}
 
-	if c.FilterType == "local" {
+	switch c.FilterType {
+	case "local":
 		c.FilterType = "nvme"
-	} else if c.FilterType == "persistent" {
+	case "persistent":
 		c.FilterType = "ebs"
 	}
 	partitions := []int{}

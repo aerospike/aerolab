@@ -14,7 +14,7 @@ import (
 func TestEasytcLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := easytc.GetLinuxInstallScript(nil, nil, false)
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestEasytcLatestUbuntu24(t *testing.T) {
 func TestEasytcLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := easytc.GetLinuxInstallScript(nil, nil, false)
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestEasytcLatestCentos8(t *testing.T) {
 func TestEasytcLatestStable(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := easytc.GetLinuxInstallScript(nil, new(false), false)
 	require.NoError(t, err)

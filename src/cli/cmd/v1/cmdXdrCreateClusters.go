@@ -118,7 +118,7 @@ func (c *XdrCreateClustersCmd) createClusters(system *System, inventory *backend
 
 	// Create source cluster
 	logger.Info("Creating source cluster %s with %d nodes", c.ClusterName.String(), c.NodeCount)
-	_, err := c.ClusterCreateCmd.CreateCluster(system, inventory, logger, args, "create")
+	_, err := c.CreateCluster(system, inventory, logger, args, "create")
 	if err != nil {
 		return fmt.Errorf("failed to create source cluster: %w", err)
 	}
@@ -135,7 +135,7 @@ func (c *XdrCreateClustersCmd) createClusters(system *System, inventory *backend
 	for _, dest := range destinations {
 		logger.Info("Creating destination cluster %s with %d nodes", dest, c.NodeCount)
 		c.ClusterName = TypeClusterName(dest)
-		_, err := c.ClusterCreateCmd.CreateCluster(system, inventory, logger, args, "create")
+		_, err := c.CreateCluster(system, inventory, logger, args, "create")
 		if err != nil {
 			return fmt.Errorf("failed to create destination cluster %s: %w", dest, err)
 		}

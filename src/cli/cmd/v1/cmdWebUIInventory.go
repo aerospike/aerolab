@@ -43,7 +43,7 @@ func (c *WebUICmd) handleInventoryData(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode([]any{})
+		enc.Encode([]any{}) //nolint:errcheck
 		return
 	}
 
@@ -402,7 +402,7 @@ func (c *WebUICmd) handleInventoryAction(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusAccepted)
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		enc.Encode(map[string]any{"jobId": jobID, "jobIds": jobIDs})
+		enc.Encode(map[string]any{"jobId": jobID, "jobIds": jobIDs}) //nolint:errcheck
 		return
 	}
 
@@ -410,7 +410,7 @@ func (c *WebUICmd) handleInventoryAction(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusAccepted)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(map[string]any{"jobId": jobID})
+	enc.Encode(map[string]any{"jobId": jobID}) //nolint:errcheck
 }
 
 func (c *WebUICmd) buildInventoryActionParams(itemType, action, clusterName, nodesStr string, params map[string]any) (string, map[string]any) {

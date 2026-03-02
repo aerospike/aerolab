@@ -64,12 +64,12 @@ func (c *InventoryHostfileCmd) InventoryHostfile(system *System, cmd []string, a
 	}
 	if c.IPType == "private" || c.IPType == "all" {
 		for _, line := range hostfilePrivate {
-			fmt.Fprintln(out, line)
+			fmt.Fprintln(out, line) //nolint:errcheck
 		}
 	}
 	if c.IPType == "public" || c.IPType == "all" {
 		for _, line := range hostfilePublic {
-			fmt.Fprintln(out, line)
+			fmt.Fprintln(out, line) //nolint:errcheck
 		}
 	}
 	return nil

@@ -14,7 +14,7 @@ import (
 func TestAerolabLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", nil, nil)
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestAerolabLatestUbuntu24(t *testing.T) {
 func TestAerolabLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", nil, nil)
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestAerolabLatestCentos8(t *testing.T) {
 func TestAerolabLatestStable(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", nil, new(false))
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestAerolabLatestStable(t *testing.T) {
 func TestAerolabLatestPrelease(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", nil, new(true))
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestAerolabLatestPrelease(t *testing.T) {
 func TestAerolabVersioned(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", new("7.7.0"), new(false))
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestAerolabVersioned(t *testing.T) {
 func TestAerolabVersionPrefixed(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := aerolab.GetLinuxInstallScript("", new("7.7.*"), new(false))
 	require.NoError(t, err)

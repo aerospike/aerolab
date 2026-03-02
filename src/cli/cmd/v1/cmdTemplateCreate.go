@@ -245,7 +245,10 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	}
 
 	// Initialize race handler for template creation
-	raceHandler := newTemplateCreationRaceHandler(system.Opts.Config.Backend.Type, templateVersionTag+"-"+c.Distro+"-"+osVersion+"-"+c.Arch, logger)
+	raceHandler, err := newTemplateCreationRaceHandler(system.Opts.Config.Backend.Type, templateVersionTag+"-"+c.Distro+"-"+osVersion+"-"+c.Arch, logger)
+	if err != nil {
+		return "", err
+	}
 
 	// check if we need to vacuum an existing template creation instance if it exists (dangling instance for image)
 	instances := inventory.Instances.WithTags(map[string]string{"aerolab.type": "images.create", "aerolab.tmpl.version": templateVersionTag}).WithNotState(backends.LifeCycleStateTerminated).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
@@ -600,7 +603,7 @@ func sanitizeGCPName(s string) string {
 	// Final check: ensure it ends with [a-z0-9]
 	if len(ret) > 0 {
 		lastChar := ret[len(ret)-1]
-		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
+		if (lastChar < 'a' || lastChar > 'z') && (lastChar < '0' || lastChar > '9') {
 			ret = ret + "a"
 		}
 	}

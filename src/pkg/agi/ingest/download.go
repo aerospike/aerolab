@@ -422,15 +422,16 @@ func (ssh_client *SSH) Connect(mode int) error {
 
 	var ssh_config *ssh.ClientConfig
 	var auth []ssh.AuthMethod
-	if mode == 1 {
+	switch mode {
+	case 1:
 		auth = []ssh.AuthMethod{ssh.Password(ssh_client.Pass)}
-	} else if mode == 2 {
+	case 2:
 		key, err := ssh_client.readPublicKeyFile(ssh_client.Cert)
 		if err != nil {
 			return err
 		}
 		auth = []ssh.AuthMethod{key}
-	} else {
+	default:
 		return fmt.Errorf("mode not supported: %d", mode)
 	}
 

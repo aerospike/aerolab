@@ -443,7 +443,7 @@ fi
 // handleHealth handles the /agi/health endpoint.
 func (m *agiMonitor) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	w.Write([]byte("OK")) //nolint:errcheck
 }
 
 // handle is the main request handler for the monitor.
@@ -456,7 +456,7 @@ func (m *agiMonitor) handle(w http.ResponseWriter, r *http.Request) {
 	// Check if IP is banned
 	if m.banTracker.isBanned(reqIP) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("banned"))
+		w.Write([]byte("banned")) //nolint:errcheck
 		return
 	}
 
@@ -1520,7 +1520,7 @@ func (m *agiMonitor) respond(w http.ResponseWriter, r *http.Request, uuid string
 		http.Error(w, value, code)
 	} else {
 		w.WriteHeader(code)
-		w.Write([]byte(value))
+		w.Write([]byte(value)) //nolint:errcheck
 	}
 }
 

@@ -213,7 +213,7 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 
 			// Determine access URL based on backend type
 			var accessHost string
-			var accessPort string = "8080"
+			var accessPort = "8080"
 
 			if system.Opts.Config.Backend.Type == "docker" {
 				accessHost = "localhost"

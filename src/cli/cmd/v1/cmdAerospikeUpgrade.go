@@ -153,7 +153,7 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 	// Output script contents if debug level is selected
 	if system.logLevel >= 5 {
 		logger.Info("Upgrade script contents:")
-		fmt.Fprintf(os.Stdout, "%s\n", upgradeScript)
+		fmt.Fprintf(os.Stdout, "%s\n", upgradeScript) //nolint:errcheck
 	}
 
 	// Process each instance

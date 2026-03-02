@@ -263,7 +263,7 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(expiries)
+			enc.Encode(expiries) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -271,17 +271,17 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(expiries)
+		json.NewEncoder(out).Encode(expiries) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(expiries)
+		enc.Encode(expiries) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Expiries:")
 		for _, expiry := range expiries.ExpirySystems {
-			fmt.Fprintf(out, "Backend: %s, Version: %s, Zone: %s, InstallationSuccess: %t, FrequencyMinutes: %d\n", expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes)
+			fmt.Fprintf(out, "Backend: %s, Version: %s, Zone: %s, InstallationSuccess: %t, FrequencyMinutes: %d\n", expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes) //nolint:errcheck
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Zone:asc"}
@@ -299,8 +299,8 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("EXPIRIES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("EXPIRIES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

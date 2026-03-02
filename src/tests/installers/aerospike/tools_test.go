@@ -55,7 +55,7 @@ func Test01_ToolsScript(t *testing.T) {
 	fver := []string{"8", "9", "8", "9", "20.04", "22.04", "24.04", "11", "12"}
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 	for i, o := range img {
 		fmt.Println("Running docker for ", o)
 		script, err := files.GetInstallScript(aerospike.ArchitectureTypeX86_64, aerospike.OSName(fos[i]), fver[i], true, true, true, true)
@@ -79,7 +79,7 @@ func Test01_ToolsScriptOld(t *testing.T) {
 	fver := []string{"20.04"}
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 	for i, o := range img {
 		fmt.Println("Running docker for ", o)
 		script, err := files.GetInstallScript(aerospike.ArchitectureTypeX86_64, aerospike.OSName(fos[i]), fver[i], true, true, true, true)

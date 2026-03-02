@@ -167,10 +167,7 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 	for _, f := range inst.SecurityGroups {
 		firewalls = append(firewalls, aws.ToString(f.GroupId))
 	}
-	spot := false
-	if inst.InstanceLifecycle != types.InstanceLifecycleTypeScheduled {
-		spot = true
-	}
+	spot := inst.InstanceLifecycle != types.InstanceLifecycleTypeScheduled
 	startTime := time.Time{}
 	if tags[TAG_START_TIME] != "" {
 		startTime, _ = time.Parse(time.RFC3339, tags[TAG_START_TIME])
@@ -925,19 +922,19 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			ClientConf: clientConf,
 			ExecDetail: e.ExecDetail,
 		}
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_CLUSTER_NAME",
 			Value: i.ClusterName,
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_NODE_NO",
 			Value: strconv.Itoa(i.NodeNo),
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_PROJECT_NAME",
 			Value: s.project,
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_OWNER",
 			Value: i.Owner,
 		})

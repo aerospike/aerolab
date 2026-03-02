@@ -352,8 +352,11 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		}
 		if len(out) == 0 && err != nil && (err == errNotMatched || err == errNoTimestamp || strings.HasPrefix(err.Error(), "TIME PARSE:")) {
 			if unmatched == nil {
-				os.MkdirAll(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string)), 0755)
-				unmatched, err = os.Create(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string), fn))
+				noStatDir := path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string))
+				if mkErr := os.MkdirAll(noStatDir, 0755); mkErr != nil {
+					log.Printf("ERROR: Could not create no-stat directory %s: %s", noStatDir, mkErr)
+				}
+				unmatched, err = os.Create(path.Join(noStatDir, fn))
 				if err != nil {
 					log.Printf("ERROR: Could not create file for non-stat: %s", err)
 				} else {

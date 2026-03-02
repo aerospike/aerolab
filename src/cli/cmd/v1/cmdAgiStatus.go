@@ -445,22 +445,22 @@ func (c *AgiStatusCmd) renderOutput(system *System, output AgiStatusOutput, out 
 		return enc.Encode(output)
 
 	case "text":
-		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name)
-		fmt.Fprintf(out, "Label: %s\n", output.Label)
-		fmt.Fprintf(out, "State: %s\n", output.State)
-		fmt.Fprintf(out, "Access URL: %s\n", output.AccessURL)
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Services:")
+		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name) //nolint:errcheck
+		fmt.Fprintf(out, "Label: %s\n", output.Label)       //nolint:errcheck
+		fmt.Fprintf(out, "State: %s\n", output.State)        //nolint:errcheck
+		fmt.Fprintf(out, "Access URL: %s\n", output.AccessURL) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "Services:") //nolint:errcheck
 		for _, svc := range output.Services {
-			fmt.Fprintf(out, "  %s: %s\n", svc.Name, svc.Status)
+			fmt.Fprintf(out, "  %s: %s\n", svc.Name, svc.Status) //nolint:errcheck
 		}
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "System Resources:")
-		fmt.Fprintf(out, "  Disk: %s used / %s total (%d%%)\n", output.System.DiskUsed, output.System.DiskTotal, output.System.DiskPercent)
-		fmt.Fprintf(out, "  Memory: %s used / %s total\n", output.System.MemUsed, output.System.MemTotal)
+		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "System Resources:") //nolint:errcheck
+		fmt.Fprintf(out, "  Disk: %s used / %s total (%d%%)\n", output.System.DiskUsed, output.System.DiskTotal, output.System.DiskPercent) //nolint:errcheck
+		fmt.Fprintf(out, "  Memory: %s used / %s total\n", output.System.MemUsed, output.System.MemTotal) //nolint:errcheck
 		if output.Ingest.Running {
-			fmt.Fprintln(out, "")
-			fmt.Fprintf(out, "Ingest: %s\n", output.Ingest.Step)
+			fmt.Fprintln(out, "") //nolint:errcheck
+			fmt.Fprintf(out, "Ingest: %s\n", output.Ingest.Step) //nolint:errcheck
 		}
 		return nil
 
@@ -473,9 +473,9 @@ func (c *AgiStatusCmd) renderOutput(system *System, output AgiStatusOutput, out 
 		}
 
 		// Instance info
-		fmt.Fprintf(out, "AGI Instance: %s (%s)\n", output.Name, output.State)
-		fmt.Fprintf(out, "Label: %s\n", output.Label)
-		fmt.Fprintf(out, "Access URL: %s\n\n", output.AccessURL)
+		fmt.Fprintf(out, "AGI Instance: %s (%s)\n", output.Name, output.State) //nolint:errcheck
+		fmt.Fprintf(out, "Label: %s\n", output.Label)                         //nolint:errcheck
+		fmt.Fprintf(out, "Access URL: %s\n\n", output.AccessURL)                //nolint:errcheck
 
 		// Services table
 		svcHeader := table.Row{"Service", "Status"}
@@ -491,26 +491,26 @@ func (c *AgiStatusCmd) renderOutput(system *System, output AgiStatusOutput, out 
 			}
 			svcRows = append(svcRows, table.Row{svc.Name, status})
 		}
-		fmt.Fprintln(out, t.RenderTable(new("SERVICES"), svcHeader, svcRows))
+		fmt.Fprintln(out, t.RenderTable(new("SERVICES"), svcHeader, svcRows)) //nolint:errcheck
 
 		// System resources
-		fmt.Fprintln(out, "")
-		fmt.Fprintf(out, "Disk: %s used / %s total (%d%% used), %s free\n",
+		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintf(out, "Disk: %s used / %s total (%d%% used), %s free\n", //nolint:errcheck
 			output.System.DiskUsed, output.System.DiskTotal, output.System.DiskPercent, output.System.DiskFree)
-		fmt.Fprintf(out, "Memory: %s used / %s total, %s available\n",
+		fmt.Fprintf(out, "Memory: %s used / %s total, %s available\n", //nolint:errcheck
 			output.System.MemUsed, output.System.MemTotal, output.System.MemFree)
 
 		// Ingest status
 		if output.Ingest.Step != "" {
-			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "") //nolint:errcheck
 			ingestStatus := output.Ingest.Step
 			if output.Ingest.Running {
 				ingestStatus += " (running)"
 			}
-			fmt.Fprintf(out, "Ingest: %s\n", ingestStatus)
+			fmt.Fprintf(out, "Ingest: %s\n", ingestStatus) //nolint:errcheck
 		}
 
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 		return nil
 	}
 }

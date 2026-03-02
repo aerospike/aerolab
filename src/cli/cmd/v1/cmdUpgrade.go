@@ -109,7 +109,7 @@ func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string
 		isCommitHash := len(suffix) >= 7
 		if isCommitHash {
 			for _, r := range suffix {
-				if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+				if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
 					isCommitHash = false
 					break
 				}

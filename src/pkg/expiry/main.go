@@ -195,10 +195,11 @@ func serverMain() {
 		log.Fatalf("Invalid cloud: %s", p.Cloud)
 	}
 	cloud := backends.BackendTypeAWS
-	if p.Cloud == "gcp" {
+	switch p.Cloud {
+	case "gcp":
 		cloud = backends.BackendTypeGCP
 		p.ExpireEksctl = false
-	} else if p.Cloud == "docker" {
+	case "docker":
 		cloud = backends.BackendTypeDocker
 		p.ExpireEksctl = false
 	}

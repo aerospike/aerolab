@@ -246,7 +246,7 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 		//nolint:errcheck
 		enc.Encode(outputData)
 	case "text":
-		fmt.Fprintln(out, "Aerospike Cloud Clusters:")
+		fmt.Fprintln(out, "Aerospike Cloud Clusters:") //nolint:errcheck
 		for _, db := range clusters {
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
@@ -261,13 +261,13 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 			if logBucket == "" {
 				logBucket = "-"
 			}
-			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, LogBucket: %s, CreateTime: %s, UpdateTime: %s%s\n",
+			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, LogBucket: %s, CreateTime: %s, UpdateTime: %s%s\n", //nolint:errcheck
 				db.ID, db.Name, db.Infrastructure.AvailabilityZoneCount, db.AerospikeCloud.ClusterSize,
 				db.Health.State, db.Health.Status, db.AerospikeCloud.DataStorage, namespaceNames,
 				db.Infrastructure.InstanceType, db.Infrastructure.Region, db.ConnectionDetails.Host,
 				logBucket, createTime, updateTime, vpcStatus)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Name:asc", "Region:asc", "State:asc"}
@@ -313,14 +313,14 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
-				fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n")
+				fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n") //nolint:errcheck
 			} else {
 				return err
 			}
 		}
 		title := new("AEROSPIKE CLOUD CLUSTERS")
-		fmt.Fprintln(out, t.RenderTable(title, header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(title, header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

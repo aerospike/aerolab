@@ -72,7 +72,7 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(net)
+			enc.Encode(net) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -80,11 +80,11 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(net)
+		json.NewEncoder(out).Encode(net) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(net)
+		enc.Encode(net) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Networks:")
 		for _, net := range net {
@@ -95,11 +95,11 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				} else if subnet.IsDefault {
 					ntype = "default"
 				}
-				fmt.Fprintf(out, "Backend: %s, Network: %s, NetID: %s, Subnet: %s, SubnetID: %s, CIDR: %s, Owner: %s, PublicIP: %t, Type: %s\n",
+				fmt.Fprintf(out, "Backend: %s, Network: %s, NetID: %s, Subnet: %s, SubnetID: %s, CIDR: %s, Owner: %s, PublicIP: %t, Type: %s\n", //nolint:errcheck
 					net.BackendType, net.Name, net.NetworkId, subnet.Name, subnet.SubnetId, subnet.Cidr, subnet.Owner, subnet.PublicIP, ntype)
 			}
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(sortBy) == 0 {
 			sortBy = []string{"Backend:asc", "Network:asc", "NetID:asc", "Subnet:asc", "SubnetID:asc"}
@@ -125,8 +125,8 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }
@@ -181,7 +181,7 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(fw)
+			enc.Encode(fw) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -189,32 +189,32 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(fw)
+		json.NewEncoder(out).Encode(fw) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(fw)
+		enc.Encode(fw) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Firewalls:")
 		for _, fw := range fw {
 			ports := []string{}
 			targets := []string{}
 			for _, port := range fw.Ports {
-				source := port.Port.SourceCidr
-				if port.Port.SourceId != "" {
-					source = port.Port.SourceId
+				source := port.SourceCidr
+				if port.SourceId != "" {
+					source = port.SourceId
 				}
 				switch v := port.BackendSpecific.(type) {
 				case *bgcp.PortDetail:
 					targets = append(targets, v.TargetTags...)
 					targets = append(targets, v.DestinationRanges...)
 				}
-				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.Port.FromPort, port.Port.ToPort))
+				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.FromPort, port.ToPort))
 			}
-			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Ports: %v, Targets: %v, Owner: %s, Zone: %s, Network: %s, NetworkID: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Ports: %v, Targets: %v, Owner: %s, Zone: %s, Network: %s, NetworkID: %s\n", //nolint:errcheck
 				fw.BackendType, fw.Name, fw.FirewallID, ports, targets, fw.Owner, fw.ZoneName, fw.Network.Name, fw.Network.NetworkId)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(sortBy) == 0 {
 			sortBy = []string{"Backend:asc", "Name:asc"}
@@ -225,16 +225,16 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 			ports := []string{}
 			targets := []string{}
 			for _, port := range fw.Ports {
-				source := port.Port.SourceCidr
-				if port.Port.SourceId != "" {
-					source = port.Port.SourceId
+				source := port.SourceCidr
+				if port.SourceId != "" {
+					source = port.SourceId
 				}
 				switch v := port.BackendSpecific.(type) {
 				case *bgcp.PortDetail:
 					targets = append(targets, v.TargetTags...)
 					targets = append(targets, v.DestinationRanges...)
 				}
-				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.Port.FromPort, port.Port.ToPort))
+				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.FromPort, port.ToPort))
 			}
 			rows = append(rows, table.Row{fw.BackendType, fw.Name, strings.Join(ports, "\n"), strings.Join(targets, "\n"), fw.Owner, fw.ZoneName, fw.FirewallID, fw.Network.Name, fw.Network.NetworkId})
 		}
@@ -246,8 +246,8 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("FIREWALLS"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("FIREWALLS"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

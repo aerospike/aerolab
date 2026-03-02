@@ -790,7 +790,7 @@ func ExecuteCommandByPathWithLogger(system *System, path string, params map[stri
 	cmdVal, err := getCommandValueByPath(system.Opts, path)
 	if err != nil {
 		if logWriter != nil {
-			fmt.Fprintf(logWriter, "[ERROR] Failed to find command: %s\n", err)
+			fmt.Fprintf(logWriter, "[ERROR] Failed to find command: %s\n", err) //nolint:errcheck
 		}
 		return err
 	}
@@ -806,7 +806,7 @@ func ExecuteCommandByPathWithLogger(system *System, path string, params map[stri
 	if params != nil {
 		if err := applyParameters(newCmd, params); err != nil {
 			if logWriter != nil {
-				fmt.Fprintf(logWriter, "[ERROR] Failed to apply parameters: %s\n", err)
+				fmt.Fprintf(logWriter, "[ERROR] Failed to apply parameters: %s\n", err) //nolint:errcheck
 			}
 			return fmt.Errorf("failed to apply parameters: %w", err)
 		}
@@ -818,16 +818,16 @@ func ExecuteCommandByPathWithLogger(system *System, path string, params map[stri
 	if !executeMethod.IsValid() {
 		errMsg := fmt.Sprintf("command %s does not have an Execute method", path)
 		if logWriter != nil {
-			fmt.Fprintf(logWriter, "[ERROR] %s\n", errMsg)
+			fmt.Fprintf(logWriter, "[ERROR] %s\n", errMsg) //nolint:errcheck
 		}
 		return fmt.Errorf("%s", errMsg)
 	}
 
 	// Write start message
 	if logWriter != nil {
-		fmt.Fprintf(logWriter, "[INFO] Starting command: %s\n", path)
-		fmt.Fprintf(logWriter, "[INFO] Parameters: %v\n", params)
-		fmt.Fprintf(logWriter, "[INFO] Time: %s\n", strings.Repeat("-", 50))
+		fmt.Fprintf(logWriter, "[INFO] Starting command: %s\n", path) //nolint:errcheck
+		fmt.Fprintf(logWriter, "[INFO] Parameters: %v\n", params)     //nolint:errcheck
+		fmt.Fprintf(logWriter, "[INFO] Time: %s\n", strings.Repeat("-", 50)) //nolint:errcheck
 	}
 
 	// Call Execute with empty args
@@ -838,13 +838,13 @@ func ExecuteCommandByPathWithLogger(system *System, path string, params map[stri
 	if len(results) > 0 && !results[0].IsNil() {
 		err := results[0].Interface().(error)
 		if logWriter != nil {
-			fmt.Fprintf(logWriter, "[ERROR] Command failed: %s\n", err)
+			fmt.Fprintf(logWriter, "[ERROR] Command failed: %s\n", err) //nolint:errcheck
 		}
 		return err
 	}
 
 	if logWriter != nil {
-		fmt.Fprintf(logWriter, "[INFO] Command completed successfully\n")
+		fmt.Fprintf(logWriter, "[INFO] Command completed successfully\n") //nolint:errcheck
 	}
 
 	return nil

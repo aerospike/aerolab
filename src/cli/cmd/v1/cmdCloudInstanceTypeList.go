@@ -181,12 +181,12 @@ func (c *CloudListInstanceTypesCmd) formatOutput(instanceTypes []FlattenedInstan
 		//nolint:errcheck
 		enc.Encode(instanceTypes)
 	case "text":
-		fmt.Fprintln(out, "Instance Types:")
+		fmt.Fprintln(out, "Instance Types:") //nolint:errcheck
 		for _, inst := range instanceTypes {
-			fmt.Fprintf(out, "Region: %s, Type: %s, Arch: %s, vCPUs: %d, RAMGib: %d, Disks: %d, DiskSizeGib: %d, TotalSizeGib: %d\n",
+			fmt.Fprintf(out, "Region: %s, Type: %s, Arch: %s, vCPUs: %d, RAMGib: %d, Disks: %d, DiskSizeGib: %d, TotalSizeGib: %d\n", //nolint:errcheck
 				inst.Region, inst.Type, inst.Arch, inst.Vcpus, inst.RAMGib, inst.Disks, inst.DiskSizeGib, inst.TotalSizeGib)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Region:asc", "Type:asc"}
@@ -208,14 +208,14 @@ func (c *CloudListInstanceTypesCmd) formatOutput(instanceTypes []FlattenedInstan
 		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
-				fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n")
+				fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n") //nolint:errcheck
 			} else {
 				return err
 			}
 		}
 		title := new("INSTANCE TYPES")
-		fmt.Fprintln(out, t.RenderTable(title, header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(title, header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

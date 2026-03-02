@@ -29,9 +29,9 @@ func Expiry() {
 	r := new(request)
 	// custom flag usage function
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0]) //nolint:errcheck
 		flag.PrintDefaults()
-		fmt.Fprint(flag.CommandLine.Output(), "\nIf both -in and -at are specified, the one with the longest expiry will take effect.\n")
+		fmt.Fprint(flag.CommandLine.Output(), "\nIf both -in and -at are specified, the one with the longest expiry will take effect.\n") //nolint:errcheck
 	}
 	// flag parameters
 	flag.StringVar(&r.File, "file", "", "eksctl cluster defintion (sets/overrides 'name' and 'region' if provided)")

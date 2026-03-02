@@ -504,40 +504,40 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 		return enc.Encode(output)
 
 	case "text":
-		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name)
-		fmt.Fprintf(out, "Label: %s\n\n", output.Label)
+		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name)   //nolint:errcheck
+		fmt.Fprintf(out, "Label: %s\n\n", output.Label)       //nolint:errcheck
 
-		fmt.Fprintln(out, "Ingest Steps:")
-		fmt.Fprintf(out, "  Init: %s\n", boolToStatus(output.Steps.Init))
-		fmt.Fprintf(out, "  Download: %s\n", boolToStatus(output.Steps.Download))
-		fmt.Fprintf(out, "  Unpack: %s\n", boolToStatus(output.Steps.Unpack))
-		fmt.Fprintf(out, "  Pre-Process: %s\n", boolToStatus(output.Steps.PreProcess))
-		fmt.Fprintf(out, "  Process Logs: %s\n", boolToStatus(output.Steps.ProcessLogs))
-		fmt.Fprintf(out, "  Process CollectInfo: %s\n", boolToStatus(output.Steps.ProcessCollect))
+		fmt.Fprintln(out, "Ingest Steps:") //nolint:errcheck
+		fmt.Fprintf(out, "  Init: %s\n", boolToStatus(output.Steps.Init))             //nolint:errcheck
+		fmt.Fprintf(out, "  Download: %s\n", boolToStatus(output.Steps.Download))     //nolint:errcheck
+		fmt.Fprintf(out, "  Unpack: %s\n", boolToStatus(output.Steps.Unpack))          //nolint:errcheck
+		fmt.Fprintf(out, "  Pre-Process: %s\n", boolToStatus(output.Steps.PreProcess)) //nolint:errcheck
+		fmt.Fprintf(out, "  Process Logs: %s\n", boolToStatus(output.Steps.ProcessLogs)) //nolint:errcheck
+		fmt.Fprintf(out, "  Process CollectInfo: %s\n", boolToStatus(output.Steps.ProcessCollect)) //nolint:errcheck
 
 		if output.Steps.CriticalError != "" {
-			fmt.Fprintf(out, "\nCRITICAL ERROR: %s\n", output.Steps.CriticalError)
+			fmt.Fprintf(out, "\nCRITICAL ERROR: %s\n", output.Steps.CriticalError) //nolint:errcheck
 		}
 
 		if output.Download.TotalFiles > 0 {
-			fmt.Fprintf(out, "\nDownload Progress: %d%% (%d/%d files, %s/%s)\n",
+			fmt.Fprintf(out, "\nDownload Progress: %d%% (%d/%d files, %s/%s)\n", //nolint:errcheck
 				output.Download.PercentComplete, output.Download.CompletedFiles, output.Download.TotalFiles,
 				output.Download.CompletedSize, output.Download.TotalSize)
 		}
 
 		if output.Process.TotalFiles > 0 {
-			fmt.Fprintf(out, "\nProcessing Progress: %d%% (%d/%d files, %s/%s)\n",
+			fmt.Fprintf(out, "\nProcessing Progress: %d%% (%d/%d files, %s/%s)\n", //nolint:errcheck
 				output.Process.PercentComplete, output.Process.CompletedFiles, output.Process.TotalFiles,
 				output.Process.CompletedSize, output.Process.TotalSize)
 		}
 
 		if len(output.Errors) > 0 {
-			fmt.Fprintf(out, "\nErrors (%d):\n", len(output.Errors))
+			fmt.Fprintf(out, "\nErrors (%d):\n", len(output.Errors)) //nolint:errcheck
 			for _, e := range output.Errors {
 				if e.File != "" {
-					fmt.Fprintf(out, "  [%s] %s: %s\n", e.Stage, e.File, e.Message)
+					fmt.Fprintf(out, "  [%s] %s: %s\n", e.Stage, e.File, e.Message) //nolint:errcheck
 				} else {
-					fmt.Fprintf(out, "  [%s] %s\n", e.Stage, e.Message)
+					fmt.Fprintf(out, "  [%s] %s\n", e.Stage, e.Message) //nolint:errcheck
 				}
 			}
 		}
@@ -550,8 +550,8 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 		}
 
 		// Instance info
-		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name)
-		fmt.Fprintf(out, "Label: %s\n\n", output.Label)
+		fmt.Fprintf(out, "AGI Instance: %s\n", output.Name) //nolint:errcheck
+		fmt.Fprintf(out, "Label: %s\n\n", output.Label)    //nolint:errcheck
 
 		// Steps table
 		stepsHeader := table.Row{"Step", "Status", "Duration"}
@@ -590,21 +590,21 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 			stepsRows = append(stepsRows, table.Row{step.name, status, duration})
 		}
 
-		fmt.Fprintln(out, t.RenderTable(new("INGEST STEPS"), stepsHeader, stepsRows))
+		fmt.Fprintln(out, t.RenderTable(new("INGEST STEPS"), stepsHeader, stepsRows)) //nolint:errcheck
 
 		// Critical error
 		if output.Steps.CriticalError != "" {
-			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "") //nolint:errcheck
 			if t != nil {
-				fmt.Fprintf(out, "%s: %s\n", t.ColorErr.Sprint("CRITICAL ERROR"), output.Steps.CriticalError)
+				fmt.Fprintf(out, "%s: %s\n", t.ColorErr.Sprint("CRITICAL ERROR"), output.Steps.CriticalError) //nolint:errcheck
 			} else {
-				fmt.Fprintf(out, "CRITICAL ERROR: %s\n", output.Steps.CriticalError)
+				fmt.Fprintf(out, "CRITICAL ERROR: %s\n", output.Steps.CriticalError) //nolint:errcheck
 			}
 		}
 
 		// Progress summary
 		if output.Download.TotalFiles > 0 || output.Process.TotalFiles > 0 {
-			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "") //nolint:errcheck
 			progressHeader := table.Row{"Stage", "Files", "Size", "Progress"}
 			progressRows := []table.Row{}
 
@@ -626,12 +626,12 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 				})
 			}
 
-			fmt.Fprintln(out, t.RenderTable(new("PROGRESS"), progressHeader, progressRows))
+			fmt.Fprintln(out, t.RenderTable(new("PROGRESS"), progressHeader, progressRows)) //nolint:errcheck
 		}
 
 		// Errors summary
 		if len(output.Errors) > 0 {
-			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, "") //nolint:errcheck
 			errHeader := table.Row{"Stage", "File", "Error"}
 			errRows := []table.Row{}
 
@@ -647,10 +647,10 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 			if len(output.Errors) > maxErrors {
 				title += fmt.Sprintf(" - showing first %d", maxErrors)
 			}
-			fmt.Fprintln(out, t.RenderTable(new(title), errHeader, errRows))
+			fmt.Fprintln(out, t.RenderTable(new(title), errHeader, errRows)) //nolint:errcheck
 		}
 
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 		return nil
 	}
 }

@@ -304,13 +304,13 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 		//nolint:errcheck
 		enc.Encode(fullOutput)
 	case "text":
-		fmt.Fprintln(out, "AGI INSTANCES:")
+		fmt.Fprintln(out, "AGI INSTANCES:") //nolint:errcheck
 		for _, agi := range outputData {
-			fmt.Fprintf(out, "Name: %s, Label: %s, State: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, Owner: %s, Backend: %s, Zone: %s, Instance: %s, Expires: %s, SSL: %t, Spot: %t, CreatedAt: %s\n",
+			fmt.Fprintf(out, "Name: %s, Label: %s, State: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, Owner: %s, Backend: %s, Zone: %s, Instance: %s, Expires: %s, SSL: %t, Spot: %t, CreatedAt: %s\n", //nolint:errcheck
 				agi.Name, agi.Label, agi.State, agi.PublicIP, agi.PrivateIP, agi.AccessURL, agi.Owner, agi.Backend, agi.Zone, agi.Instance, agi.Expires, agi.SSL, agi.Spot, agi.CreatedAt)
 		}
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "AGI VOLUMES:")
+		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "AGI VOLUMES:") //nolint:errcheck
 		for _, vol := range volumeData {
 			// Build source string
 			source := ""
@@ -321,10 +321,10 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			} else if vol.SourceS3 != "" {
 				source = "s3:" + vol.SourceS3
 			}
-			fmt.Fprintf(out, "Name: %s, Label: %s, Type: %s, SizeGiB: %d, Zone: %s, State: %s, AttachedTo: %s, Owner: %s, Backend: %s, Expires: %s, Source: %s, AerospikeVersion: %s, CreatedAt: %s\n",
+			fmt.Fprintf(out, "Name: %s, Label: %s, Type: %s, SizeGiB: %d, Zone: %s, State: %s, AttachedTo: %s, Owner: %s, Backend: %s, Expires: %s, Source: %s, AerospikeVersion: %s, CreatedAt: %s\n", //nolint:errcheck
 				vol.Name, vol.Label, vol.Type, vol.SizeGiB, vol.Zone, vol.State, vol.AttachedTo, vol.Owner, vol.Backend, vol.Expires, source, vol.AerospikeVersion, vol.CreatedAt)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Name:asc", "State:asc"}
@@ -360,9 +360,10 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			// Color state
 			state := agi.State
 			if t != nil {
-				if agi.State == "running" {
+				switch agi.State {
+				case "running":
 					state = t.ColorHiWhite.Sprint(agi.State)
-				} else if agi.State == "stopped" {
+				case "stopped":
 					state = t.ColorWarn.Sprint(agi.State)
 				}
 			}
@@ -414,8 +415,8 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 				})
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("AGI INSTANCES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("AGI INSTANCES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 
 		// Render volumes table (only for non-Docker backends since Docker volumes don't persist separately)
 		if system.Opts.Config.Backend.Type != "docker" && len(volumeData) > 0 {
@@ -486,8 +487,8 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 					vol.CreatedAt,
 				})
 			}
-			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows))
-			fmt.Fprintln(out, "")
+			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows)) //nolint:errcheck
+			fmt.Fprintln(out, "") //nolint:errcheck
 		}
 	}
 	return nil
@@ -541,9 +542,10 @@ func computeDockerAgiAccessURL(firewalls []string, protocol string) string {
 
 		if hostPort != "" {
 			if port, err := strconv.Atoi(hostPort); err == nil {
-				if containerPort == "443" {
+				switch containerPort {
+				case "443":
 					port443 = port
-				} else if containerPort == "80" {
+				case "80":
 					port80 = port
 				}
 			}

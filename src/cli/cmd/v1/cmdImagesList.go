@@ -106,7 +106,7 @@ func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(images)
+			enc.Encode(images) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -114,18 +114,18 @@ func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(images)
+		json.NewEncoder(out).Encode(images) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(images)
+		enc.Encode(images) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Images:")
 		for _, image := range images {
-			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Zone: %s, Public: %t, SizeGiB: %d, Owner: %s, Architecture: %s, OSName: %s, OSVersion: %s, Type: %s, Version: %s, Description: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Zone: %s, Public: %t, SizeGiB: %d, Owner: %s, Architecture: %s, OSName: %s, OSVersion: %s, Type: %s, Version: %s, Description: %s\n", //nolint:errcheck
 				image.BackendType, image.Name, image.ImageId, image.ZoneName, !image.InAccount, image.Size/1024/1024/1024, image.Owner, image.Architecture.String(), image.OSName, image.OSVersion, image.Tags["aerolab.image.type"], image.Tags["aerolab.soft.version"], image.Description)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Type:asc", "OSName:asc", "OSVersion:ascnum", "Architecture:asc", "Version:asc"}
@@ -147,8 +147,8 @@ func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("IMAGES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("IMAGES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

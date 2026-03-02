@@ -114,7 +114,7 @@ type AgiExecIngestDetailCmd struct {
 func (c *AgiExecIngestDetailCmd) Execute(args []string) error {
 	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
 	if len(c.DetailType) > 1 {
-		fmt.Fprint(os.Stdout, "[\n")
+		fmt.Fprint(os.Stdout, "[\n") //nolint:errcheck
 	}
 	for fi, fname := range c.DetailType {
 		if !inslice.HasString(files, fname) {
@@ -155,9 +155,9 @@ func (c *AgiExecIngestDetailCmd) Execute(args []string) error {
 		io.Copy(os.Stdout, reader)
 		if len(c.DetailType) > 1 {
 			if fi+1 == len(c.DetailType) {
-				fmt.Fprint(os.Stdout, "\n]\n")
+				fmt.Fprint(os.Stdout, "\n]\n") //nolint:errcheck
 			} else {
-				fmt.Fprint(os.Stdout, ",\n")
+				fmt.Fprint(os.Stdout, ",\n") //nolint:errcheck
 			}
 		}
 	}

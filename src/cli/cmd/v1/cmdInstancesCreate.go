@@ -883,7 +883,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		pf := &prefixWriter{prefix: "  ", logger: system.Logger}
 		enc := yaml.NewEncoder(pf)
 		enc.SetIndent(2)
-		enc.Encode(createInstancesInput)
+		enc.Encode(createInstancesInput) //nolint:errcheck
 		pf.Flush()
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["aws"]; ok {

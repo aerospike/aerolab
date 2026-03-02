@@ -56,7 +56,7 @@ func TestGoproxyLatestCentos8(t *testing.T) {
 func TestGoproxyLatestStable(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	os.MkdirAll("dockertest", 0755) //nolint:errcheck
 
 	script, err := goproxy.GetLinuxInstallScript(nil, new(false), false)
 	require.NoError(t, err)

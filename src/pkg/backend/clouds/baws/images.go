@@ -105,11 +105,12 @@ func getImageData(amis []types.Image) (data []*imageData) {
 			}
 			osVersion := vals[1]
 			var arch types.ArchitectureType
-			if vals[2] == "amd64" {
+			switch vals[2] {
+			case "amd64":
 				arch = types.ArchitectureTypeX8664
-			} else if vals[2] == "arm64" {
+			case "arm64":
 				arch = types.ArchitectureTypeArm64
-			} else {
+			default:
 				continue
 			}
 			cdstring := *ami.CreationDate

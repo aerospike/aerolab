@@ -125,9 +125,10 @@ func (s *b) GetImages() (backends.ImageList, error) {
 					for _, arch := range []string{"amd64", "arm64", "default"} {
 						archString := arch
 						architecture := backends.ArchitectureX8664
-						if arch == "arm64" {
+						switch arch {
+						case "arm64":
 							architecture = backends.ArchitectureARM64
-						} else if arch == "default" {
+						case "default":
 							architecture = backends.ArchitectureNative
 							if runtime.GOARCH == "amd64" {
 								archString = "amd64"

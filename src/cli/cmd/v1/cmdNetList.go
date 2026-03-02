@@ -314,7 +314,7 @@ func (c *NetListCmd) outputJSON(rules []*netRule, out io.Writer, page *pager.Pag
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(rules)
+			enc.Encode(rules) //nolint:errcheck
 			w.Close()
 		}()
 		return cmd.Run()
@@ -334,7 +334,7 @@ func (c *NetListCmd) outputTable(rules []*netRule, out io.Writer) error {
 	t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, false, false)
 	if err != nil {
 		if err == printer.ErrTerminalWidthUnknown {
-			fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n")
+			fmt.Fprintf(os.Stderr, "Warning: Couldn't get terminal width, using default width\n") //nolint:errcheck
 		} else {
 			return err
 		}
@@ -356,8 +356,8 @@ func (c *NetListCmd) outputTable(rules []*netRule, out io.Writer) error {
 	}
 
 	title := new("RULES")
-	fmt.Fprintln(out, t.RenderTable(title, header, rows))
-	fmt.Fprintln(out, "")
+	fmt.Fprintln(out, t.RenderTable(title, header, rows)) //nolint:errcheck
+	fmt.Fprintln(out, "") //nolint:errcheck
 
 	return nil
 }

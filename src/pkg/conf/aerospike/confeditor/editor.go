@@ -58,7 +58,7 @@ var menuItems = []menuItem{}
 func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) {
 	for _, item := range items {
 		if item.Type == typeMenuItemEmpty {
-			fmt.Fprint(v, "\n")
+			fmt.Fprint(v, "\n") //nolint:errcheck
 			continue
 		}
 		line := item.Label
@@ -80,7 +80,7 @@ func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) 
 		for len(line) < linePadding {
 			line = line + " "
 		}
-		fmt.Fprintln(v, line)
+		fmt.Fprintln(v, line) //nolint:errcheck
 		drawMenuItems(v, item.Children, linePadding, depth+1)
 	}
 }
@@ -374,13 +374,13 @@ func (e *Editor) viewConfFile(g *gocui.Gui) error {
 		v.Title = "<aerospike.conf>"
 		if !e.loaded {
 			if _, err := os.Stat(e.Path); err != nil {
-				fmt.Fprint(v, loadDefaultAerospikeConfig())
+				fmt.Fprint(v, loadDefaultAerospikeConfig()) //nolint:errcheck
 			} else {
 				c, err := os.ReadFile(e.Path)
 				if err != nil {
 					return err
 				}
-				fmt.Fprint(v, string(c))
+				fmt.Fprint(v, string(c)) //nolint:errcheck
 			}
 			e.loaded = true
 		}
@@ -423,7 +423,7 @@ func (e *Editor) viewHelpBar(g *gocui.Gui) error {
 		if e.Colors {
 			v.BgColor = gocui.ColorYellow
 		}
-		fmt.Fprint(v, "<TAB> switch between views | <CTRL+c> discard and quit | <CTRL+x> save and quit | <CTRL+s> save | UI: <space/enter> select object")
+		fmt.Fprint(v, "<TAB> switch between views | <CTRL+c> discard and quit | <CTRL+x> save and quit | <CTRL+s> save | UI: <space/enter> select object") //nolint:errcheck
 	}
 	return nil
 }
@@ -453,7 +453,7 @@ func (e *Editor) viewAreYouSure(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		fmt.Fprintln(v, e.ynQuestion)
+		fmt.Fprintln(v, e.ynQuestion) //nolint:errcheck
 		e.View = "sure"
 		v.Editable = true
 		if e.Colors {
@@ -493,11 +493,12 @@ func (e *Editor) saveQuit(g *gocui.Gui, v *gocui.View) error {
 }
 
 func (e *Editor) switchView(g *gocui.Gui, v *gocui.View) error {
-	if e.View == "ui" {
+	switch e.View {
+	case "ui":
 		e.g.Cursor = true
 		e.View = "conf"
 		e.uiView.Highlight = false
-	} else if e.View == "conf" {
+	case "conf":
 		err := e.parseConfToUi(g)
 		if err == nil {
 			e.View = "ui"
@@ -584,7 +585,7 @@ func (e *Editor) parseConfToUi(g *gocui.Gui) error {
 	fillMenuItems()
 	menuItems, err = selectMenuItems(menuItems, aeroConfig)
 	if err != nil {
-		fmt.Fprintf(uiView, "ERROR parsing configuration: %s\n", err)
+		fmt.Fprintf(uiView, "ERROR parsing configuration: %s\n", err) //nolint:errcheck
 	}
 	maxX, _ := g.Size()
 	lenX := maxX/2 - 3
@@ -841,28 +842,28 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 
 func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 
-	switch {
-	case key == gocui.KeyPgdn:
+	switch key {
+	case gocui.KeyPgdn:
 		for e.uiLoc+2 < len(v.BufferLines()) {
 			e.uiLoc++
 			v.MoveCursor(0, 1, true)
 		}
-	case key == gocui.KeyPgup:
+	case gocui.KeyPgup:
 		for e.uiLoc > 0 {
 			e.uiLoc--
 			v.MoveCursor(0, -1, true)
 		}
-	case key == gocui.KeyArrowDown:
+	case gocui.KeyArrowDown:
 		if e.uiLoc+2 < len(v.BufferLines()) {
 			e.uiLoc++
 			v.MoveCursor(0, 1, true)
 		}
-	case key == gocui.KeyArrowUp:
+	case gocui.KeyArrowUp:
 		if e.uiLoc > 0 {
 			e.uiLoc--
 			v.MoveCursor(0, -1, true)
 		}
-	case key == gocui.KeySpace, key == gocui.KeyEnter:
+	case gocui.KeySpace, gocui.KeyEnter:
 		var changes []menuItem
 		menuItems, _, changes = switchItem(menuItems, e.uiLoc, 0)
 		maxX, _ := e.g.Size()

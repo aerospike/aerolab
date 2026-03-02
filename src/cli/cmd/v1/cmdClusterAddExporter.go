@@ -46,7 +46,7 @@ func (c *ClusterAddExporterCmd) Execute(args []string) error {
 		stdout = &stdoutp
 		var stderrp io.Writer = os.Stderr
 		stderr = &stderrp
-		var stdinp io.ReadCloser = io.NopCloser(os.Stdin)
+		var stdinp = io.NopCloser(os.Stdin)
 		stdin = &stdinp
 	}
 	_, err = c.AddExporterCluster(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)

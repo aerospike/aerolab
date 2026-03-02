@@ -1467,9 +1467,10 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 // all parameters needed for the reattach flow.
 func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, inventory *backends.Inventory, logger *logger.Logger, volumeName string, backendType string, awsInstanceType string, gcpInstanceType string, sourceStringLocal string, sourceStringSftp string, sourceStringS3 string, agiFirewallName string, templateName string, arch backends.Architecture) {
 	var vol backends.Volumes
-	if backendType == "aws" {
+	switch backendType {
+	case "aws":
 		vol = inventory.Volumes.WithType(backends.VolumeTypeSharedDisk).WithName(volumeName)
-	} else if backendType == "gcp" {
+	case "gcp":
 		vol = inventory.Volumes.WithType(backends.VolumeTypeAttachedDisk).WithName(volumeName)
 	}
 	if vol == nil || vol.Count() == 0 {
@@ -1504,7 +1505,8 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 	}
 
 	// Add backend-specific tags
-	if backendType == "aws" {
+	switch backendType {
+	case "aws":
 		tags["agiinstance"] = awsInstanceType // Resolved value, not input
 		tags["termonpow"] = fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff)
 		tags["isspot"] = fmt.Sprintf("%t", c.AWS.SpotInstance)
@@ -1525,7 +1527,7 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 		if c.AWS.Route53DomainName != "" {
 			tags["agiDomain"] = c.AWS.Route53DomainName
 		}
-	} else if backendType == "gcp" {
+	case "gcp":
 		tags["agiinstance"] = gcpInstanceType // Resolved value, not input
 		tags["termonpow"] = fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff)
 		tags["isspot"] = fmt.Sprintf("%t", c.GCP.SpotInstance)
@@ -2348,24 +2350,24 @@ func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSiz
 		aerospikeConf.WriteString("    default-ttl 0\n")
 		if memSizeStr != "" {
 			// Aerospike < 7: memory-size at namespace level
-			aerospikeConf.WriteString(fmt.Sprintf("    %s\n", memSizeStr))
+			fmt.Fprintf(&aerospikeConf, "    %s\n", memSizeStr) //nolint:errcheck
 		}
 		aerospikeConf.WriteString("    replication-factor 2\n")
-		aerospikeConf.WriteString(fmt.Sprintf("    storage-engine %s {\n", storEngine))
+		fmt.Fprintf(&aerospikeConf, "    storage-engine %s {\n", storEngine) //nolint:errcheck
 		aerospikeConf.WriteString("        file /opt/agi/aerospike/data/agi.dat\n")
-		aerospikeConf.WriteString(fmt.Sprintf("        filesize %dG\n", fileSizeInt))
+		fmt.Fprintf(&aerospikeConf, "        filesize %dG\n", fileSizeInt) //nolint:errcheck
 		if dataSizeStr != "" {
 			// Aerospike < 7: data-in-memory inside storage-engine device
-			aerospikeConf.WriteString(fmt.Sprintf("        %s\n", dataSizeStr))
+			fmt.Fprintf(&aerospikeConf, "        %s\n", dataSizeStr) //nolint:errcheck
 		}
 		if rpcStr != "" {
-			aerospikeConf.WriteString(fmt.Sprintf("        %s\n", rpcStr))
+			fmt.Fprintf(&aerospikeConf, "        %s\n", rpcStr) //nolint:errcheck
 		}
 		if wbs != "" {
-			aerospikeConf.WriteString(fmt.Sprintf("        %s\n", wbs))
+			fmt.Fprintf(&aerospikeConf, "        %s\n", wbs) //nolint:errcheck
 		}
 		if maxWriteCache != "" {
-			aerospikeConf.WriteString(fmt.Sprintf("        %s\n", maxWriteCache))
+			fmt.Fprintf(&aerospikeConf, "        %s\n", maxWriteCache) //nolint:errcheck
 		}
 		aerospikeConf.WriteString("    }\n")
 		aerospikeConf.WriteString("}\n")

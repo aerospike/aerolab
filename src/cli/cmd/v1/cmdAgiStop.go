@@ -90,7 +90,7 @@ func (c *AgiStopCmd) StopAGI(system *System, inventory *backends.Inventory, logg
 			return nil, err
 		}
 		if instancesx.Count() == 0 {
-			return nil, fmt.Errorf("Stopped AGI instance %s not found", c.Name)
+			return nil, fmt.Errorf("stopped AGI instance %s not found", c.Name)
 		}
 		instances = instancesx.Describe()
 	}

@@ -105,7 +105,10 @@ func customHomeLogic() {
 		exists = true
 	}
 	if !exists {
-		os.MkdirAll(customHome, 0700)
+		if err := os.MkdirAll(customHome, 0700); err != nil {
+			log.Printf("Could not create home directory %s: %s", customHome, err)
+			os.Exit(1)
+		}
 		return
 	}
 	if isV8Home(customHome) {

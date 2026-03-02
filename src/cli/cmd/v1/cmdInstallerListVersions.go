@@ -69,9 +69,9 @@ func (c *InstallerListVersionsCmd) ListVersions(log *logger.Logger, out io.Write
 	// print the versions
 	for _, ver := range versions {
 		if c.Url {
-			fmt.Fprintln(out, ver.Link)
+			fmt.Fprintln(out, ver.Link) //nolint:errcheck
 		} else {
-			fmt.Fprintln(out, ver.Name)
+			fmt.Fprintln(out, ver.Name) //nolint:errcheck
 		}
 	}
 	return nil

@@ -243,10 +243,10 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 		system.Logger.Info("Networks:")
 		for _, net := range net {
 			detail := bdocker.GetNetworkDetails(net)
-			fmt.Fprintf(out, "Backend: %s, Name: %s, CIDR: %s, Driver: %s, MTU: %s, NetID: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Name: %s, CIDR: %s, Driver: %s, MTU: %s, NetID: %s\n", //nolint:errcheck
 				net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Driver:asc", "Name:asc", "CIDR:asc"}
@@ -265,8 +265,8 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("NETWORKS"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

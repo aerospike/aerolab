@@ -134,7 +134,7 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(types)
+			enc.Encode(types) //nolint:errcheck
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -142,11 +142,11 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(types)
+		json.NewEncoder(out).Encode(types) //nolint:errcheck
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(types)
+		enc.Encode(types) //nolint:errcheck
 	case "text":
 		system.Logger.Info("Instance Types:")
 		for _, t := range types {
@@ -154,10 +154,10 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 			spotDay := t.PricePerHour.Spot * 24
 			onDemandMonth := onDemandDay * 31
 			spotMonth := spotDay * 31
-			fmt.Fprintf(out, "Region: %s, Name: %s, Arch: %s, CPUs: %d, MemoryGiB: %0.0f, NVMEs: %d, NvmeTotalSizeGiB: %d, GPUs: %d, OnDemand $/h: %0.4f, OnDemand $/day: %0.2f, OnDemand $/month: %0.2f, Spot $/h: %0.4f, Spot $/day: %0.2f, Spot $/month: %0.2f\n",
+			fmt.Fprintf(out, "Region: %s, Name: %s, Arch: %s, CPUs: %d, MemoryGiB: %0.0f, NVMEs: %d, NvmeTotalSizeGiB: %d, GPUs: %d, OnDemand $/h: %0.4f, OnDemand $/day: %0.2f, OnDemand $/month: %0.2f, Spot $/h: %0.4f, Spot $/day: %0.2f, Spot $/month: %0.2f\n", //nolint:errcheck
 				t.Region, t.Name, strings.Join(t.Arch.String(), ","), t.CPUs, t.MemoryGiB, t.NvmeCount, t.NvmeTotalSizeGiB, t.GPUs, t.PricePerHour.OnDemand, onDemandDay, onDemandMonth, t.PricePerHour.Spot, spotDay, spotMonth)
 		}
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
 		header := table.Row{"Region", "Name", "Arch", "vCPUs", "MemoryGiB", "NVMEs", "NvmeTotalSizeGiB", "GPUs", "OnDemand $/h", "OnDemand $/day", "OnDemand $/month", "Spot $/h", "Spot $/day", "Spot $/month"}
 		rows := []table.Row{}
@@ -193,8 +193,8 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(new("INSTANCE TYPES"), header, rows))
-		fmt.Fprintln(out, "")
+		fmt.Fprintln(out, t.RenderTable(new("INSTANCE TYPES"), header, rows)) //nolint:errcheck
+		fmt.Fprintln(out, "") //nolint:errcheck
 	}
 	return nil
 }

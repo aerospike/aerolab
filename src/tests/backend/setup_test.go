@@ -102,7 +102,7 @@ func setup(fresh bool) error {
 		}
 	} else {
 		tempDir = Options.TempDir
-		os.MkdirAll(tempDir, 0755)
+		os.MkdirAll(tempDir, 0755) //nolint:errcheck
 	}
 	if Options.SkipCleanup {
 		fmt.Printf("Skipping cleanup, tempDir=%s\n", tempDir)
@@ -232,7 +232,7 @@ func cleanup() {
 	}
 
 	if !skipCleanup && (Options == nil || !Options.SkipCleanup) {
-		cleanupBackend()
+		cleanupBackend() //nolint:errcheck
 		os.RemoveAll(tempDir)
 	}
 	if Options != nil {

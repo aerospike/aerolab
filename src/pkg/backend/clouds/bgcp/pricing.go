@@ -115,7 +115,9 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 
 // cache operations
 func (s *b) putInstanceTypesToCache(types backends.InstanceTypeList) error {
-	os.MkdirAll(s.workDir, 0755)
+	if err := os.MkdirAll(s.workDir, 0755); err != nil {
+		return fmt.Errorf("failed to create work directory: %w", err)
+	}
 	f := path.Join(s.workDir, "instance_types.json")
 	fd, err := os.Create(f)
 	if err != nil {
@@ -815,9 +817,10 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 			}
 			grp := strings.ToLower(iGroup[0])
 			if i.Category.ResourceGroup != "CPU" && i.Category.ResourceGroup != "RAM" && iGroup[1] == "Predefined" {
-				if iGroup[3] == "Core" {
+				switch iGroup[3] {
+				case "Core":
 					i.Category.ResourceGroup = "CPU"
-				} else if iGroup[3] == "Ram" {
+				case "Ram":
 					i.Category.ResourceGroup = "RAM"
 				}
 			}

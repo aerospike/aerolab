@@ -31,13 +31,13 @@ func (c *WebUIExecCmd) Execute(args []string) error {
 	var input webUIExecInput
 	decoder := json.NewDecoder(os.Stdin)
 	if err := decoder.Decode(&input); err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Failed to read input from stdin: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to read input from stdin: %s\n", err) //nolint:errcheck
 		return fmt.Errorf("failed to read input: %w", err)
 	}
 
 	// Validate input
 	if input.CommandPath == "" {
-		fmt.Fprintf(os.Stderr, "[ERROR] commandPath is required\n")
+		fmt.Fprintf(os.Stderr, "[ERROR] commandPath is required\n") //nolint:errcheck
 		return fmt.Errorf("commandPath is required")
 	}
 
@@ -48,7 +48,7 @@ func (c *WebUIExecCmd) Execute(args []string) error {
 	cmd := []string{"webui", "exec"}
 	system, err := Initialize(&Init{InitBackend: false}, cmd, c, args...)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Failed to initialize system: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to initialize system: %s\n", err) //nolint:errcheck
 		return err
 	}
 
@@ -58,7 +58,7 @@ func (c *WebUIExecCmd) Execute(args []string) error {
 	// Execute the command using the existing reflection-based execution
 	err = ExecuteCommandByPathDirect(system, input.CommandPath, input.Parameters, logWriter)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Command failed: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] Command failed: %s\n", err) //nolint:errcheck
 		return err
 	}
 
@@ -82,7 +82,7 @@ func ExecuteCommandByPathDirect(system *System, path string, params map[string]a
 		dotPath := SimpleModePathFromSlash(path)
 		if err := system.SimpleModeConfig.CheckCommandAllowed(dotPath); err != nil {
 			if logWriter != nil {
-				fmt.Fprintf(logWriter, "[ERROR] %s\n", err)
+				fmt.Fprintf(logWriter, "[ERROR] %s\n", err) //nolint:errcheck
 			}
 			return err
 		}
@@ -92,7 +92,7 @@ func ExecuteCommandByPathDirect(system *System, path string, params map[string]a
 	cmdVal, err := getCommandValueByPath(system.Opts, path)
 	if err != nil {
 		if logWriter != nil {
-			fmt.Fprintf(logWriter, "[ERROR] Failed to find command: %s\n", err)
+			fmt.Fprintf(logWriter, "[ERROR] Failed to find command: %s\n", err) //nolint:errcheck
 		}
 		return err
 	}
@@ -122,7 +122,7 @@ func ExecuteCommandByPathDirect(system *System, path string, params map[string]a
 	if params != nil {
 		if err := applyParameters(newCmd, params); err != nil {
 			if logWriter != nil {
-				fmt.Fprintf(logWriter, "[ERROR] Failed to apply parameters: %s\n", err)
+				fmt.Fprintf(logWriter, "[ERROR] Failed to apply parameters: %s\n", err) //nolint:errcheck
 			}
 			return fmt.Errorf("failed to apply parameters: %w", err)
 		}
@@ -134,16 +134,16 @@ func ExecuteCommandByPathDirect(system *System, path string, params map[string]a
 	if !executeMethod.IsValid() {
 		errMsg := fmt.Sprintf("command %s does not have an Execute method", path)
 		if logWriter != nil {
-			fmt.Fprintf(logWriter, "[ERROR] %s\n", errMsg)
+			fmt.Fprintf(logWriter, "[ERROR] %s\n", errMsg) //nolint:errcheck
 		}
 		return fmt.Errorf("%s", errMsg)
 	}
 
 	// Write start message
 	if logWriter != nil {
-		fmt.Fprintf(logWriter, "[INFO] Starting command: %s\n", path)
-		fmt.Fprintf(logWriter, "[INFO] Parameters: %v\n", params)
-		fmt.Fprintf(logWriter, "[INFO] %s\n", strings.Repeat("-", 50))
+		fmt.Fprintf(logWriter, "[INFO] Starting command: %s\n", path) //nolint:errcheck
+		fmt.Fprintf(logWriter, "[INFO] Parameters: %v\n", params)       //nolint:errcheck
+		fmt.Fprintf(logWriter, "[INFO] %s\n", strings.Repeat("-", 50)) //nolint:errcheck
 	}
 
 	// Call Execute with empty args
@@ -157,7 +157,7 @@ func ExecuteCommandByPathDirect(system *System, path string, params map[string]a
 	}
 
 	if logWriter != nil {
-		fmt.Fprintf(logWriter, "[INFO] Command completed successfully\n")
+		fmt.Fprintf(logWriter, "[INFO] Command completed successfully\n") //nolint:errcheck
 	}
 
 	return nil

@@ -326,7 +326,7 @@ func hideOptionsInGroup(config *SimpleModeConfig, grp *flags.Group, cmdPath stri
 // and returns the dot-separated command path (e.g. "cluster.create").
 func getActiveCommandPath(parser *flags.Parser) string {
 	var parts []string
-	cmd := parser.Command.Active
+	cmd := parser.Active
 	for cmd != nil {
 		parts = append(parts, cmd.Name)
 		cmd = cmd.Active
@@ -359,7 +359,7 @@ func (c *SimpleModeConfig) checkParsedParameters(parser *flags.Parser, rawArgs [
 
 	// Collect all blocked flags from the active command chain
 	var blocked []blockedFlag
-	cmd := parser.Command.Active
+	cmd := parser.Active
 	path := ""
 	for cmd != nil {
 		if path == "" {

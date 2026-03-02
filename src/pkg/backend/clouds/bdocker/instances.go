@@ -313,10 +313,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		return nil
 	}
 
-	removeSSHKey := false
-	if s.instances.WithBackendType(backends.BackendTypeDocker).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
-		removeSSHKey = true
-	}
+	removeSSHKey := s.instances.WithBackendType(backends.BackendTypeDocker).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count()
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)   //nolint:errcheck
@@ -535,19 +532,19 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				return
 			}
 			env := []string{}
-			for _, x := range e.ExecDetail.Env {
+			for _, x := range e.Env {
 				env = append(env, x.Key+"="+x.Value)
 			}
 			env = append(env, "AEROLAB_CLUSTER_NAME="+i.ClusterName)
 			env = append(env, "AEROLAB_NODE_NO="+strconv.Itoa(i.NodeNo))
 			env = append(env, "AEROLAB_PROJECT_NAME="+s.project)
 			env = append(env, "AEROLAB_OWNER="+i.Owner)
-			cmd := e.ExecDetail.Command
+			cmd := e.Command
 			if len(cmd) == 0 {
 				cmd = []string{"/bin/bash"}
 			}
-			sout := e.ExecDetail.Stdout
-			serr := e.ExecDetail.Stderr
+			sout := e.Stdout
+			serr := e.Stderr
 			var stdout, stderr bytes.Buffer
 			if sout == nil {
 				sout = &stdout
@@ -555,7 +552,7 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			if serr == nil {
 				serr = &stderr
 			}
-			retCode, err := ExecWithCLI(context.Background(), cli, i.InstanceID, cmd, env, e.ExecDetail.Stdin, sout, serr, e.Terminal)
+			retCode, err := ExecWithCLI(context.Background(), cli, i.InstanceID, cmd, env, e.Stdin, sout, serr, e.Terminal)
 			if retCode != 0 || err != nil {
 				err = errors.Join(err, fmt.Errorf("exec failed with exit code %d", retCode))
 			}
@@ -603,19 +600,19 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				ClientConf: clientConf,
 				ExecDetail: e.ExecDetail,
 			}
-			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+			execInput.Env = append(execInput.Env, &sshexec.Env{
 				Key:   "AEROLAB_CLUSTER_NAME",
 				Value: i.ClusterName,
 			})
-			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+			execInput.Env = append(execInput.Env, &sshexec.Env{
 				Key:   "AEROLAB_NODE_NO",
 				Value: strconv.Itoa(i.NodeNo),
 			})
-			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+			execInput.Env = append(execInput.Env, &sshexec.Env{
 				Key:   "AEROLAB_PROJECT_NAME",
 				Value: s.project,
 			})
-			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+			execInput.Env = append(execInput.Env, &sshexec.Env{
 				Key:   "AEROLAB_OWNER",
 				Value: i.Owner,
 			})

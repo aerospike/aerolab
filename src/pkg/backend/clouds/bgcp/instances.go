@@ -587,10 +587,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		return nil
 	}
 
-	removeSSHKey := false
-	if s.instances.WithBackendType(backends.BackendTypeGCP).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
-		removeSSHKey = true
-	}
+	removeSSHKey := s.instances.WithBackendType(backends.BackendTypeGCP).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count()
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
@@ -875,19 +872,19 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			ClientConf: clientConf,
 			ExecDetail: e.ExecDetail,
 		}
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_CLUSTER_NAME",
 			Value: i.ClusterName,
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_NODE_NO",
 			Value: strconv.Itoa(i.NodeNo),
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_PROJECT_NAME",
 			Value: s.project,
 		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+		execInput.Env = append(execInput.Env, &sshexec.Env{
 			Key:   "AEROLAB_OWNER",
 			Value: i.Owner,
 		})

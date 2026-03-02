@@ -90,9 +90,10 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		return nil, fmt.Errorf("namespace name is required")
 	}
 
-	if c.FilterType == "local" {
+	switch c.FilterType {
+	case "local":
 		c.FilterType = "nvme"
-	} else if c.FilterType == "persistent" {
+	case "persistent":
 		c.FilterType = "ebs"
 	}
 	filterDiskCount := 0
@@ -151,10 +152,7 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		nver := inst.Tags["aerolab.soft.version"]
 		nverx := strings.Split(nver, ".")
 		nvera, _ := strconv.Atoi(nverx[0])
-		isv7 := false
-		if nvera >= 7 {
-			isv7 = true
-		}
+		isv7 := nvera >= 7
 		// run partitionList on node
 		plistCmd := &ClusterPartitionListCmd{
 			ClusterName:      TypeClusterName(inst.ClusterName),

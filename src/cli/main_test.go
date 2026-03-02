@@ -29,7 +29,7 @@ func TestMain(t *testing.T) {
 			}
 		}
 	}()
-	run([]string{"version"})
+	run([]string{"version"}) //nolint:errcheck
 	w.Close()
 	os.Stdout = origStdout
 	os.Stderr = origStderr

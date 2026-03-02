@@ -419,9 +419,9 @@ func (c *TlsGenerateCmd) updateMeshConfig(config string, nodeIPs []string) strin
 		if strings.Contains(line, "port 3002") && !strings.Contains(line, "tls-port") {
 			// Replace with TLS port and mesh seeds
 			newConfig.WriteString("\t\t\ttls-port 3012\n")
-			newConfig.WriteString(fmt.Sprintf("\t\t\ttls-name %s\n", c.TlsName))
+			fmt.Fprintf(&newConfig, "\t\t\ttls-name %s\n", c.TlsName) //nolint:errcheck
 			for _, ip := range nodeIPs {
-				newConfig.WriteString(fmt.Sprintf("\t\t\ttls-mesh-seed-address-port %s 3012\n", ip))
+				fmt.Fprintf(&newConfig, "\t\t\ttls-mesh-seed-address-port %s 3012\n", ip) //nolint:errcheck
 			}
 		} else if strings.Contains(line, "mesh-seed-address-port") {
 			// Skip old mesh-seed-address-port lines

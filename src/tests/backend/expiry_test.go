@@ -46,10 +46,7 @@ func (e *expiryTest) testExpiryInstall(t *testing.T) {
 		t.Skip("docker does not support expiry")
 		return
 	}
-	eksCtl := false
-	if backendType == backends.BackendTypeAWS {
-		eksCtl = true
-	}
+	eksCtl := backendType == backends.BackendTypeAWS
 	err := testBackend.ExpiryInstall(backendType, 2, 6, eksCtl, true, true, true, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
@@ -60,11 +57,12 @@ func (e *expiryTest) testExpiryInstall(t *testing.T) {
 		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 2)
-		if backendType == backends.BackendTypeAWS {
+		switch backendType {
+		case backends.BackendTypeAWS:
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, eksCtl)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
-		} else if backendType == backends.BackendTypeGCP {
+		case backends.BackendTypeGCP:
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
 		}
@@ -87,11 +85,12 @@ func (e *expiryTest) testExpiryChangeFrequency(t *testing.T) {
 		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 1)
-		if backendType == backends.BackendTypeAWS {
+		switch backendType {
+		case backends.BackendTypeAWS:
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
-		} else if backendType == backends.BackendTypeGCP {
+		case backends.BackendTypeGCP:
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
 		}
@@ -104,10 +103,7 @@ func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 		t.Skip("docker does not support expiry")
 		return
 	}
-	eksCtl := false
-	if backendType == backends.BackendTypeAWS {
-		eksCtl = true
-	}
+	eksCtl := backendType == backends.BackendTypeAWS
 	err := testBackend.ExpiryInstall(backendType, 10, 5, eksCtl, true, true, true, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
@@ -118,11 +114,12 @@ func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 1)
-		if backendType == backends.BackendTypeAWS {
+		switch backendType {
+		case backends.BackendTypeAWS:
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
-		} else if backendType == backends.BackendTypeGCP {
+		case backends.BackendTypeGCP:
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
 		}
@@ -271,11 +268,12 @@ func (e *expiryTest) testExpiryChangeConfiguration(t *testing.T) {
 	require.Equal(t, len(expiryList.ExpirySystems), len(Options.TestRegions))
 	for _, expiry := range expiryList.ExpirySystems {
 		require.Equal(t, expiry.InstallationSuccess, true)
-		if backendType == backends.BackendTypeAWS {
+		switch backendType {
+		case backends.BackendTypeAWS:
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 3)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, false)
 			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, false)
-		} else if backendType == backends.BackendTypeGCP {
+		case backends.BackendTypeGCP:
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 3)
 			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, false)
 		}
