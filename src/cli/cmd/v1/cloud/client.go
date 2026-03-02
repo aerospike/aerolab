@@ -48,7 +48,7 @@ func newClient(version string, isDev bool) (*Client, error) {
 
 	client := &Client{
 		httpClient: resty.New(),
-		baseURL:    fmt.Sprintf("https://api%s.aerospike.cloud/%s", devString, version),
+		baseURL:    fmt.Sprintf("https://api%s.aerospike.com/%s", devString, version),
 		authURL:    fmt.Sprintf("https://auth.control%s.aerospike.cloud/oauth/token", devString),
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
