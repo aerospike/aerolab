@@ -6,8 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/rglonek/sbs"
 	"log"
+
+	"github.com/rglonek/sbs"
 )
 
 type metricQuery struct {
@@ -48,11 +49,11 @@ func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	p.cache.lock.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }
 
 func responseError(w http.ResponseWriter, httpStatus int, message string, tail ...any) {
 	log.Printf("WARN: "+message, tail...)
 	w.WriteHeader(httpStatus)
-	w.Write(sbs.StringToByteSlice(fmt.Sprintf(message, tail...)))
+	w.Write(sbs.StringToByteSlice(fmt.Sprintf(message, tail...))) //nolint:errcheck
 }

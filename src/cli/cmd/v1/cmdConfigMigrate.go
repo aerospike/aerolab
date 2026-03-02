@@ -77,6 +77,7 @@ func (c *ConfigMigrateCmd) MigrateAerolabConfig(system *System, oldDir string, n
 }
 
 func MigrateAerolabConfig(oldDir string, newDir string) error {
+	//nolint:errcheck
 	os.MkdirAll(newDir, 0700)
 	// copy oldDir/conf and oldDir/conf.ts to newDir/
 	oldConf := filepath.Join(oldDir, "conf")

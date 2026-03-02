@@ -469,7 +469,7 @@ func (e *Editor) viewAreYouSure(g *gocui.Gui) error {
 		e.showyn = false
 		e.View = "ui"
 		e.g.Cursor = true
-		g.DeleteView("sure")
+		g.DeleteView("sure") //nolint:errcheck
 		switch e.action {
 		case actionQuit:
 			return gocui.ErrQuit
@@ -677,7 +677,7 @@ func (e *Editor) parseConfToUi(g *gocui.Gui) error {
 	lenX := maxX/2 - 3
 	drawMenuItems(uiView, menuItems, lenX, 0)
 	e.uiLoc = 0
-	uiView.SetCursor(0, e.uiLoc)
+	uiView.SetCursor(0, e.uiLoc) //nolint:errcheck
 	return err
 }
 
@@ -1020,68 +1020,68 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 			switch change.Item {
 			case itemRF1:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "1")
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "1") //nolint:errcheck
 				}
 			case itemRF2:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "2")
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "2") //nolint:errcheck
 				}
 			case itemRF3:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "3")
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "3") //nolint:errcheck
 				}
 			case itemRackAwareness:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").SetValue("rack-id", "1")
+					aeroConfig.Stanza("namespace test").SetValue("rack-id", "1") //nolint:errcheck
 				} else {
-					aeroConfig.Stanza("namespace test").Delete("rack-id")
+					aeroConfig.Stanza("namespace test").Delete("rack-id") //nolint:errcheck
 				}
 			case itemStrongConsistency:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").SetValue("strong-consistency", "true")
+					aeroConfig.Stanza("namespace test").SetValue("strong-consistency", "true") //nolint:errcheck
 				} else {
-					aeroConfig.Stanza("namespace test").Delete("strong-consistency")
+					aeroConfig.Stanza("namespace test").Delete("strong-consistency") //nolint:errcheck
 				}
 			case itemStorageEngineMemory:
 				if !change.Selected {
 					if aeroConfig.Stanza("namespace test").Type("storage-engine memory") != aeroconf.ValueNil {
-						aeroConfig.Stanza("namespace test").Delete("storage-engine memory")
+						aeroConfig.Stanza("namespace test").Delete("storage-engine memory") //nolint:errcheck
 					}
 				} else {
 					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
 						if strings.HasPrefix(key, "storage-engine") {
-							aeroConfig.Stanza("namespace test").Delete(key)
+							aeroConfig.Stanza("namespace test").Delete(key) //nolint:errcheck
 						}
 					}
-					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "4G")
+					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")                          //nolint:errcheck
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "4G") //nolint:errcheck
 				}
 			case itemStorageDisk:
 				if change.Selected {
 					if aeroConfig.Stanza("namespace test").Type("storage-engine memory") != aeroconf.ValueNil {
-						aeroConfig.Stanza("namespace test").Delete("storage-engine memory")
+						aeroConfig.Stanza("namespace test").Delete("storage-engine memory") //nolint:errcheck
 					}
-					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device")
+					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device") //nolint:errcheck
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/test.dat")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "4G")
 				} else {
 					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
 						if strings.HasPrefix(key, "storage-engine device") {
-							aeroConfig.Stanza("namespace test").Delete(key)
+							aeroConfig.Stanza("namespace test").Delete(key) //nolint:errcheck
 						}
 					}
 				}
 			case itemStorageEngineDeviceAndMemory:
 				if change.Selected {
-					aeroConfig.Stanza("namespace test").Delete("storage-engine device")
-					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("file", "/opt/aerospike/data/test.dat")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("filesize", "4G")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("data-size")
+					aeroConfig.Stanza("namespace test").Delete("storage-engine device")                                                  //nolint:errcheck
+					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")                                               //nolint:errcheck
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("file", "/opt/aerospike/data/test.dat") //nolint:errcheck
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("filesize", "4G")                       //nolint:errcheck
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("data-size")                              //nolint:errcheck
 				} else {
 					if aeroConfig.Stanza("namespace test").Stanza("storage-engine memory") != nil {
-						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("file")
-						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("filesize")
+						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("file")     //nolint:errcheck
+						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("filesize") //nolint:errcheck
 						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "4G")
 					}
 				}
@@ -1116,9 +1116,9 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 			case itemStorageEngineAllFlash:
 				if change.Selected {
 					if aeroConfig.Stanza("namespace test").Type("partition-tree-sprigs") == aeroconf.ValueNil {
-						aeroConfig.Stanza("namespace test").SetValue("partition-tree-sprigs", "256")
+						aeroConfig.Stanza("namespace test").SetValue("partition-tree-sprigs", "256") //nolint:errcheck
 					}
-					aeroConfig.Stanza("namespace test").NewStanza("index-type flash")
+					aeroConfig.Stanza("namespace test").NewStanza("index-type flash") //nolint:errcheck
 					aeroConfig.Stanza("namespace test").Stanza("index-type flash").SetValue("mount", "/mnt")
 					aeroConfig.Stanza("namespace test").Stanza("index-type flash").SetValue("mounts-budget", "5G")
 					aeroConfig.Stanza("namespace test").Stanza("index-type flash").SetValue("evict-mounts-pct", "99")
@@ -1142,9 +1142,9 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 					}
 					aeroConfig.Stanza("logging").Delete("console")
-					aeroConfig.Stanza("logging").NewStanza("file /var/log/aerospike.log")
+					aeroConfig.Stanza("logging").NewStanza("file /var/log/aerospike.log") //nolint:errcheck
 					for k, v := range data {
-						aeroConfig.Stanza("logging").Stanza("file /var/log/aerospike.log").SetValues(k, v)
+						aeroConfig.Stanza("logging").Stanza("file /var/log/aerospike.log").SetValues(k, v) //nolint:errcheck
 					}
 				}
 			case itemLoggingDestinationCOnsole:
@@ -1165,9 +1165,9 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 							aeroConfig.Stanza("logging").Delete(key)
 						}
 					}
-					aeroConfig.Stanza("logging").NewStanza("console")
+					aeroConfig.Stanza("logging").NewStanza("console") //nolint:errcheck
 					for k, v := range data {
-						aeroConfig.Stanza("logging").Stanza("console").SetValues(k, v)
+						aeroConfig.Stanza("logging").Stanza("console").SetValues(k, v) //nolint:errcheck
 					}
 				}
 			case itemLoggingLevelInfo:
@@ -1186,7 +1186,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						if !found {
 							dat = append(dat, &l)
 						}
-						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat) //nolint:errcheck
 					}
 				}
 			case itemLoggingLevelDebug:
@@ -1205,7 +1205,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						if !found {
 							dat = append(dat, &l)
 						}
-						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat) //nolint:errcheck
 					}
 				}
 			case itemLoggingLevelDetail:
@@ -1224,7 +1224,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						if !found {
 							dat = append(dat, &l)
 						}
-						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat) //nolint:errcheck
 					}
 				}
 			case itemTlsEnabled:
@@ -1236,7 +1236,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 					}
 				} else {
-					aeroConfig.Stanza("network").NewStanza("tls tls1")
+					aeroConfig.Stanza("network").NewStanza("tls tls1") //nolint:errcheck
 					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("cert-file", "/etc/aerospike/ssl/tls1/cert.pem")
 					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("key-file", "/etc/aerospike/ssl/tls1/key.pem")
 					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("ca-file", "/etc/aerospike/ssl/tls1/cacert.pem")
@@ -1269,13 +1269,13 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 				}
 			case itemSecurityOff:
 				if change.Selected {
-					aeroConfig.Delete("security")
+					aeroConfig.Delete("security") //nolint:errcheck
 				}
 			case itemSecurityOnBasic:
 				if change.Selected {
-					aeroConfig.Delete("security")
-					aeroConfig.NewStanza("security")
-					aeroConfig.Stanza("security").NewStanza("log")
+					aeroConfig.Delete("security")                  //nolint:errcheck
+					aeroConfig.NewStanza("security")               //nolint:errcheck
+					aeroConfig.Stanza("security").NewStanza("log") //nolint:errcheck
 					aeroConfig.Stanza("security").Stanza("log").SetValue("report-authentication", "true")
 					aeroConfig.Stanza("security").Stanza("log").SetValue("report-user-admin", "true")
 					aeroConfig.Stanza("security").Stanza("log").SetValue("report-sys-admin", "true")
@@ -1283,8 +1283,8 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 				}
 			case itemSecurityOnLdap:
 				if change.Selected {
-					aeroConfig.Delete("security")
-					aeroConfig.NewStanza("security")
+					aeroConfig.Delete("security")    //nolint:errcheck
+					aeroConfig.NewStanza("security") //nolint:errcheck
 					aeroConfig.Stanza("security").NewStanza("ldap")
 					aeroConfig.Stanza("security").Stanza("ldap").SetValue("query-base-dn", "dc=aerospike,dc=com")
 					aeroConfig.Stanza("security").Stanza("ldap").SetValue("server", "ldap://LDAPIP:389 # set to ldaps://LDAPIP:636 for tls")
@@ -1334,7 +1334,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						if !found3 {
 							dat = append(dat, &l3)
 						}
-						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat) //nolint:errcheck
 					}
 				} else {
 					keys := aeroConfig.Stanza("logging").ListKeys()
@@ -1350,10 +1350,10 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					}
 				}
 			case itemOtherVector:
-				aeroConfig.Delete("namespace avs-meta")
+				aeroConfig.Delete("namespace avs-meta") //nolint:errcheck
 				if change.Selected {
 					if aeroConfig.Type("namespace avs-meta") == aeroconf.ValueNil {
-						aeroConfig.NewStanza("namespace avs-meta")
+						aeroConfig.NewStanza("namespace avs-meta") //nolint:errcheck
 						aeroConfig.Stanza("namespace avs-meta").SetValue("replication-factor", "2")
 						aeroConfig.Stanza("namespace avs-meta").SetValue("nsup-period", "10")
 						aeroConfig.Stanza("namespace avs-meta").SetValue("default-ttl", "0")
@@ -1378,7 +1378,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 			}
 		}
 		e.confView.Clear()
-		aeroConfig.Write(e.confView, "", "    ", true)
+		aeroConfig.Write(e.confView, "", "    ", true) //nolint:errcheck
 	}
 }
 

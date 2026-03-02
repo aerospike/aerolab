@@ -42,9 +42,11 @@ func (c *AgiExecPluginCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	// Ensure /opt/agi directory exists
+	//nolint:errcheck
 	os.MkdirAll("/opt/agi", 0755)
 
 	// Write PID file for process management
+	//nolint:errcheck
 	os.WriteFile("/opt/agi/plugin.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove("/opt/agi/plugin.pid")
 
@@ -79,4 +81,3 @@ func (c *AgiExecPluginCmd) Execute(args []string) error {
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
 }
-

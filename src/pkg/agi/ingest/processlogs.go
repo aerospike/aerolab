@@ -16,10 +16,11 @@ import (
 
 	"math/rand/v2"
 
+	"log"
+
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	"github.com/rglonek/sbs"
-	"log"
 )
 
 type MetaEntries map[string]*metaEntries
@@ -295,6 +296,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 			if f.Processed > 0 && f.Processed < f.Size {
 				move := f.Processed - int64(i.config.Processor.LogReadBufferSizeKb*1024*2)
 				if move > 0 {
+					//nolint:errcheck
 					fd.Seek(move, 0)
 				}
 			}

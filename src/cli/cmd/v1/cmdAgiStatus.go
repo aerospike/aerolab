@@ -328,6 +328,7 @@ echo "INGEST_END"
 					result.System.DiskUsed = fields[2]
 					result.System.DiskFree = fields[3]
 					pctStr := strings.TrimSuffix(fields[4], "%")
+					//nolint:errcheck
 					fmt.Sscanf(pctStr, "%d", &result.System.DiskPercent)
 				}
 			}
@@ -429,6 +430,7 @@ func (c *AgiStatusCmd) renderOutput(system *System, output AgiStatusOutput, out 
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(output)
 			w.Close()
 		}()

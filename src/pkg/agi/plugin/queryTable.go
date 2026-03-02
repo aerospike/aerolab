@@ -39,7 +39,6 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 		if _, ok := req.selectedVars[filter.Name]; !ok {
 			return nil, fmt.Errorf("variable %s does not exist", filter.Name)
 		}
-		new = nil
 		vals = nil
 		for _, v := range req.selectedVars[filter.Name] {
 			vals = append(vals, aerospike.ExpEq(aerospike.ExpStringBin(filter.Name), aerospike.ExpStringVal(v)))
@@ -47,7 +46,6 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 		if len(vals) == 0 {
 			continue
 		}
-		valsOr = nil
 		valsOr = vals[0]
 		if len(vals) > 1 {
 			valsOr = aerospike.ExpOr(vals...)

@@ -192,14 +192,17 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	}
 
 	// Ensure entry directory exists
+	//nolint:errcheck
 	os.MkdirAll(c.EntryDir, 0755)
 
 	// Write PID file
+	//nolint:errcheck
 	os.WriteFile("/opt/agi/proxy.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove("/opt/agi/proxy.pid")
 
 	// Initialize label if not present
 	if _, err := os.Stat("/opt/agi/label"); err != nil {
+		//nolint:errcheck
 		os.WriteFile("/opt/agi/label", []byte(c.InitialLabel), 0644)
 	}
 
@@ -224,6 +227,7 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 		}
 	}
 	if !asdRunning {
+		//nolint:errcheck
 		exec.Command("service", "aerospike", "start").CombinedOutput()
 	}
 
@@ -303,6 +307,7 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 			c.isDim = false
 		}
 
+		//nolint:errcheck
 		yaml.Unmarshal(nstring, &c.notify)
 		c.notify.Init()
 		defer c.notify.Close()
@@ -464,6 +469,7 @@ func (c *AgiExecProxyCmd) resizeFilesystem(w http.ResponseWriter, r *http.Reques
 
 	log.Printf("INFO: resizeFilesystem: successfully resized filesystem on %s: %s", device, string(resizeOutput))
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	w.Write(fmt.Appendf(nil, "resized %s: %s", device, string(resizeOutput)))
 }
 
@@ -533,6 +539,7 @@ func (c *AgiExecProxyCmd) loadTokens() {
 	if c.AuthType != "token" {
 		return
 	}
+	//nolint:errcheck
 	os.MkdirAll(c.TokenAuthLocation, 0755)
 	go c.loadTokensInterval()
 	go c.tokenViaHUP()
@@ -571,6 +578,7 @@ func (c *AgiExecProxyCmd) handleListSimple(w http.ResponseWriter) {
 <a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
 <a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
 </center></body></html>`)
+	//nolint:errcheck
 	w.Write(out)
 }
 
@@ -611,6 +619,7 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 		dmesg = append(dmesg, []byte(err.Error())...)
 	}
 	l.Dmesg = string(dmesg)
+	//nolint:errcheck
 	json.NewEncoder(w).Encode(l)
 }
 
@@ -626,6 +635,7 @@ func (c *AgiExecProxyCmd) getLogFile(path string) string {
 	}
 	defer f.Close()
 	if s.Size() > 20*1024 {
+		//nolint:errcheck
 		f.Seek(-20*1024, 2)
 		d, _ := io.ReadAll(f)
 		idx := bytes.Index(d, []byte{'\n'})
@@ -683,6 +693,7 @@ func (c *AgiExecProxyCmd) getLog(path string, journalName string) string {
 			defer f.Close()
 			result.WriteString(fmt.Sprintf("=== Log file: %s (size: %d bytes) ===\n", path, s.Size()))
 			if s.Size() > 20*1024 {
+				//nolint:errcheck
 				f.Seek(-20*1024, 2)
 				d, _ := io.ReadAll(f)
 				idx := bytes.Index(d, []byte{'\n'})
@@ -831,6 +842,7 @@ func (c *AgiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Requ
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	io.Copy(w, reader)
 }
 
@@ -840,6 +852,7 @@ func (c *AgiExecProxyCmd) handleTokenTest(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(200)
+	//nolint:errcheck
 	w.Write([]byte("OK"))
 }
 
@@ -848,11 +861,13 @@ func (c *AgiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuthOnly(w, r) {
 		return
 	}
+	//nolint:errcheck
 	r.ParseForm()
 	log.Printf("INFO: Listener: status request from %s", r.RemoteAddr)
 	resp, err := GetAgiStatus(true, c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		//nolint:errcheck
 		w.Write([]byte(err.Error()))
 		return
 	}
@@ -869,6 +884,7 @@ func (c *AgiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
+	//nolint:errcheck
 	enc.Encode(resp)
 }
 
@@ -882,6 +898,7 @@ func (c *AgiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request)
 	c.shuttingDown = true
 	c.shuttingDownMutex.Unlock()
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	w.Write([]byte("Shutting down..."))
 	go func() {
 		timeout := 60 * time.Second
@@ -904,6 +921,7 @@ func (c *AgiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 	c.shuttingDown = true
 	c.shuttingDownMutex.Unlock()
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	w.Write([]byte("Poweroff..."))
 	go func() {
 		out, err := exec.Command("/bin/bash", "-c", c.ShutdownCommand).CombinedOutput()
@@ -939,6 +957,7 @@ func (c *AgiExecProxyCmd) maxUptime() {
 				DeploymentJsonGzB64:        c.deployJson,
 				SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 			}
+			//nolint:errcheck
 			c.notify.NotifyJSON(notifyItem)
 			c.notify.NotifySlack(agi.AgiEventMaxAge, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *Max age reached, shutting down*", agi.AgiEventMaxAge, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		}
@@ -1010,6 +1029,7 @@ func (c *AgiExecProxyCmd) spotMonitorGcp() {
 			DeploymentJsonGzB64:        c.deployJson,
 			SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 		}
+		//nolint:errcheck
 		c.notify.NotifyJSON(notifyItem)
 		c.notify.NotifySlack(agi.AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *GCP Shutting spot instance down due to capacity restrictions*", agi.AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		time.Sleep(2 * time.Minute)
@@ -1118,6 +1138,7 @@ func (c *AgiExecProxyCmd) spotMonitorAws() {
 			DeploymentJsonGzB64:        c.deployJson,
 			SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 		}
+		//nolint:errcheck
 		c.notify.NotifyJSON(notifyItem)
 		c.notify.NotifySlack(agi.AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", agi.AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		time.Sleep(2 * time.Minute)
@@ -1168,6 +1189,7 @@ func (c *AgiExecProxyCmd) serviceMonitor() {
 				DeploymentJsonGzB64:        c.deployJson,
 				SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 			}
+			//nolint:errcheck
 			c.notify.NotifyJSON(notifyItem)
 			c.notify.NotifySlack(agi.AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", agi.AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		} else if notifyUp {
@@ -1185,6 +1207,7 @@ func (c *AgiExecProxyCmd) serviceMonitor() {
 				DeploymentJsonGzB64:        c.deployJson,
 				SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 			}
+			//nolint:errcheck
 			c.notify.NotifyJSON(notifyItem)
 			c.notify.NotifySlack(agi.AgiEventServiceUp, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has started back up, check: aerolab agi status*", agi.AgiEventServiceUp, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		}
@@ -1247,6 +1270,7 @@ func (c *AgiExecProxyCmd) activityMonitor() {
 						DeploymentJsonGzB64:        c.deployJson,
 						SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 					}
+					//nolint:errcheck
 					c.notify.NotifyJSON(notifyItem)
 					c.notify.NotifySlack(agi.AgiEventMaxInactive, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *Max inactivity reached, shutting instance down*", agi.AgiEventMaxInactive, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 				}
@@ -1299,6 +1323,7 @@ func (c *AgiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) 
 	}
 	if c.isTokenAuth {
 		// if token is provided as form value, set cookie with token value and redirect to self
+		//nolint:errcheck
 		r.ParseForm()
 		t := r.FormValue(c.TokenName)
 		if t != "" {

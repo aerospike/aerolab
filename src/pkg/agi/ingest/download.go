@@ -13,13 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"log"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"log"
 )
 
 type safeError struct {
@@ -180,6 +181,7 @@ func (i *Ingest) DownloadS3() error {
 		go func(f string) {
 			err := i.downloadS3File(client, f)
 			if err != nil {
+				//nolint:errcheck
 				i.downloadS3File(client, f)
 			}
 			<-threads

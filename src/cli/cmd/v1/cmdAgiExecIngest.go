@@ -51,6 +51,7 @@ func (c *AgiExecIngestCmd) Execute(args []string) error {
 		steps := new(ingest.IngestSteps)
 		f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 		if err == nil {
+			//nolint:errcheck
 			json.Unmarshal(f, steps)
 		}
 		steps.CriticalError = aerr.Error()
@@ -58,6 +59,7 @@ func (c *AgiExecIngestCmd) Execute(args []string) error {
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
+				//nolint:errcheck
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
@@ -92,6 +94,7 @@ func (c *AgiExecIngestCmd) resourceMonitor(owner, slacks3source, slacksftpsource
 			DeploymentJsonGzB64:        c.deployJson,
 			SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 		}
+		//nolint:errcheck
 		c.notify.NotifyJSON(notifyItem)
 	}
 }
@@ -125,10 +128,13 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 
 	// Ensure directories exist
+	//nolint:errcheck
 	os.MkdirAll("/opt/agi", 0755)
+	//nolint:errcheck
 	os.MkdirAll("/opt/agi/ingest", 0755)
 
 	// Write PID file for process management
+	//nolint:errcheck
 	os.WriteFile("/opt/agi/ingest.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove("/opt/agi/ingest.pid")
 
@@ -146,6 +152,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	steps := new(ingest.IngestSteps)
 	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 	if err == nil {
+		//nolint:errcheck
 		json.Unmarshal(f, steps)
 	}
 	steps.Init = false
@@ -154,6 +161,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	if err == nil {
 		err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 		if err == nil {
+			//nolint:errcheck
 			os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 		}
 	}
@@ -170,6 +178,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	}
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
+		//nolint:errcheck
 		yaml.Unmarshal(nstring, &c.notify)
 		c.notify.Init()
 		defer c.notify.Close()
@@ -213,6 +222,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	if err == nil {
 		err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 		if err == nil {
+			//nolint:errcheck
 			os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 		}
 	}
@@ -265,6 +275,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
+				//nolint:errcheck
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
@@ -336,6 +347,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
+				//nolint:errcheck
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
@@ -379,6 +391,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
+				//nolint:errcheck
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
@@ -465,6 +478,7 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
+				//nolint:errcheck
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}

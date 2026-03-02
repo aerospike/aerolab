@@ -176,7 +176,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		// parse prices
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
-			json.Unmarshal([]byte(price), p)
+			json.Unmarshal([]byte(price), p) //nolint:errcheck
 			prices = append(prices, p)
 		}
 	}
@@ -201,7 +201,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		// parse prices
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
-			json.Unmarshal([]byte(price), p)
+			json.Unmarshal([]byte(price), p) //nolint:errcheck
 			if p.Product.Attributes.StorageClass == "One Zone-General Purpose" {
 				p.Product.Attributes.VolumeApiName = "SharedDisk_OneZone"
 			} else if p.Product.Attributes.StorageClass == "General Purpose" {
@@ -516,7 +516,7 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 				// parse prices
 				for _, price := range out.PriceList {
 					p := &instanceTypePrice{}
-					json.Unmarshal([]byte(price), p)
+					_ = json.Unmarshal([]byte(price), p)
 					prices = append(prices, p)
 				}
 			}

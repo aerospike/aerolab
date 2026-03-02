@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rglonek/sbs"
 	"log"
+
+	"github.com/rglonek/sbs"
 )
 
 type variableQuery struct {
@@ -57,10 +58,11 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
+		//nolint:errcheck
 		json.NewEncoder(w).Encode([]*variableResponse{{
 			Text:  sbs.ByteSliceToString(fc),
 			Value: sbs.ByteSliceToString(fc),
-		}})
+		}}) //nolint:errcheck
 		return
 	}
 	p.cache.lock.RLock()
@@ -132,5 +134,5 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 	p.cache.lock.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:errcheck
 }

@@ -8,8 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8"
 	"log"
+
+	"github.com/aerospike/aerospike-client-go/v8"
 )
 
 func (i *Plugin) dbConnect() error {
@@ -84,6 +85,7 @@ func (i *Plugin) dbConnect() error {
 	i.ip = aerospike.NewInfoPolicy()
 	i.ip.Timeout = i.config.Aerospike.Timeouts.InfoTimeout
 	log.Printf("DEBUG: DB: WarmUp")
+	//nolint:errcheck
 	i.db.WarmUp(i.config.Aerospike.ConnectionQueueSize)
 	return nil
 }

@@ -14,7 +14,7 @@ import (
 func TestEksctlLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	require.NoError(t, os.MkdirAll("dockertest", 0755))
 
 	script, err := eksctl.GetInstallScript()
 	require.NoError(t, err)

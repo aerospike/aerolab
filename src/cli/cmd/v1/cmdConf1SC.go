@@ -276,18 +276,27 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 		}
 		// Get cluster size for RF adjustment
 		if rf > clusterSize {
-			x.SetValue("replication-factor", strconv.Itoa(clusterSize))
+			err = x.SetValue("replication-factor", strconv.Itoa(clusterSize))
+			if err != nil {
+				return fmt.Errorf("failed to set replication-factor: %w", err)
+			}
 			changes = true
 		}
 	} else if clusterSize == 1 {
-		x.SetValue("replication-factor", "1")
+		err = x.SetValue("replication-factor", "1")
+		if err != nil {
+			return fmt.Errorf("failed to set replication-factor: %w", err)
+		}
 		changes = true
 	}
 
 	// Configure strong consistency
 	rmFiles := false
 	if x.Type("strong-consistency") != aeroconf.ValueString {
-		x.SetValue("strong-consistency", "true")
+		err = x.SetValue("strong-consistency", "true")
+		if err != nil {
+			return fmt.Errorf("failed to set strong-consistency: %w", err)
+		}
 		changes = true
 		rmFiles = true
 	} else {
@@ -299,6 +308,7 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 			return fmt.Errorf("strong-consistency parameter error")
 		}
 		if *vals[0] != "true" {
+			//nolint:errcheck
 			x.SetValue("strong-consistency", "true")
 			changes = true
 			rmFiles = true
@@ -342,6 +352,7 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 		nodesPerRack := int(math.Ceil(float64(clusterSize) / float64(c.Racks)))
 		nodeRack := ((instance.NodeNo - 1) / nodesPerRack) + 1
 		if x.Type("rack-id") != aeroconf.ValueString {
+			//nolint:errcheck
 			x.SetValue("rack-id", strconv.Itoa(nodeRack))
 			changes = true
 		} else {
@@ -350,6 +361,7 @@ func (c *ConfSCCmd) patchInstanceConfig(instance *backends.Instance, clusterSize
 				return fmt.Errorf("failed to get rack-id values: %w", err)
 			}
 			if *vals[0] != strconv.Itoa(nodeRack) {
+				//nolint:errcheck
 				x.SetValue("rack-id", strconv.Itoa(nodeRack))
 				changes = true
 			}

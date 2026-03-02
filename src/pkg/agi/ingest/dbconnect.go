@@ -8,8 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8"
 	"log"
+
+	"github.com/aerospike/aerospike-client-go/v8"
 )
 
 func (i *Ingest) dbConnect() error {
@@ -78,6 +79,7 @@ func (i *Ingest) dbConnect() error {
 	i.wp.TotalTimeout = i.config.Aerospike.Timeouts.Total
 	i.wp.MaxRetries = i.config.Aerospike.Retries.Write
 	log.Printf("DEBUG: DB: WarmUp")
+	//nolint:errcheck
 	i.db.WarmUp(i.config.Aerospike.MaxPutThreads)
 	log.Printf("DEBUG: DB: Create indexes")
 	return i.dbSindex(i.config.Aerospike.WaitForSindexes)

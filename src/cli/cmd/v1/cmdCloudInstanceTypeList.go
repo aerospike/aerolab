@@ -164,6 +164,7 @@ func (c *CloudListInstanceTypesCmd) formatOutput(instanceTypes []FlattenedInstan
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(instanceTypes)
 			w.Close()
 		}()
@@ -172,10 +173,12 @@ func (c *CloudListInstanceTypesCmd) formatOutput(instanceTypes []FlattenedInstan
 			return err
 		}
 	case "json":
+		//nolint:errcheck
 		json.NewEncoder(out).Encode(instanceTypes)
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(instanceTypes)
 	case "text":
 		fmt.Fprintln(out, "Instance Types:")

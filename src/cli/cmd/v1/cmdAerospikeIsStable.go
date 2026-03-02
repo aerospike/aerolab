@@ -87,7 +87,7 @@ func (c *AerospikeIsStableCmd) IsStable(system *System, inventory *backends.Inve
 		return false, err
 	}
 
-	instances = inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+	instances = instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
 		return false, fmt.Errorf("no running instances found for cluster %s", c.ClusterName.String())
 	}

@@ -1,16 +1,10 @@
 package cmd
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/json"
 	"fmt"
-	"io"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/agi"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
@@ -717,6 +711,7 @@ func (c *AgiStartCmd) regenerateSSLIfMissing(instances backends.InstanceList, lo
 	}
 }
 
+/* unused function
 // readDeploymentJSON reads the deployment.json.gz from an AGI instance and decodes it.
 // This is used to restore the original AgiCreateCmd settings during reattach.
 func (c *AgiStartCmd) readDeploymentJSON(instances backends.InstanceList) (*AgiCreateCmd, error) {
@@ -761,7 +756,9 @@ func (c *AgiStartCmd) readDeploymentJSON(instances backends.InstanceList) (*AgiC
 
 	return createCmd, nil
 }
+*/
 
+/* unused function
 // resolveTemplateForReattach finds an existing AGI template for the given architecture.
 // Returns the template name or empty string if not found.
 func (c *AgiStartCmd) resolveTemplateForReattach(inventory *backends.Inventory, arch backends.Architecture) string {
@@ -775,3 +772,4 @@ func (c *AgiStartCmd) resolveTemplateForReattach(inventory *backends.Inventory, 
 	}
 	return ""
 }
+*/

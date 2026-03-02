@@ -277,12 +277,14 @@ func (c *NetListCmd) isIPAddress(s string) bool {
 	return true
 }
 
+/* unused function
 func (c *NetListCmd) getField(fields []string, index int) string {
 	if index < len(fields) {
 		return fields[index]
 	}
 	return ""
 }
+*/
 
 func (c *NetListCmd) extractPort(portField string) string {
 	parts := strings.Split(portField, ":")

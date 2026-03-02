@@ -14,8 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lithammer/shortuuid"
 	"log"
+
+	"github.com/lithammer/shortuuid"
 )
 
 // moveOrCopyFile moves a file from src to dst. If readOnly is true, it copies instead of moving.
@@ -306,6 +307,7 @@ func (i *Ingest) genSha256(fpath string, offset int64) [32]byte {
 		return [32]byte{}
 	}
 	defer f.Close()
+	//nolint:errcheck
 	f.Seek(offset, 0)
 	b := make([]byte, i.config.Dedup.ReadBytes)
 	_, err = f.Read(b)

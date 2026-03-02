@@ -27,6 +27,7 @@ func (c *ConfigEnvVarsCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
+	//nolint:errcheck
 	c.PrintEnvVars(system, os.Stdout, nil)
 	system.Logger.Info("Done")
 	return nil
@@ -93,6 +94,7 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(envVars)
 			w.Close()
 		}()
@@ -101,10 +103,12 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 			return err
 		}
 	case "json":
+		//nolint:errcheck
 		json.NewEncoder(out).Encode(envVars)
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(envVars)
 	case "text":
 		for _, envVar := range envVars {

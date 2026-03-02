@@ -22,8 +22,7 @@ type ConfigGcpCmd struct {
 }
 
 func (c *ConfigGcpCmd) Execute(args []string) error {
-	c.Help.Execute(args)
-	return nil
+	return c.Help.Execute(args)
 }
 
 type ReauthenticateCmd struct {

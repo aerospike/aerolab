@@ -161,7 +161,7 @@ func decodeFromLabels(labels map[string]string) (map[string]string, error) {
 		if strings.HasPrefix(k, "aerolab-metadata-") {
 			// Parse chunk index from key
 			var index int
-			fmt.Sscanf(k, "aerolab-metadata-%d", &index)
+			fmt.Sscanf(k, "aerolab-metadata-%d", &index) //nolint:errcheck
 			chunks[index] = v
 			if index > maxIndex {
 				maxIndex = index

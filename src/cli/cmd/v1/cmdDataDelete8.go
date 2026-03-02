@@ -70,6 +70,7 @@ func (c *DataDeleteCmd) delete8(args []string, log *logger.Logger) error {
 		return fmt.Errorf("error connecting to Aerospike: %w", err)
 	}
 
+	//nolint:errcheck
 	client.WarmUp(100)
 
 	total := c.PkEndNumber - c.PkStartNumber + 1

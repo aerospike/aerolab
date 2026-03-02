@@ -256,7 +256,10 @@ func (c *ConfRackIdCmd) processInstance(instance *backends.Instance, namespaces 
 				stanza := s.Stanza(key)
 
 				// Set rack-id
-				stanza.SetValue("rack-id", c.RackId)
+				err = stanza.SetValue("rack-id", c.RackId)
+				if err != nil {
+					return fmt.Errorf("failed to set rack-id: %w", err)
+				}
 				changes = true
 				foundns++
 

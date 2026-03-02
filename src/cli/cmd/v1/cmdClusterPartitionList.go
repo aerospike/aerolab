@@ -90,6 +90,7 @@ func (c *ClusterPartitionListCmd) PartitionListCluster(system *System, inventory
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(output)
 			w.Close()
 		}()
@@ -98,10 +99,12 @@ func (c *ClusterPartitionListCmd) PartitionListCluster(system *System, inventory
 			return err
 		}
 	case "json":
+		//nolint:errcheck
 		json.NewEncoder(os.Stdout).Encode(output)
 	case "json-indent":
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(output)
 	default:
 		writer, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)

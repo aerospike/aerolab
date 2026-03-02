@@ -399,10 +399,12 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		y := yaml.NewEncoder(os.Stderr)
 		y.SetIndent(2)
 		logger.Info("1. InstancesCreateCmd:")
+		//nolint:errcheck
 		y.Encode(instancesCreate)
 		logger.Info("2. Run Install Script")
 		logger.Info("3. Stop Instance")
 		logger.Info("4. ImagesCreateCmd:")
+		//nolint:errcheck
 		y.Encode(imagesCreate)
 		logger.Info("5. Destroy Temporary Instance")
 		y.Close()

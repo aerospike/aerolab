@@ -94,6 +94,7 @@ func (h *HTTPSNotify) NotifyData(data []byte) error {
 	if h.Endpoint != "" {
 		if !h.AbortOnFail && len(h.AbortOnCode) == 0 {
 			h.wg.Go(func() {
+				//nolint:errcheck
 				h.notify(data)
 			})
 		} else {
@@ -218,6 +219,7 @@ func (h *HTTPSNotify) notifyAgiAuthHeaders() map[string]string {
 	secret, err := os.ReadFile("/opt/agi/uuid")
 	if err != nil {
 		secret = []byte(uuid.New().String())
+		//nolint:errcheck
 		os.WriteFile("/opt/agi/uuid", secret, 0644)
 	}
 	a["Agi-Monitor-Secret"] = strings.Trim(string(secret), "\r\n\t ")

@@ -489,6 +489,7 @@ func (c *AgiDetailsCmd) renderOutput(system *System, output AgiDetailsOutput, ou
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(output)
 			w.Close()
 		}()

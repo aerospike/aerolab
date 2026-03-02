@@ -111,6 +111,7 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 		if c.Command != "" || c.Key != "" || len(c.Values) > 0 {
 			args = append([]string{c.Command, c.Key}, c.Values...)
 		} else {
+			//nolint:errcheck
 			c.Help.help("Zero args provided and no values are set")
 			return nil
 		}
@@ -120,6 +121,7 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 	if len(args) > 1 {
 		path = args[1]
 	} else if command != "get" {
+		//nolint:errcheck
 		c.Help.help("Command provided requires more arguments")
 		return nil
 	}
@@ -128,11 +130,13 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 	switch command {
 	case "get":
 		if len(args) > 2 {
+			//nolint:errcheck
 			c.Help.help("Get command does not accept value parameters")
 			return nil
 		}
 	case "delete":
 		if len(args) != 2 {
+			//nolint:errcheck
 			c.Help.help("Invalid argument count for delete command")
 			return nil
 		}
@@ -142,6 +146,7 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 		}
 	case "create":
 		if len(args) != 2 {
+			//nolint:errcheck
 			c.Help.help("Invalid argument count for create command")
 			return nil
 		}
@@ -232,6 +237,7 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 				}
 			}
 			var buf bytes.Buffer
+			//nolint:errcheck
 			sa.Write(&buf, prefix, "    ", true)
 			fmt.Print(buf.String())
 		case "delete":

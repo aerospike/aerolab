@@ -14,7 +14,8 @@ import (
 func TestPrometheusLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := prometheus.GetLinuxInstallScript(nil, new(false), false, false)
 	require.NoError(t, err)
@@ -34,7 +35,8 @@ func TestPrometheusLatestUbuntu24(t *testing.T) {
 func TestPrometheusLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := prometheus.GetLinuxInstallScript(nil, new(false), false, false)
 	require.NoError(t, err)

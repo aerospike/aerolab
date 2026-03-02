@@ -55,7 +55,7 @@ func Init(config *Config) (*Plugin, error) {
 	}
 	if config.LogLevel >= 5 {
 		log.Printf("DEBUG: ==== CONFIG ====")
-		yaml.NewEncoder(os.Stdout).Encode(config)
+		yaml.NewEncoder(os.Stdout).Encode(config) //nolint:errcheck
 	}
 	log.Printf("DEBUG: INIT: Connect to backend")
 	p := &Plugin{

@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"log"
+
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/rglonek/sbs"
-	"log"
 )
 
 func isSocketTimeout(ctx context.Context) bool {
@@ -35,7 +36,7 @@ func (p *Plugin) timedCheckSocketTimeout(ctx context.Context, resultSet *aerospi
 				resultSet.Close()
 			}
 			for _, node := range p.db.GetNodes() {
-				node.RequestInfo(p.ip, fmt.Sprintf("jobs:module=query;cmd=kill-job;trid=%d", resultSet.TaskId()))
+				node.RequestInfo(p.ip, fmt.Sprintf("jobs:module=query;cmd=kill-job;trid=%d", resultSet.TaskId())) //nolint:errcheck
 			}
 			return
 		}
@@ -161,6 +162,6 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 	log.Printf("INFO: QUERY SEND_DATA (type:query) (remote:%s) (db.Get.Time:%s)", r.RemoteAddr, time.Since(dtime).String())
 	stime := time.Now()
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(responses)
+	json.NewEncoder(w).Encode(responses) //nolint:errcheck
 	log.Printf("INFO: QUERY SENT (type:query) (remote:%s) (sendTime:%s)", r.RemoteAddr, time.Since(stime).String())
 }

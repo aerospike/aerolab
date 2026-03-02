@@ -233,13 +233,12 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 				maps.Copy(data, tags)
 				labels := encodeToLabels(data)
 				labels["usedby"] = "aerolab"
-				vd := getVolumeDetail(vol)
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: new(vd.LabelFingerprint),
+						LabelFingerprint: new(getVolumeDetail(vol).LabelFingerprint),
 						Labels:           labels,
 					},
 				})
@@ -299,13 +298,12 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 				}
 				labels := encodeToLabels(data)
 				labels["usedby"] = "aerolab"
-				vd := getVolumeDetail(vol)
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: new(vd.LabelFingerprint),
+						LabelFingerprint: new(getVolumeDetail(vol).LabelFingerprint),
 						Labels:           labels,
 					},
 				})

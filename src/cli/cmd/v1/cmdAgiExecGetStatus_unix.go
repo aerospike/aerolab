@@ -120,7 +120,10 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 	steps := new(ingest.IngestSteps)
 	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 	if err == nil {
-		json.Unmarshal(f, steps)
+		err = json.Unmarshal(f, steps)
+		if err != nil {
+			return nil, err
+		}
 	}
 	status.Ingest.CompleteSteps = steps
 
@@ -132,6 +135,7 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		defer reader.Close()
 		p := new(ingest.ProgressDownloader)
+		//nolint:errcheck
 		json.NewDecoder(reader).Decode(p)
 		totalSize := int64(0)
 		dlSize := int64(0)
@@ -184,6 +188,7 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		defer reader.Close()
 		p := new(ingest.ProgressUnpacker)
+		//nolint:errcheck
 		json.NewDecoder(reader).Decode(p)
 		for fn, f := range p.Files {
 			for _, nerr := range f.Errors {
@@ -207,6 +212,7 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		defer reader.Close()
 		p := new(ingest.ProgressPreProcessor)
+		//nolint:errcheck
 		json.NewDecoder(reader).Decode(p)
 		for fn, f := range p.Files {
 			for _, nerr := range f.Errors {
@@ -230,6 +236,7 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		defer reader.Close()
 		p := new(ingest.ProgressLogProcessor)
+		//nolint:errcheck
 		json.NewDecoder(reader).Decode(p)
 		totalSize := int64(0)
 		dlSize := int64(0)
@@ -274,6 +281,7 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		defer reader.Close()
 		p := new(ingest.ProgressCollectProcessor)
+		//nolint:errcheck
 		json.NewDecoder(reader).Decode(p)
 		for fn, f := range p.Files {
 			for _, nerr := range f.Errors {

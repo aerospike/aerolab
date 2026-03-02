@@ -12,6 +12,7 @@ type ConfigCmd struct {
 }
 
 func (c *ConfigCmd) Execute(args []string) error {
+	//nolint:errcheck
 	c.Help.Execute(args)
 	return nil
 }

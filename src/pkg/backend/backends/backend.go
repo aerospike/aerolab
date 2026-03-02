@@ -51,7 +51,7 @@ func (b *backend) AddRegion(backendType BackendType, names ...string) error {
 	b.invalidatedLock.Lock()
 	defer b.invalidatedLock.Unlock()
 	b.invalidated = CacheInvalidateAll
-	b.cache.Delete()
+	b.cache.Delete() //nolint:errcheck
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (b *backend) RemoveRegion(backendType BackendType, names ...string) error {
 	b.invalidatedLock.Lock()
 	defer b.invalidatedLock.Unlock()
 	b.invalidated = CacheInvalidateAll
-	b.cache.Delete()
+	b.cache.Delete() //nolint:errcheck
 	return nil
 }
 

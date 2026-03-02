@@ -139,6 +139,17 @@ clean:
 	rm -f ../bin/deb.deb
 	rm -f ../bin/aerolab
 
+.PHONY: check
+check:
+	cd cli
+	echo "===== Vetting CLI..."
+	go vet -diff -fix ./...
+	echo "===== Running go fix..."
+	go fix -diff ./...
+	echo "===== Linting CLI..."
+	golangci-lint run ./...
+	echo "===== Done"
+
 ## actual code
 
 OS := $(shell uname -o)

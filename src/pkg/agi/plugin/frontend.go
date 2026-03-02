@@ -31,12 +31,14 @@ func (p *Plugin) Listen() error {
 func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
 	log.Printf("INFO: Listener: received ping from %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	w.Write([]byte("OK"))
 }
 
 func (p *Plugin) handleShutdown(w http.ResponseWriter, r *http.Request) {
 	log.Printf("INFO: Listener: shutdown request from %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
 	w.Write([]byte("Shutting down..."))
 	go func() {
 		timeout := p.config.Aerospike.Timeouts.QueryTotal

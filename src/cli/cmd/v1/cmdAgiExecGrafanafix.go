@@ -44,14 +44,16 @@ func (c *AgiExecGrafanaFixCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	// Ensure /opt/agi directory exists
+	//nolint:errcheck
 	os.MkdirAll("/opt/agi", 0755)
 
 	// Write PID file for process management
+	//nolint:errcheck
 	os.WriteFile("/opt/agi/grafanafix.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove("/opt/agi/grafanafix.pid")
 
 	// Load configuration
-	conf := new(grafanafix.GrafanaFix)
+	var conf *grafanafix.GrafanaFix
 	yamlFile := c.YamlFile
 	if _, err := os.Stat(yamlFile); !os.IsNotExist(err) {
 		f, err := os.Open(yamlFile)
@@ -75,6 +77,7 @@ func (c *AgiExecGrafanaFixCmd) Execute(args []string) error {
 	// Stop Grafana if running
 	log.Print("Stopping grafana")
 	time.Sleep(1 * time.Second)
+	//nolint:errcheck
 	exec.Command("service", "grafana-server", "stop").CombinedOutput()
 	time.Sleep(1 * time.Second)
 
@@ -86,6 +89,7 @@ func (c *AgiExecGrafanaFixCmd) Execute(args []string) error {
 			// Grafana has stopped
 			break
 		}
+		//nolint:errcheck
 		exec.Command("service", "grafana-server", "stop").CombinedOutput()
 		time.Sleep(time.Second)
 		waited++
@@ -137,4 +141,3 @@ func (c *AgiExecGrafanaFixCmd) Execute(args []string) error {
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
 }
-

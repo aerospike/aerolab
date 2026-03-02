@@ -14,7 +14,8 @@ import (
 func TestGoproxyLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := goproxy.GetLinuxInstallScript(nil, nil, false)
 	require.NoError(t, err)
@@ -34,7 +35,8 @@ func TestGoproxyLatestUbuntu24(t *testing.T) {
 func TestGoproxyLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := goproxy.GetLinuxInstallScript(nil, nil, false)
 	require.NoError(t, err)

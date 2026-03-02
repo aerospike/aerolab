@@ -59,10 +59,12 @@ func (c *CloudClustersVPCPeeringStatusCmd) Execute(args []string) error {
 	switch c.Output {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
+		//nolint:errcheck
 		enc.Encode(status)
 	default: // json-indent
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(status)
 	}
 

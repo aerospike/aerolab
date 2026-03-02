@@ -227,6 +227,7 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 		enc := json.NewEncoder(w)
 		go func() {
 			outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
+			//nolint:errcheck
 			enc.Encode(outputData)
 			w.Close()
 		}()
@@ -236,11 +237,13 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 		}
 	case "json":
 		outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
+		//nolint:errcheck
 		json.NewEncoder(out).Encode(outputData)
 	case "json-indent":
 		outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(outputData)
 	case "text":
 		fmt.Fprintln(out, "Aerospike Cloud Clusters:")

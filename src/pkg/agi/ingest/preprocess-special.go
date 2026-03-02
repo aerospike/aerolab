@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gabriel-vasile/mimetype"
 	"log"
+
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/rglonek/sbs"
 )
 
@@ -33,6 +34,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 	if err != nil {
 		return nil, err
 	}
+	//nolint:errcheck
 	fh.Seek(0, 0)
 	// test for tab formats
 	line := strings.Split(sbs.ByteSliceToString(b), "\n")[0]

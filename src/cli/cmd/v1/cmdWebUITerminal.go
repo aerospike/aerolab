@@ -235,13 +235,16 @@ func (c *WebUICmd) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 				// Text messages may be JSON control messages (e.g. resize)
 				var ctrl wsControlMessage
 				if json.Unmarshal(msg, &ctrl) == nil && ctrl.Type == "resize" && ctrl.Cols > 0 && ctrl.Rows > 0 {
+					//nolint:errcheck
 					session.WindowChange(ctrl.Rows, ctrl.Cols)
 					continue
 				}
 				// Otherwise treat as terminal input
+				//nolint:errcheck
 				stdinPipe.Write(msg)
 			case websocket.BinaryMessage:
 				// Binary messages are raw terminal input
+				//nolint:errcheck
 				stdinPipe.Write(msg)
 			}
 		}
@@ -264,6 +267,7 @@ func (c *WebUICmd) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Wait for SSH session to finish
+	//nolint:errcheck
 	session.Wait()
 	close(done)
 

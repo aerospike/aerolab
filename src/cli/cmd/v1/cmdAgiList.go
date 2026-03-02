@@ -287,6 +287,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(fullOutput)
 			w.Close()
 		}()
@@ -295,10 +296,12 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			return err
 		}
 	case "json":
+		//nolint:errcheck
 		json.NewEncoder(out).Encode(fullOutput)
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(fullOutput)
 	case "text":
 		fmt.Fprintln(out, "AGI INSTANCES:")
@@ -374,6 +377,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 					parts := strings.Split(agi.Expires, "h")
 					if len(parts) > 0 {
 						hours := 0
+						//nolint:errcheck
 						fmt.Sscanf(parts[0], "%d", &hours)
 						if hours < 6 {
 							expires = t.ColorWarn.Sprint(agi.Expires)
@@ -457,6 +461,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 						parts := strings.Split(vol.Expires, "h")
 						if len(parts) > 0 {
 							hours := 0
+							//nolint:errcheck
 							fmt.Sscanf(parts[0], "%d", &hours)
 							if hours < 6 {
 								expires = t.ColorWarn.Sprint(vol.Expires)

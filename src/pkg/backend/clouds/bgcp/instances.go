@@ -429,8 +429,8 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 		maps0.Copy(newTags, tags)
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
-		id := getInstanceDetail(instance)
-		fingerprint := id.LabelFingerprint
+		instanceDetail := getInstanceDetail(instance)
+		labelFingerprint := instanceDetail.LabelFingerprint
 
 		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
 		const maxRetries = 3
@@ -441,7 +441,7 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 				Project:  s.credentials.Project,
 				Zone:     instance.ZoneName,
 				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-					LabelFingerprint: new(fingerprint),
+					LabelFingerprint: new(labelFingerprint),
 					Labels:           labels,
 				},
 			})
@@ -451,12 +451,13 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 			// Check if it's a 412 precondition failed error (fingerprint mismatch)
 			if strings.Contains(err.Error(), "412") || strings.Contains(err.Error(), "fingerprint") {
 				log.Detail("Label fingerprint mismatch on %s, fetching fresh fingerprint (retry %d/%d)", instance.InstanceID, retry+1, maxRetries)
-				newFingerprint, currentLabels, fetchErr := fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
+				var currentLabels map[string]string
+				var fetchErr error
+				labelFingerprint, currentLabels, fetchErr = fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
 				if fetchErr != nil {
 					log.Detail("Failed to fetch fresh fingerprint: %s", fetchErr)
 					return err // Return original error
 				}
-				fingerprint = newFingerprint
 				// Merge current labels with our new tags to avoid losing any concurrent updates
 				for k, v := range currentLabels {
 					if _, exists := labels[k]; !exists {
@@ -521,8 +522,8 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
-		id := getInstanceDetail(instance)
-		fingerprint := id.LabelFingerprint
+		instanceDetail := getInstanceDetail(instance)
+		labelFingerprint := instanceDetail.LabelFingerprint
 
 		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
 		const maxRetries = 3
@@ -533,7 +534,7 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 				Project:  s.credentials.Project,
 				Zone:     instance.ZoneName,
 				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-					LabelFingerprint: new(fingerprint),
+					LabelFingerprint: new(labelFingerprint),
 					Labels:           labels,
 				},
 			})
@@ -543,12 +544,13 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 			// Check if it's a 412 precondition failed error (fingerprint mismatch)
 			if strings.Contains(err.Error(), "412") || strings.Contains(err.Error(), "fingerprint") {
 				log.Detail("Label fingerprint mismatch on %s, fetching fresh fingerprint (retry %d/%d)", instance.InstanceID, retry+1, maxRetries)
-				newFingerprint, currentLabels, fetchErr := fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
+				var currentLabels map[string]string
+				var fetchErr error
+				labelFingerprint, currentLabels, fetchErr = fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
 				if fetchErr != nil {
 					log.Detail("Failed to fetch fresh fingerprint: %s", fetchErr)
 					return err // Return original error
 				}
-				fingerprint = newFingerprint
 				// Rebuild labels from fresh data, removing the specified tags
 				labels = make(map[string]string)
 				for k, v := range currentLabels {
@@ -1211,18 +1213,20 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 
 		var iops, throughput *int32
 		if diskIops != "" {
-			i, err := strconv.ParseInt(diskIops, 10, 32)
+			iopsVal, err := strconv.ParseInt(diskIops, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - iops must be a number", diskDef)
 			}
-			iops = new(int32(i))
+			v := int32(iopsVal)
+			iops = &v
 		}
 		if diskThroughput != "" {
-			t, err := strconv.ParseInt(diskThroughput, 10, 32)
+			throughputVal, err := strconv.ParseInt(diskThroughput, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - throughput must be a number", diskDef)
 			}
-			throughput = new(int32(t))
+			v := int32(throughputVal)
+			throughput = &v
 		}
 
 		for i := int64(0); i < count; i++ {
@@ -1236,17 +1240,18 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 				boot = true
 				nI++
 			}
-			deviceName := fmt.Sprintf("xvd%c", nextLetter)
-			if lastDisk != 'a'-1 {
-				deviceName = fmt.Sprintf("xvd%c%c", lastDisk, nextLetter)
-			}
+			deviceName := func() string {
+				if lastDisk != 'a'-1 {
+					return fmt.Sprintf("xvd%c%c", lastDisk, nextLetter)
+				}
+				return fmt.Sprintf("xvd%c", nextLetter)
+			}()
 			nextLetter++
 			if nextLetter > 'z' {
 				nextLetter = 'a'
 				lastDisk++
 			}
 
-			diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, diskType)
 			attachmentType := new(computepb.AttachedDisk_SCRATCH.String())
 			var devIface *string
 			var piops *int64
@@ -1275,7 +1280,7 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 					DiskSizeGb:            &size,
 					DiskName:              diskName,
 					SourceImage:           simage,
-					DiskType:              new(diskTypeFull),
+					DiskType:              new(fmt.Sprintf("zones/%s/diskTypes/%s", zone, diskType)),
 					ProvisionedIops:       piops,
 					ProvisionedThroughput: pput,
 					Labels:                nodeVolumeTagsEncoded,
@@ -1578,22 +1583,24 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if err != nil {
 		return nil, fmt.Errorf("failed to read embedded userdata: %v", err)
 	}
-	userDataString := fmt.Sprintf(string(userData), string(publicKeyBytes))
 
 	gcpTags["usedby"] = "aerolab"
 
-	onHostMaintenance := "MIGRATE"
+	var onHostMaintenance string
+	switch {
+	case backendSpecificParams.OnHostMaintenance != "":
+		onHostMaintenance = backendSpecificParams.OnHostMaintenance
+	case backendSpecificParams.SpotInstance:
+		onHostMaintenance = "TERMINATE"
+	default:
+		onHostMaintenance = "MIGRATE"
+	}
 	autoRestart := true
 	provisioning := "STANDARD"
 	if backendSpecificParams.SpotInstance {
 		provisioning = "SPOT"
 		autoRestart = false
-		onHostMaintenance = "TERMINATE"
 		gcpTags["isspot"] = "true"
-	}
-	// Override onHostMaintenance if explicitly set
-	if backendSpecificParams.OnHostMaintenance != "" {
-		onHostMaintenance = backendSpecificParams.OnHostMaintenance
 	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if input.TerminateOnStop || backendSpecificParams.IAMInstanceProfile != "" {
@@ -1656,7 +1663,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					Items: []*computepb.Items{
 						{
 							Key:   new("startup-script"),
-							Value: new(userDataString),
+							Value: new(fmt.Sprintf(string(userData), string(publicKeyBytes))),
 						},
 					},
 				},

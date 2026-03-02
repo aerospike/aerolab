@@ -106,9 +106,12 @@ func (c *WebUICmd) handleFSLs(w http.ResponseWriter, r *http.Request) {
 	files := []string{}
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == "" || name[0] == '.' {
-			// Skip hidden files by default, or include them - including for now
-		}
+		/*
+			if name == "" || name[0] == '.' {
+				// Skip hidden files by default
+				continue
+			}
+		*/
 		if entry.IsDir() {
 			dirs = append(dirs, name)
 		} else {

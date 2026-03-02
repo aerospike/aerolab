@@ -59,6 +59,7 @@ func Init(config *Config) (*Ingest, error) {
 	}
 	if config.LogLevel >= 5 {
 		log.Printf("DEBUG: ==== CONFIG ====")
+		//nolint:errcheck
 		yaml.NewEncoder(os.Stdout).Encode(config)
 	}
 	p := new(patterns)

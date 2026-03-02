@@ -1,0 +1,15 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/aerospike/aerolab/pkg/backend/backends.Architecture).FromString
+        - (github.com/aerospike/aerolab/pkg/backend/backends.Backend).ForceRefreshInventory
+  exclusions:
+    rules:
+      - linters:
+          - errcheck
+        source: "defer s.invalidateCacheFunc"
+      - linters:
+          - errcheck
+        source: "PrintHelp"

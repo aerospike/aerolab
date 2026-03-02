@@ -14,7 +14,7 @@ import (
 func TestCompilersLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	require.NoError(t, os.MkdirAll("dockertest", 0755))
 
 	script, err := compilers.GetInstallScript(
 		[]compilers.Compiler{compilers.CompilerBuildEssentials, compilers.CompilerDotnet, compilers.CompilerGo, compilers.CompilerPython3},
@@ -43,7 +43,7 @@ func TestCompilersLatestUbuntu24(t *testing.T) {
 func TestCompilersLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	require.NoError(t, os.MkdirAll("dockertest", 0755))
 
 	script, err := compilers.GetInstallScript(
 		[]compilers.Compiler{compilers.CompilerBuildEssentials, compilers.CompilerDotnet, compilers.CompilerGo, compilers.CompilerPython3},

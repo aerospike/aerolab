@@ -2441,6 +2441,7 @@ fi
 	return nil
 }
 
+/* unused function
 // getAccessURL returns the access URL for the AGI instance.
 func (c *AgiCreateCmd) getAccessURL(instance backends.InstanceList, backendType string) string {
 	instances := instance.Describe()
@@ -2499,6 +2500,7 @@ func (c *AgiCreateCmd) getAccessURL(instance backends.InstanceList, backendType 
 
 	return fmt.Sprintf("%s://%s", protocol, ip)
 }
+*/
 
 // getLogsFromCluster retrieves logs from a source cluster.
 func (c *AgiCreateCmd) getLogsFromCluster(system *System, inventory *backends.Inventory, logger *logger.Logger) (string, error) {
@@ -2528,6 +2530,7 @@ func (c *AgiCreateCmd) getLogsFromCluster(system *System, inventory *backends.In
 		}
 
 		nodeDir := fmt.Sprintf("%s/node-%d", tmpDir, inst.NodeNo)
+		//nolint:errcheck
 		os.MkdirAll(nodeDir, 0755)
 
 		confs, err := backends.InstanceList{inst}.GetSftpConfig("root")
@@ -2560,6 +2563,7 @@ func (c *AgiCreateCmd) getLogsFromCluster(system *System, inventory *backends.In
 					RetrySleep:      c.RetrySleep,
 				})
 				if len(outputs) > 0 && outputs[0].Output.Err == nil {
+					//nolint:errcheck
 					os.WriteFile(fmt.Sprintf("%s/aerospike.log", nodeDir), outputs[0].Output.Stdout, 0644)
 				}
 			} else {
@@ -2688,6 +2692,7 @@ func uploadDirectoryRecursive(cli *sshexec.Sftp, localBase, remoteBase, subPath 
 	return nil
 }
 
+/* unused function
 // getRoute53DomainInfo queries Route53 to get the hosted zone's domain name
 // and computes the DNS record name (subdomain) from the FQDN.
 //
@@ -2735,6 +2740,7 @@ func (c *AgiCreateCmd) getRoute53DomainInfo(system *System, logger *logger.Logge
 
 	return dnsName, domainName, nil
 }
+*/
 
 // configureAGIDNS creates a Route53 DNS record for the AGI instance.
 // The DNS name format is: {prefix}.{region}.agi.{domain}

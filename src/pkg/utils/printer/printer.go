@@ -34,7 +34,7 @@ func GetTableWriter(renderType string, theme string, sortBy []string, forceColor
 		if len(sortSplit) != 2 {
 			return nil, errors.New("sort item wrong format")
 		}
-		mmode := table.Asc
+		var mmode table.SortMode
 		switch sortSplit[1] {
 		case "asc":
 			mmode = table.Asc
@@ -129,10 +129,11 @@ func GetTableWriter(renderType string, theme string, sortBy []string, forceColor
 		width, _, err := term.GetSize(int(os.Stdout.Fd()))
 		if err != nil || width < 1 {
 			width = 40
-		} else {
-			if width < 40 {
-				width = 40
-			}
+		}
+		if width >= 1 && width < 40 {
+			width = 40
+		}
+		if width >= 1 {
 			t.SetAllowedRowLength(width)
 		}
 	}

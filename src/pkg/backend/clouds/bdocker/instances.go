@@ -30,7 +30,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/charmbracelet/x/term"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -172,7 +172,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 				}
 				nodeNo, _ := strconv.Atoi(container.Labels[TAG_NODE_NO])
 				var arch backends.Architecture
-				arch.FromString(container.Labels[TAG_ARCHITECTURE])
+				arch.FromString(container.Labels[TAG_ARCHITECTURE]) //nolint:errcheck
 				name := container.ID
 				if len(container.Names) > 0 {
 					name = strings.TrimPrefix(container.Names[0], "/")
@@ -318,8 +318,8 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		removeSSHKey = true
 	}
 
-	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
-	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
+	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)   //nolint:errcheck
 	instanceIds := make(map[string][]string)
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
@@ -373,7 +373,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
 	instanceIds := make(map[string][]string)
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
@@ -434,7 +434,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
 	instanceIds := make(map[string][]string)
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
@@ -908,20 +908,28 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					df = fmt.Appendf(nil, string(df), backendSpecificParams.Image.Name)
 					buf := new(bytes.Buffer)
 					tw := tar.NewWriter(buf)
-					tw.WriteHeader(&tar.Header{
+					if err := tw.WriteHeader(&tar.Header{
 						Name: "Dockerfile",
 						Mode: 0644,
 						Size: int64(len(df)),
-					})
-					tw.Write(df)
-					tw.WriteHeader(&tar.Header{
+					}); err != nil {
+						return fmt.Errorf("tar write header: %w", err)
+					}
+					if _, err := tw.Write(df); err != nil {
+						return fmt.Errorf("tar write Dockerfile: %w", err)
+					}
+					if err := tw.WriteHeader(&tar.Header{
 						Name: "userdata.sh",
 						Mode: 0755,
 						Size: int64(len(ud)),
-					})
-					tw.Write(ud)
-					tw.Flush()
-					tw.Close()
+					}); err != nil {
+						return fmt.Errorf("tar write header: %w", err)
+					}
+					if _, err := tw.Write(ud); err != nil {
+						return fmt.Errorf("tar write userdata: %w", err)
+					}
+					tw.Flush() //nolint:errcheck
+					tw.Close() //nolint:errcheck
 					pf := "linux/amd64"
 					switch backendSpecificParams.Image.Architecture {
 					case backends.ArchitectureARM64:
@@ -935,7 +943,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					if s.isPodman[backendSpecificParams.Image.ZoneName] {
 						newNameTag = "localhost/" + newNameTag
 					}
-					builder, err := cli.ImageBuild(context.Background(), buf, types.ImageBuildOptions{
+					builder, err := cli.ImageBuild(context.Background(), buf, build.ImageBuildOptions{
 						Tags: []string{
 							newNameTag,
 						},
@@ -947,7 +955,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 						Labels:         imgLabels,
 						Squash:         false,
 						Platform:       pf,
-						Outputs:        []types.ImageBuildOutput{},
+						Outputs:        []build.ImageBuildOutput{},
 					})
 					if err != nil {
 						return fmt.Errorf("failed to build image: %v", err)
@@ -1549,22 +1557,22 @@ func ExecWithCLI(
 		sshexec.AddRestoreRequest()
 		defer sshexec.RestoreTerminal()
 		if term.IsTerminal(os.Stdin.Fd()) {
-			term.MakeRaw(os.Stdin.Fd())
+			term.MakeRaw(os.Stdin.Fd()) //nolint:errcheck
 		}
 	}
 	go func() {
-		io.Copy(stdout, resp.Reader)
+		io.Copy(stdout, resp.Reader) //nolint:errcheck
 		resp.Close()
-		resp.CloseWrite()
+		resp.CloseWrite() //nolint:errcheck
 		resp.Conn.Close()
 		if stdin != nil {
 			stdin.Close()
 		}
 	}()
 	go func() {
-		io.Copy(stderr, resp.Reader)
+		io.Copy(stderr, resp.Reader) //nolint:errcheck
 		resp.Close()
-		resp.CloseWrite()
+		resp.CloseWrite() //nolint:errcheck
 		resp.Conn.Close()
 		if stdin != nil {
 			stdin.Close()
@@ -1572,7 +1580,7 @@ func ExecWithCLI(
 	}()
 	go func() {
 		if stdin != nil {
-			io.Copy(resp.Conn, stdin)
+			io.Copy(resp.Conn, stdin) //nolint:errcheck
 		}
 	}()
 
@@ -1614,7 +1622,7 @@ func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
 //
 // Returns:
 //   - string: the computed access URL, or empty string if not applicable
-func computeAccessURL(clientType string, ports []types.Port) string {
+func computeAccessURL(clientType string, ports []container.Port) string {
 	if clientType == "" {
 		return ""
 	}

@@ -129,6 +129,7 @@ func (c *ImagesDeleteCmd) DeleteImage(system *System, inventory *backends.Invent
 	system.Logger.Info("DRY-RUN: Would delete %d images", images.Count())
 	system.Opts.Images.List.Filters.Owner = ""
 	system.Opts.Images.List.Filters.Type = "all"
+	//nolint:errcheck
 	system.Opts.Images.List.ListImages(system, &backends.Inventory{Images: images}, []string{}, os.Stdout, nil)
 	return nil
 }

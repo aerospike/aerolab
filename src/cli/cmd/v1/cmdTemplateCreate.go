@@ -377,10 +377,12 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		y := yaml.NewEncoder(os.Stderr)
 		y.SetIndent(2)
 		logger.Info("1. InstancesCreateCmd:")
+		//nolint:errcheck
 		y.Encode(instancesCreate)
 		logger.Info("2. Run Install Script")
 		logger.Info("3. InstancesStop")
 		logger.Info("4. ImagesCreateCmd:")
+		//nolint:errcheck
 		y.Encode(imagesCreate)
 		logger.Info("5. InstancesDestroy")
 		y.Close()

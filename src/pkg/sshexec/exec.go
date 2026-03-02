@@ -119,7 +119,7 @@ func ExecRun(session *ssh.Session, conn *ssh.Client, i *ExecInput) *ExecOutput {
 
 	// Set the terminal
 	if i.Terminal {
-		session.Setenv("TERM", "xterm-256color")
+		session.Setenv("TERM", "xterm-256color") //nolint:errcheck
 		modes := ssh.TerminalModes{
 			ssh.ECHO:          1,     // Enable echoing
 			ssh.TTY_OP_ISPEED: 14400, // Input speed = 14.4kbaud
@@ -317,7 +317,7 @@ func init() {
 			// Register terminal restore with shutdown handler for signal-based cleanup
 			shutdown.AddEarlyCleanupJob("terminal-restore", func(isSignal bool) {
 				if savedTermState != nil {
-					term.Restore(fileDescriptor, savedTermState)
+					term.Restore(fileDescriptor, savedTermState) //nolint:errcheck
 					logger.SetRawTerminalMode(false)
 				}
 			})

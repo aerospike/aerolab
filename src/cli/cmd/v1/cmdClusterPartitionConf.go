@@ -423,14 +423,26 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 			maxRecordsStr := p.Sprintf("%d", maxRecords)
 			if spaceRequired > maxUsableBytes {
 				log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", inst.NodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
-				namespace.SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+				err = namespace.SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+				if err != nil {
+					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+					return
+				}
 			} else if maxSprigs > treeSprigsInt {
 				log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", inst.NodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
-				namespace.SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+				err = namespace.SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+				if err != nil {
+					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+					return
+				}
 			}
 		}
 		buf = &bytes.Buffer{}
-		aconf.Write(buf, "", "    ", true)
+		err = aconf.Write(buf, "", "    ", true)
+		if err != nil {
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+			return
+		}
 		err = client.WriteFile(true, &sshexec.FileWriter{
 			DestPath:    c.ConfigPath,
 			Source:      buf,

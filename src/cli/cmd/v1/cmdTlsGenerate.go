@@ -202,7 +202,7 @@ func (c *TlsGenerateCmd) generateCertificates() error {
 	if err := os.Chdir("CA"); err != nil {
 		return fmt.Errorf("failed to change to CA directory: %w", err)
 	}
-	defer os.Chdir("..")
+	defer os.Chdir("..") //nolint:errcheck
 
 	// Write openssl config
 	err := os.WriteFile("openssl.cnf", []byte(c.createOpensslConfig()), 0644)

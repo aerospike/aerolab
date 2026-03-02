@@ -25,8 +25,7 @@ type ConfigDockerCmd struct {
 }
 
 func (c *ConfigDockerCmd) Execute(args []string) error {
-	c.Help.Execute(args)
-	return nil
+	return c.Help.Execute(args)
 }
 
 type PruneNetworksCmd struct {
@@ -224,6 +223,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
+			//nolint:errcheck
 			enc.Encode(net)
 			w.Close()
 		}()
@@ -232,10 +232,12 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 			return err
 		}
 	case "json":
+		//nolint:errcheck
 		json.NewEncoder(out).Encode(net)
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck
 		enc.Encode(net)
 	case "text":
 		system.Logger.Info("Networks:")

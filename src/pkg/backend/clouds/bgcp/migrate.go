@@ -348,13 +348,11 @@ func (s *b) discoverOldInstances(force bool) ([]backends.OldInstance, error) {
 	}
 
 	// Filter for v7 instances
-	filter := fmt.Sprintf(`labels.%s="%s" OR labels.%s="%s"`,
-		V7_LABEL_USED_BY, V7_LABEL_SERVER_MARKER,
-		V7_LABEL_USED_BY, V7_LABEL_CLIENT_MARKER)
-
 	it := client.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
 		Project: s.credentials.Project,
-		Filter:  new(filter),
+		Filter: new(fmt.Sprintf(`labels.%s="%s" OR labels.%s="%s"`,
+			V7_LABEL_USED_BY, V7_LABEL_SERVER_MARKER,
+			V7_LABEL_USED_BY, V7_LABEL_CLIENT_MARKER)),
 	})
 
 	for {
@@ -439,11 +437,9 @@ func (s *b) discoverOldVolumes(force bool) ([]backends.OldVolume, error) {
 	}
 
 	// Filter for v7 volumes (usedby = aerolab7)
-	filter := fmt.Sprintf(`labels.%s="%s"`, V7_LABEL_VOLUME_USED_BY, V7_LABEL_VOLUME_MARKER)
-
 	it := client.AggregatedList(ctx, &computepb.AggregatedListDisksRequest{
 		Project: s.credentials.Project,
-		Filter:  new(filter),
+		Filter:  new(fmt.Sprintf(`labels.%s="%s"`, V7_LABEL_VOLUME_USED_BY, V7_LABEL_VOLUME_MARKER)),
 	})
 
 	for {

@@ -1137,11 +1137,13 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			return
 		}
 		defer client.Close()
-		client.WriteFile(true, &sshexec.FileWriter{
+		if err := client.WriteFile(true, &sshexec.FileWriter{
 			DestPath:    "/etc/hostname",
 			Source:      strings.NewReader(hostname),
 			Permissions: 0644,
-		})
+		}); err != nil {
+			system.Logger.Warn("Failed to write hostname file on node %d: %s", instance.NodeNo, err)
+		}
 	})
 
 	return instances.Instances, nil

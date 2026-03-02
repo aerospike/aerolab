@@ -433,6 +433,7 @@ func (c *WebUICmd) Execute(args []string) error {
 		close(c.shutdownChan)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		//nolint:errcheck
 		c.srv.Shutdown(ctx)
 
 		// Wait for second signal OR job completion
@@ -1208,6 +1209,7 @@ func (c *WebUICmd) executeJobAsync(job *Job) {
 	}
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatus(job.ID, JobStatusError, fmt.Sprintf("Failed to marshal input: %s", err))
 		return
 	}
@@ -1261,6 +1263,7 @@ func (c *WebUICmd) executeJobAsync(job *Job) {
 	// Setup stdin pipe
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatus(job.ID, JobStatusError, fmt.Sprintf("Failed to create stdin pipe: %s", err))
 		return
 	}
@@ -1268,6 +1271,7 @@ func (c *WebUICmd) executeJobAsync(job *Job) {
 	// Open log file for capturing output
 	logFile, err := c.jobManager.OpenLogFile(job)
 	if err != nil {
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatus(job.ID, JobStatusError, fmt.Sprintf("Failed to open log file: %s", err))
 		return
 	}
@@ -1358,12 +1362,15 @@ func (c *WebUICmd) executeJobAsync(job *Job) {
 	// Determine final status based on how the process ended
 	if ctx.Err() == context.DeadlineExceeded {
 		job.TimedOut = true
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatusWithMeta(job.ID, JobStatusFailed, "Job timed out after "+c.MaxJobRuntime, job)
 	} else if job.Cancelled {
 		// Job was cancelled by user via handleCancelJob
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatusWithMeta(job.ID, JobStatusFailed, "Cancelled by user", job)
 	} else if ctx.Err() == context.Canceled {
 		// Context was cancelled (likely due to server shutdown)
+		//nolint:errcheck
 		c.jobManager.UpdateJobStatusWithMeta(job.ID, JobStatusFailed, "Job was cancelled", job)
 	} else if err != nil {
 		c.jobManager.UpdateJobStatusWithMeta(job.ID, JobStatusFailed, err.Error(), job)

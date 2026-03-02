@@ -14,7 +14,8 @@ import (
 func TestGrafanaLatestUbuntu24(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := grafana.GetInstallScript("", false, false)
 	require.NoError(t, err)
@@ -34,7 +35,8 @@ func TestGrafanaLatestUbuntu24(t *testing.T) {
 func TestGrafanaLatestCentos8(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := grafana.GetInstallScript("", false, false)
 	require.NoError(t, err)
@@ -54,7 +56,8 @@ func TestGrafanaLatestCentos8(t *testing.T) {
 func TestGrafanaVersioned(t *testing.T) {
 	os.RemoveAll("dockertest")
 	defer os.RemoveAll("dockertest")
-	os.MkdirAll("dockertest", 0755)
+	err := os.MkdirAll("dockertest", 0755)
+	require.NoError(t, err)
 
 	script, err := grafana.GetInstallScript("10.4.19", false, false)
 	require.NoError(t, err)

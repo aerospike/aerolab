@@ -9,6 +9,5 @@ type FilesCmd struct {
 }
 
 func (c *FilesCmd) Execute(args []string) error {
-	c.Help.Execute(args)
-	return nil
+	return c.Help.Execute(args)
 }

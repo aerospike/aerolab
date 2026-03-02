@@ -45,7 +45,7 @@ func teardownTest() error {
 
 func TestAll(t *testing.T) {
 	t.Log("Tearing down")
-	teardownTest()
+	_ = teardownTest()
 	t.Log("Sleep 5 sec")
 	time.Sleep(5 * time.Second)
 	t.Log("Setting up")

@@ -1435,6 +1435,7 @@ func (m *agiMonitor) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, n
 
 // sendNotify sends a notification via the notifier.
 func (m *agiMonitor) sendNotify(nnotify *agiMonitorNotify) {
+	//nolint:errcheck
 	m.cmd.notifier.NotifyJSON(nnotify)
 
 	stageMsg := ""

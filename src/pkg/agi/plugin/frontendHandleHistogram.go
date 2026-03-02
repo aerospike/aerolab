@@ -10,9 +10,10 @@ import (
 	"time"
 
 	//"github.com/HdrHistogram/hdrhistogram-go"
+	"log"
+
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/rglonek/sbs"
-	"log"
 )
 
 type HistogramRequest struct {
@@ -56,6 +57,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	if _, ok := p.cache.metadata[req.Metric.Target]; !ok {
 		log.Printf("WARN: Query target %s does not exist (remote:%s)", req.Metric.Target, r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
+		//nolint:errcheck
 		w.Write([]byte("[]"))
 		return
 	}
@@ -171,6 +173,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck
 	json.NewEncoder(w).Encode(response)
 }
 

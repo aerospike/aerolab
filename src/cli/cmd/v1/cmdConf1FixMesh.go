@@ -172,16 +172,28 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 		return nil, err
 	}
 	if ac.Type("network") == aeroconf.ValueNil {
-		ac.NewStanza("network")
+		err = ac.NewStanza("network")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if ac.Stanza("network").Type("heartbeat") == aeroconf.ValueNil {
-		ac.Stanza("network").NewStanza("heartbeat")
+		err = ac.Stanza("network").NewStanza("heartbeat")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if ac.Stanza("network").Stanza("heartbeat").Type("interval") == aeroconf.ValueNil {
-		ac.Stanza("network").Stanza("heartbeat").SetValue("interval", "150")
+		err = ac.Stanza("network").Stanza("heartbeat").SetValue("interval", "150")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if ac.Stanza("network").Stanza("heartbeat").Type("timeout") == aeroconf.ValueNil {
-		ac.Stanza("network").Stanza("heartbeat").SetValue("timeout", "10")
+		err = ac.Stanza("network").Stanza("heartbeat").SetValue("timeout", "10")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if mode == "auto" {
@@ -209,12 +221,27 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 
 	switch mode {
 	case "mesh":
-		ac.Stanza("network").Stanza("heartbeat").Delete("multicast-group")
-		ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "mesh")
-		ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
-		ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		err = ac.Stanza("network").Stanza("heartbeat").Delete("multicast-group")
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "mesh")
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		if err != nil {
+			return nil, err
+		}
 		if ac.Stanza("network").Stanza("heartbeat").Type("port") == aeroconf.ValueNil && ac.Stanza("network").Stanza("heartbeat").Type("tls-port") == aeroconf.ValueNil {
-			ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
+			err = ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
+			if err != nil {
+				return nil, err
+			}
 		}
 		if ac.Stanza("network").Stanza("heartbeat").Type("port") != aeroconf.ValueNil {
 			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("port")
@@ -225,7 +252,10 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 			for _, val := range vals {
 				valx := strings.Trim(*val, "\r\n\t ")
 				if strings.HasPrefix(valx, "9") {
-					ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
+					err = ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
+					if err != nil {
+						return nil, err
+					}
 					break
 				} else {
 					port = valx
@@ -236,7 +266,10 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 				val := fmt.Sprintf("%s %s", intIps[j], port)
 				vals = append(vals, &val)
 			}
-			ac.Stanza("network").Stanza("heartbeat").SetValues("mesh-seed-address-port", vals)
+			err = ac.Stanza("network").Stanza("heartbeat").SetValues("mesh-seed-address-port", vals)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if ac.Stanza("network").Stanza("heartbeat").Type("tls-port") != aeroconf.ValueNil {
 			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("tls-port")
@@ -247,7 +280,10 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 			for _, val := range vals {
 				valx := strings.Trim(*val, "\r\n\t ")
 				if strings.HasPrefix(valx, "9") {
-					ac.Stanza("network").Stanza("heartbeat").SetValue("tls-port", "3012")
+					err = ac.Stanza("network").Stanza("heartbeat").SetValue("tls-port", "3012")
+					if err != nil {
+						return nil, err
+					}
 					break
 				} else {
 					port = valx
@@ -258,15 +294,33 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 				val := fmt.Sprintf("%s %s", intIps[j], port)
 				vals = append(vals, &val)
 			}
-			ac.Stanza("network").Stanza("heartbeat").SetValues("tls-mesh-seed-address-port", vals)
+			err = ac.Stanza("network").Stanza("heartbeat").SetValues("tls-mesh-seed-address-port", vals)
+			if err != nil {
+				return nil, err
+			}
 		}
 	case "mcast", "multicast":
-		ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "multicast")
-		ac.Stanza("network").Stanza("heartbeat").SetValue("multicast-group", addr)
-		ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
-		ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		err = ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "multicast")
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").SetValue("multicast-group", addr)
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
+		if err != nil {
+			return nil, err
+		}
+		err = ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		if err != nil {
+			return nil, err
+		}
 		if ac.Stanza("network").Stanza("heartbeat").Type("port") == aeroconf.ValueNil && ac.Stanza("network").Stanza("heartbeat").Type("tls-port") == aeroconf.ValueNil {
-			ac.Stanza("network").Stanza("heartbeat").SetValue("port", port)
+			err = ac.Stanza("network").Stanza("heartbeat").SetValue("port", port)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("port")
 			if err != nil {
@@ -275,7 +329,10 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 			for _, val := range vals {
 				valx := strings.Trim(*val, "\r\n\t ")
 				if strings.HasPrefix(valx, "3") {
-					ac.Stanza("network").Stanza("heartbeat").SetValue("port", port)
+					err = ac.Stanza("network").Stanza("heartbeat").SetValue("port", port)
+					if err != nil {
+						return nil, err
+					}
 					break
 				}
 			}

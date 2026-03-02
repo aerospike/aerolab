@@ -125,6 +125,7 @@ func getip2() string {
 	}
 
 	var ip ret
+	//nolint:errcheck
 	json.Unmarshal(body, &ip)
 
 	return ip.IP

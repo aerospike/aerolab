@@ -19,6 +19,7 @@ type ConfigAwsCmd struct {
 }
 
 func (c *ConfigAwsCmd) Execute(args []string) error {
+	//nolint:errcheck
 	c.Help.Execute(args)
 	return nil
 }

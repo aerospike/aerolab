@@ -58,6 +58,7 @@ func (c *ConfigDefaultsCmd) handleRecursive(system *System, args []string) error
 	}
 }
 
+/* unused function
 func (c *ConfigDefaultsCmd) get(system *System, onlyChanged bool) map[string]string {
 	keyField := reflect.ValueOf(system.Opts).Elem()
 	var tags reflect.StructTag
@@ -73,6 +74,7 @@ func (c *ConfigDefaultsCmd) get(system *System, onlyChanged bool) map[string]str
 	}
 	return vals
 }
+*/
 
 func (c *ConfigDefaultsCmd) Execute(args []string) error {
 	system, err := Initialize(&Init{InitBackend: false}, []string{"config", "defaults"}, c, args...)

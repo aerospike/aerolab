@@ -125,7 +125,7 @@ func setup(fresh bool) error {
 		},
 	}
 
-	btype := backends.BackendTypeAWS
+	var btype backends.BackendType
 	switch cloud {
 	case "aws":
 		btype = backends.BackendTypeAWS
@@ -136,6 +136,7 @@ func setup(fresh bool) error {
 	default:
 		return errors.New("invalid cloud: " + cloud)
 	}
+	_ = btype // reserved for backend selection if needed
 
 	// Put setup boilerplate here
 	testBackend, err = backend.New(testProject,

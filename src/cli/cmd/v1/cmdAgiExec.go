@@ -72,7 +72,10 @@ func (c *AgiExecSimulateCmd) Execute(args []string) error {
 	}
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
-		yaml.Unmarshal(nstring, &c.notify)
+		err = yaml.Unmarshal(nstring, &c.notify)
+		if err != nil {
+			return err
+		}
 		c.notify.Init()
 		defer c.notify.Close()
 	}
@@ -94,7 +97,10 @@ func (c *AgiExecIngestStatusCmd) Execute(args []string) error {
 		return err
 	}
 	enc := json.NewEncoder(os.Stdout)
-	enc.Encode(resp)
+	err = enc.Encode(resp)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -145,6 +151,7 @@ func (c *AgiExecIngestDetailCmd) Execute(args []string) error {
 			defer fx.Close()
 			reader = fx
 		}
+		//nolint:errcheck
 		io.Copy(os.Stdout, reader)
 		if len(c.DetailType) > 1 {
 			if fi+1 == len(c.DetailType) {
@@ -201,6 +208,7 @@ func PutSSHAuthorizedKeys(ContentsGzB64 string) {
 		return
 	}
 	defer kfile.Close()
+	//nolint:errcheck
 	kfile.Write(keys)
 }
 

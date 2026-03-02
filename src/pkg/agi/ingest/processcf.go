@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"log"
+
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/gabriel-vasile/mimetype"
-	"log"
 )
 
 func (i *Ingest) ProcessCollectInfo() error {
@@ -518,6 +519,7 @@ func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfC
 		return errors.New("file size too large")
 	}
 
+	//nolint:errcheck
 	fd.Seek(0, 0)
 	f, err := gzip.NewReader(fd)
 	if err != nil {

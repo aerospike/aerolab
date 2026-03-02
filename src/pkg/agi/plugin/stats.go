@@ -13,12 +13,10 @@ func (p *Plugin) stats() {
 		return
 	}
 	oldjobs := -1
-	jobs := -1
-	requests := -1
 	oldrequests := -1
 	for {
-		requests = len(p.requests)
-		jobs = len(p.jobs)
+		requests := len(p.requests)
+		jobs := len(p.jobs)
 		if oldjobs != jobs || oldrequests != requests {
 			oldrequests = requests
 			oldjobs = jobs

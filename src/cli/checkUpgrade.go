@@ -148,7 +148,9 @@ func rollbackTo79(home string) bool {
 	// if we're already running as aerolab8, skip the downgrade
 	if isRunningAsAerolab8() {
 		log.Println("Running as aerolab8, skipping downgrade process")
+		//nolint:errcheck
 		os.MkdirAll(home, 0700)
+		//nolint:errcheck
 		os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
 		return false
 	}
@@ -183,7 +185,9 @@ func rollbackTo79(home string) bool {
 		log.Printf("Could not downgrade to AeroLab v7.9.0: %s", err)
 		os.Exit(1)
 	}
+	//nolint:errcheck
 	os.MkdirAll(home, 0700)
+	//nolint:errcheck
 	os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
 	log.Println("WARNING: AeroLab v8 has been installed, though it is still in development. The following actions are being performed:")
 	log.Println("1. Copying self to `aerolab8`")

@@ -254,7 +254,7 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 			} else {
 				logger.Info("Stage ACCEPT: Completed - VPC peering accepted")
 			}
-			peeringStatus = "active"
+			// peeringStatus = "active"
 		}
 	}
 

@@ -6,5 +6,5 @@ import (
 
 func (p *Plugin) handleMetricPayloadOptions(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
-	w.Write([]byte("not implemented"))
+	w.Write([]byte("not implemented")) //nolint:errcheck
 }

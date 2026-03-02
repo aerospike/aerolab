@@ -49,6 +49,7 @@ func (c *ConfGeneratorCmd) CreateConf(system *System, inventory *backends.Invent
 	if _, err := os.Stat(string(c.Path)); err == nil {
 		fmt.Printf("WARNING!\nFile '%s' already exists. If you continue, aerolab will attempt to read and parse the file.\nNote that aerolab will not automatically recognise whether the config is for aerospike 7+ or older. The `--pre-7` flag must be provided for older versions.\n\nPress ENTER to continue or CTRL+C to abort.\n", c.Path)
 		var ignoreMe string
+		//nolint:errcheck
 		fmt.Scanln(&ignoreMe)
 	}
 	switch c.ConfVersion {

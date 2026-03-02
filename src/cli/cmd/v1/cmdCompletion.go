@@ -14,6 +14,7 @@ type CompletionCmd struct {
 }
 
 func (c *CompletionCmd) Execute(args []string) error {
+	//nolint:errcheck
 	c.Help.Execute(args)
 	return nil
 }

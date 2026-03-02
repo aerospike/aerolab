@@ -792,10 +792,16 @@ func patchAccessAddressForDocker(in []byte, port string, privateIp string) (out 
 		return nil, err
 	}
 	if s.Type("network") == aeroconf.ValueNil {
-		s.NewStanza("network")
+		err = s.NewStanza("network")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if s.Stanza("network").Type("service") == aeroconf.ValueNil {
-		s.Stanza("network").NewStanza("service")
+		err = s.Stanza("network").NewStanza("service")
+		if err != nil {
+			return nil, err
+		}
 	}
 	err = s.Stanza("network").Stanza("service").SetValue("alternate-access-port", port)
 	if err != nil {
@@ -1067,6 +1073,7 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 	if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 		logger.Warn("you are attempting to install version 4.6-6.0 and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		var ignoreMe string
+		//nolint:errcheck
 		fmt.Scanln(&ignoreMe)
 	} else if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
 		if c.NodeCount == 1 {
@@ -1074,11 +1081,13 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 		} else {
 			logger.Warn("you are attempting to install more than 1 node and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 			var ignoreMe string
+			//nolint:errcheck
 			fmt.Scanln(&ignoreMe)
 		}
 	} else if string(featuresFilePath) != "" && foundFile.maxNodes > 0 && foundFile.maxNodes < c.NodeCount {
 		logger.Warn("selected cluster size %d is larger than the feature file allows (%d). This will cause the cluster to not form.\n\nPress ENTER if you still wish to proceed", c.NodeCount, foundFile.maxNodes)
 		var ignoreMe string
+		//nolint:errcheck
 		fmt.Scanln(&ignoreMe)
 	} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 		logger.Info("Features file: %s", featuresFilePath)

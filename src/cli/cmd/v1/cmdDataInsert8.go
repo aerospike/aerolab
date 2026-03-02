@@ -74,6 +74,7 @@ func (c *DataInsertCmd) insert8(args []string, log *logger.Logger) error {
 		return fmt.Errorf("error connecting to Aerospike: %w", err)
 	}
 
+	//nolint:errcheck
 	client.WarmUp(100)
 	src := rand.NewSource(time.Now().UnixNano())
 	srcLock := new(sync.Mutex)

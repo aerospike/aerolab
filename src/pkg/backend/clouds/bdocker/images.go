@@ -27,7 +27,9 @@ var distros string
 var distrosMap map[string][]string
 
 func init() {
-	yaml.Unmarshal([]byte(distros), &distrosMap)
+	if err := yaml.Unmarshal([]byte(distros), &distrosMap); err != nil {
+		panic("distros.yaml embedded config: " + err.Error())
+	}
 }
 
 type ImageDetail struct {
@@ -265,7 +267,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 		log.Detail("ImageList empty, returning")
 		return nil
 	}
-	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage) //nolint:errcheck
 	volIds := make(map[string]backends.ImageList)
 	for _, volume := range images {
 		if _, ok := volIds[volume.ZoneName]; !ok {
@@ -398,7 +400,7 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 		return nil, err
 	}
 
-	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage) //nolint:errcheck
 
 	// Create the image
 	log.Detail("Creating image")

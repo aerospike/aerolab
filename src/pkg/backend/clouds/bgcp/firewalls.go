@@ -127,7 +127,7 @@ func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, 
 		// get port mapping
 		ports := backends.PortsOut{}
 		for _, perm := range pair.GetAllowed() {
-			prot := backends.ProtocolAll
+			var prot string
 			switch perm.GetIPProtocol() {
 			case "tcp":
 				prot = backends.ProtocolTCP

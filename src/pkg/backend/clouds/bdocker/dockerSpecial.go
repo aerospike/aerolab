@@ -13,7 +13,7 @@ func (s *b) DockerCreateNetwork(region string, name string, driver string, subne
 	log := s.log.WithPrefix("DockerCreateNetwork: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork) //nolint:errcheck
 	cli, err := s.getDockerClient(region)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (s *b) DockerDeleteNetwork(region string, name string) error {
 	log := s.log.WithPrefix("DockerDeleteNetwork: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork) //nolint:errcheck
 	cli, err := s.getDockerClient(region)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (s *b) DockerPruneNetworks(region string) error {
 	log := s.log.WithPrefix("DockerPruneNetworks: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork) //nolint:errcheck
 	cli, err := s.getDockerClient(region)
 	if err != nil {
 		return err

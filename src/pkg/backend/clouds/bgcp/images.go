@@ -336,11 +336,10 @@ func (s *b) ImagesAddTags(images backends.ImageList, tags map[string]string) err
 		maps.Copy(newTags, tags)
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
-		id := getImageDetail(image)
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
-				LabelFingerprint: new(id.LabelFingerprint),
+				LabelFingerprint: new(getImageDetail(image).LabelFingerprint),
 				Labels:           labels,
 			},
 			Project: s.credentials.Project,
@@ -391,11 +390,10 @@ func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error 
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
-		id := getImageDetail(image)
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
-				LabelFingerprint: new(id.LabelFingerprint),
+				LabelFingerprint: new(getImageDetail(image).LabelFingerprint),
 				Labels:           labels,
 			},
 			Project: s.credentials.Project,
@@ -472,13 +470,12 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	defer client.Close()
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
-	idetail := getInstanceDetail(input.Instance)
 	op, err := client.Insert(ctx, &computepb.InsertImageRequest{
 		Project: s.credentials.Project,
 		ImageResource: &computepb.Image{
 			Labels:     labels,
 			Name:       new(input.Name),
-			SourceDisk: new(idetail.Volumes[0].VolumeID),
+			SourceDisk: new(getInstanceDetail(input.Instance).Volumes[0].VolumeID),
 			DiskSizeGb: new(int64(input.SizeGiB * backends.StorageGiB / backends.StorageGB)),
 		},
 	})
