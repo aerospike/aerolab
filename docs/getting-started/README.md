@@ -10,7 +10,13 @@ Download the latest release from the [GitHub Releases page](https://github.com/a
 
 Download `aerolab-macos-VERSION.pkg` and double-click to install. This universal package supports both Intel and Apple Silicon Macs.
 
-**Option 2: ZIP Archive**
+**Option 2: Homebrew**
+
+If homebrew is installed, run `brew install aerospike/tools/aerolab@8.0.0` to install a specific version (including prereleases), or `brew install aerospike/tools/aerolab` to install latest stable.
+
+See [this page](https://github.com/aerospike/homebrew-tools/blob/main/aerolab.md) for more information.
+
+**Option 3: ZIP Archive**
 
 Download the appropriate zip file:
 - Apple Silicon: `aerolab-macos-arm64-VERSION.zip`
