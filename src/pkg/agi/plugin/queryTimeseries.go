@@ -83,7 +83,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	}
 	// build expression
 	var exp []*aerospike.Expression
-	var new *aerospike.Expression
+	var filterExp *aerospike.Expression
 	var vals []*aerospike.Expression
 	var valsOr *aerospike.Expression
 	// expression: filter variables
@@ -113,11 +113,11 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			valsOr = aerospike.ExpOr(vals...)
 		}
 		if filter.MustExist {
-			new = aerospike.ExpAnd(aerospike.ExpBinExists(filter.Name), valsOr)
+			filterExp = aerospike.ExpAnd(aerospike.ExpBinExists(filter.Name), valsOr)
 		} else {
-			new = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
+			filterExp = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
 		}
-		exp = append(exp, new)
+		exp = append(exp, filterExp)
 	}
 	// data bin list and expression bin selection
 	binList := []string{}
@@ -332,7 +332,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	}
 	p.cache.lock.RUnlock()
 
-	log.Printf("DETAIL: Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s) (binListTime:%s) (dpSortTime:%s) (dp2respTime:%s) (waitOnAerospikeTime:%s)", remote, datapointCount, time.Since(ntime).String(), ptime1.String(), ptime2.String(), ptime3.String(), time.Duration(time.Since(ntime)-ptime1-ptime2-ptime3).String())
+	log.Printf("DETAIL: Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s) (binListTime:%s) (dpSortTime:%s) (dp2respTime:%s) (waitOnAerospikeTime:%s)", remote, datapointCount, time.Since(ntime).String(), ptime1.String(), ptime2.String(), ptime3.String(), (time.Since(ntime)-ptime1-ptime2-ptime3).String())
 	ntime = time.Now()
 	for ri := range resp {
 		sort.Slice(resp[ri].Datapoints, func(i, j int) bool {

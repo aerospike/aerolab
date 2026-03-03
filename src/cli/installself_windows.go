@@ -31,10 +31,10 @@ func installSelf() (isGUI bool) {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		installSelfDrawErrorWindow(fmt.Errorf("E0:GetUserHomeDir:%s", err))
+		installSelfDrawErrorWindow(fmt.Errorf("E0:GetUserHomeDir:%s", err)) //nolint:errcheck
 		fmt.Println("Press ENTER to exit")
 		var input string
-		fmt.Scanln(&input)
+		fmt.Scanln(&input) //nolint:errcheck
 		return true
 	}
 	aerolabHome := filepath.Join(home, "AppData", "Local", "Aerospike", "AeroLab")
@@ -49,7 +49,7 @@ func installSelf() (isGUI bool) {
 	defer func() {
 		fmt.Println("Press ENTER to exit")
 		var input string
-		fmt.Scanln(&input)
+		fmt.Scanln(&input) //nolint:errcheck
 	}()
 	f := newLogSplit("aerolab.installer.log")
 	if f != nil {
@@ -62,18 +62,18 @@ func installSelf() (isGUI bool) {
 		log.Printf("Creating %s", binDir)
 		err = os.MkdirAll(binDir, 0755)
 		if err != nil {
-			installSelfDrawErrorWindow(fmt.Errorf("E1:%s", err))
+			installSelfDrawErrorWindow(fmt.Errorf("E1:%s", err)) //nolint:errcheck
 			return
 		}
 	}
 	log.Printf("Copying %s to %s", os.Args[0], bin)
 	if err := installSelfCopy(bin); err != nil {
-		installSelfDrawErrorWindow(fmt.Errorf("E2:%s", err))
+		installSelfDrawErrorWindow(fmt.Errorf("E2:%s", err)) //nolint:errcheck
 		return
 	}
 	log.Print("Adding aerolab to PATH in registry:HKEY_CURRENT_USER\\Environment\\Path")
 	if err := installSelfRegistry(binDir); err != nil {
-		installSelfDrawErrorWindow(fmt.Errorf("E3:%s", err))
+		installSelfDrawErrorWindow(fmt.Errorf("E3:%s", err)) //nolint:errcheck
 		return
 	}
 	log.Println("AeroLab successfully installed")
@@ -104,7 +104,8 @@ func installSelfRegistry(binDir string) error {
 	}
 	HWND_BROADCAST := uintptr(0xffff)
 	WM_SETTINGCHANGE := uintptr(0x001A)
-	syscall.NewLazyDLL("user32.dll").NewProc("SendMessageW").Call(HWND_BROADCAST, WM_SETTINGCHANGE, 0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("ENVIRONMENT"))))
+	envStr, _ := syscall.UTF16PtrFromString("ENVIRONMENT")
+	syscall.NewLazyDLL("user32.dll").NewProc("SendMessageW").Call(HWND_BROADCAST, WM_SETTINGCHANGE, 0, uintptr(unsafe.Pointer(envStr))) //nolint:errcheck
 	return nil
 }
 
@@ -137,7 +138,7 @@ type logSplit struct {
 }
 
 func (l *logSplit) Write(b []byte) (int, error) {
-	l.file.Write(b)
+	l.file.Write(b) //nolint:errcheck
 	return l.out.Write(b)
 }
 

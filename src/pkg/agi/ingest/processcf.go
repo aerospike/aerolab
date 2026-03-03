@@ -297,7 +297,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	}
 	log.Printf("DETAIL: processCollectInfoFile: handling rename for %s", filePath)
 	i.progress.Lock()
-	new := filePath
+	resolvedPath := filePath
 	cf.RenameAttempted = true
 	cf.NodeID = nodeid
 	i.progress.CollectinfoProcessor.changed = true
@@ -306,7 +306,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		if err != nil {
 			log.Printf("ERROR: ProcessCollectInfo: failed to rename %s to %s", filePath, newName)
 		} else {
-			new = newName
+			resolvedPath = newName
 			cf.Renamed = true
 			cf.OriginalName = filePath
 		}
@@ -314,8 +314,8 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		log.Printf("DETAIL: ProcessCollectInfo: nodeID for collectinfo source not found for %s", filePath)
 	}
 	i.progress.Unlock()
-	log.Printf("DETAIL: processCollectInfoFile: starting asadm for %s", new)
-	err = i.processCollectInfoFileAsadm(new, ct, logs)
+	log.Printf("DETAIL: processCollectInfoFile: starting asadm for %s", resolvedPath)
+	err = i.processCollectInfoFileAsadm(resolvedPath, ct, logs)
 	if err != nil {
 		i.progress.Lock()
 		cf.ProcessingAttempted = true
@@ -324,9 +324,9 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		return newName, err
 	}
 
-	log.Printf("DETAIL: processCollectInfoFile: creating DB entry for %s", new)
-	_, fname := path.Split(new)
-	key, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, new)
+	log.Printf("DETAIL: processCollectInfoFile: creating DB entry for %s", resolvedPath)
+	_, fname := path.Split(resolvedPath)
+	key, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, resolvedPath)
 	if err != nil {
 		return newName, fmt.Errorf("aerospike.NewKey: %s", err)
 	}
@@ -345,7 +345,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	binFname := aerospike.NewBin("cfName", fname)
 	err = i.db.PutBins(i.wp, key, binSysinfo, binConfFile, binHealth, binSummary, binFname)
 	if err != nil {
-		log.Printf("DETAIL: ProcessCollectInfo: could not insert record for %s: %s", new, err)
+		log.Printf("DETAIL: ProcessCollectInfo: could not insert record for %s: %s", resolvedPath, err)
 		return newName, fmt.Errorf("aerospike.PutBins: %s", err)
 	}
 	if ct.infoNetJson != nil && len(ct.infoNetJson.Groups) > 0 {
@@ -363,14 +363,14 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			bins["principal"] = record.Cluster.Principal.Converted
 			bins["clusterSize"] = record.Cluster.Size.Converted
 			bins["clusterName"] = record.ClusterName
-			pk, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, fmt.Sprintf("%s::%s::%s", new, record.IP.Converted, record.NodeID.Converted))
+			pk, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, fmt.Sprintf("%s::%s::%s", resolvedPath, record.IP.Converted, record.NodeID.Converted))
 			aerr := i.db.Put(i.wp, pk, bins)
 			if aerr != nil {
 				log.Printf("WARN: Failed to store item in aerospike: %s", aerr.Error())
 			}
 		}
 	}
-	log.Printf("DETAIL: processCollectInfoFile: done %s", new)
+	log.Printf("DETAIL: processCollectInfoFile: done %s", resolvedPath)
 	i.progress.Lock()
 	i.progress.CollectinfoProcessor.changed = true
 	cf.Processed = true

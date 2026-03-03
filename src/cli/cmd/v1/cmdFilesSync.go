@@ -108,16 +108,15 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 			return err
 		}
 		// Check if nodes exist in the running instances
-		new := dest.WithNodeNo(nodes...).Describe()
-		if new.Count() != len(nodes) {
-			// Find which nodes are missing
+		filtered := dest.WithNodeNo(nodes...).Describe()
+		if filtered.Count() != len(nodes) {
 			foundNodes := []int{}
-			for _, inst := range new {
+			for _, inst := range filtered {
 				foundNodes = append(foundNodes, inst.NodeNo)
 			}
 			return fmt.Errorf("some destination nodes not found or not running: %s (requested: %v, found: %v)", c.DestinationNodes.String(), nodes, foundNodes)
 		}
-		dest = new
+		dest = filtered
 	} else {
 		dest = dest.Describe()
 	}

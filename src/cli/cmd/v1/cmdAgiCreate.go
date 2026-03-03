@@ -263,7 +263,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 			return nil, fmt.Errorf("failed to get logs from cluster %s: %w", c.ClusterSource, err)
 		}
 		c.LocalSource = flags.Filename(localSource)
-		defer os.RemoveAll(string(localSource))
+		defer os.RemoveAll(localSource)
 	}
 
 	// Handle ~auto~ naming

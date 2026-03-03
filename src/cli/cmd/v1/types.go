@@ -478,7 +478,7 @@ func getInstanceListForClusterName(t *string, inventory *backends.Inventory, ins
 				if len(interactiveStates) > 0 && !slices.Contains(interactiveStates, i.InstanceState) {
 					continue
 				}
-				if strings.Contains(i.ClusterName, string(*t)) {
+				if strings.Contains(i.ClusterName, *t) {
 					if _, ok := seenClusters[i.ClusterName]; !ok {
 						seenClusters[i.ClusterName] = struct{}{}
 						clusters = append(clusters, i.ClusterName)
@@ -490,12 +490,12 @@ func getInstanceListForClusterName(t *string, inventory *backends.Inventory, ins
 			}
 			sort.Strings(clusters)
 			// ask user to select a cluster interactively
-			choice, quitting, err := choice.Choice(fmt.Sprintf("Cluster %s not found, select an existing cluster:", string(*t)), choice.StringSliceToItems(clusters))
+			choice, quitting, err := choice.Choice(fmt.Sprintf("Cluster %s not found, select an existing cluster:", *t), choice.StringSliceToItems(clusters))
 			if err != nil || quitting {
 				return nil, err
 			}
 			*t = choice
-			base = inventory.Instances.WithClusterName(string(*t)).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+			base = inventory.Instances.WithClusterName(*t).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
 			byType = base.WithType(instanceTypes...)
 			if slices.Contains(instanceTypes, "client") {
 				cluster = mergeInstanceListsByID(byType.Describe(), base.WithOldType(instanceTypes...).Describe())

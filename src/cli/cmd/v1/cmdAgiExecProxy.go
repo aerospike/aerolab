@@ -1025,7 +1025,7 @@ func (c *AgiExecProxyCmd) spotMonitorGcp() {
 			IngestStatus:               stat,
 			Event:                      agi.AgiEventSpotNoCapacity,
 			AGIName:                    c.AGIName,
-			EventDetail:                string(body),
+			EventDetail:                body,
 			DeploymentJsonGzB64:        c.deployJson,
 			SSHAuthorizedKeysFileGzB64: GetSSHAuthorizedKeysGzB64(),
 		}

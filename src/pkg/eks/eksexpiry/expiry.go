@@ -34,7 +34,7 @@ func Expiry() {
 		fmt.Fprint(flag.CommandLine.Output(), "\nIf both -in and -at are specified, the one with the longest expiry will take effect.\n") //nolint:errcheck
 	}
 	// flag parameters
-	flag.StringVar(&r.File, "file", "", "eksctl cluster defintion (sets/overrides 'name' and 'region' if provided)")
+	flag.StringVar(&r.File, "file", "", "eksctl cluster definition (sets/overrides 'name' and 'region' if provided)")
 	flag.StringVar(&r.ClusterName, "name", "", "EKS Cluster Name (required)")
 	flag.StringVar(&r.Region, "region", "", "EKS Cluster Region (required)")
 	flag.DurationVar(&r.In, "in", 0, "Expire in duration from now; ex: 30h5m10s")

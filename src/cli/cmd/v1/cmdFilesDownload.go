@@ -35,9 +35,9 @@ type FilesRestDownloadCmd struct {
 }
 
 func (c *FilesDownloadCmd) Execute(args []string) error {
-	if string(c.Files.Source) == "help" && string(c.Files.Destination) == "" {
+	if c.Files.Source == "help" && string(c.Files.Destination) == "" {
 		return PrintHelp(false, "Specify a source and destination at the end of the command. Ex: aerolab files download -n bob /etc/resolv.conf ./bob\n\nIf more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/\n\n")
-	} else if string(c.Files.Source) == "" || string(c.Files.Destination) == "" {
+	} else if c.Files.Source == "" || string(c.Files.Destination) == "" {
 		return PrintHelp(false, "Specify a source and destination at the end of the command. Ex: aerolab files download -n bob /etc/resolv.conf ./bob\n\nIf more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/\n\n")
 	}
 	cmd := []string{"files", "download"}
@@ -89,16 +89,15 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 			return err
 		}
 		// Check if nodes exist in the running instances
-		new := instances.WithNodeNo(nodes...).Describe()
-		if new.Count() != len(nodes) {
-			// Find which nodes are missing
+		filtered := instances.WithNodeNo(nodes...).Describe()
+		if filtered.Count() != len(nodes) {
 			foundNodes := []int{}
-			for _, inst := range new {
+			for _, inst := range filtered {
 				foundNodes = append(foundNodes, inst.NodeNo)
 			}
 			return fmt.Errorf("some nodes not found or not running: %s (requested: %v, found: %v)", c.Nodes.String(), nodes, foundNodes)
 		}
-		instances = new
+		instances = filtered
 	} else {
 		instances = instances.Describe()
 	}

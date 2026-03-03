@@ -251,7 +251,7 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 		NodeNo:       toInt(tags[TAG_NODE_NO]),
 		InstanceID:   inst.GetName(),
 		BackendType:  backends.BackendTypeGCP,
-		InstanceType: string(inst.GetMachineType()),
+		InstanceType: inst.GetMachineType(),
 		Name:         tags[TAG_NAME],
 		Description:  tags[TAG_AEROLAB_DESCRIPTION],
 		ZoneName:     getValueFromURL(inst.GetZone()),

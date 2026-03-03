@@ -294,11 +294,11 @@ func processInterrupts(cancel context.CancelFunc, in io.ReadCloser, showCommands
 				for _, i := range ilist {
 					total, _ := strconv.Atoi(inuse[i])
 					if total > stepping[len(stepping)-1] {
-						inuse[i] = string(chars[7])
+						inuse[i] = chars[7]
 					} else {
 						for si, s := range stepping {
 							if total <= s {
-								inuse[i] = string(chars[si])
+								inuse[i] = chars[si]
 								break
 							}
 						}

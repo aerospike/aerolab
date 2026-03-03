@@ -48,7 +48,7 @@ func StringSliceToItems(slice []string) Items {
 }
 
 type itemDelegate struct {
-	lenght int
+	length int
 }
 
 func (d itemDelegate) Height() int                             { return 1 }
@@ -60,8 +60,8 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		return
 	}
 
-	// get number of digits in d.lenght
-	digits := len(fmt.Sprintf("%d", d.lenght))
+	// get number of digits in d.length
+	digits := len(fmt.Sprintf("%d", d.length))
 	str := fmt.Sprintf("%*d. %s", digits, index+1, i)
 
 	fn := itemStyle.Render
@@ -145,7 +145,7 @@ func (m *model) View() string {
 func ChoiceWithHeight(title string, items Items, height int) (choice string, quitting bool, err error) {
 	const defaultWidth = 20
 
-	l := list.New(items, itemDelegate{lenght: len(items)}, defaultWidth, height)
+	l := list.New(items, itemDelegate{length: len(items)}, defaultWidth, height)
 	l.Title = title
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)

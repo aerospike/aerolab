@@ -222,7 +222,6 @@ func (v *SubnetList) WithZoneName(name ...string) SubnetList {
 		if !slices.Contains(name, i.ZoneName) {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv
@@ -234,7 +233,6 @@ func (v *SubnetList) WithZoneID(ID ...string) SubnetList {
 		if !slices.Contains(ID, i.ZoneID) {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv
@@ -246,7 +244,6 @@ func (v *SubnetList) WithName(name ...string) SubnetList {
 		if !slices.Contains(name, i.Name) {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv
@@ -258,7 +255,6 @@ func (v *SubnetList) WithSubnetId(id ...string) SubnetList {
 		if !slices.Contains(id, i.SubnetId) {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv
@@ -270,7 +266,6 @@ func (v *SubnetList) WithDefault(d bool) SubnetList {
 		if i.IsDefault != d {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv
@@ -282,7 +277,6 @@ func (v *SubnetList) WithAerolabManaged(d bool) SubnetList {
 		if i.IsAerolabManaged != d {
 			continue
 		}
-		i := i
 		vv = append(vv, i)
 	}
 	return vv

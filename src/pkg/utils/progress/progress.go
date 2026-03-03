@@ -117,7 +117,7 @@ func (t *Tracker) GetFileProgress() []*FileProgress {
 	result := make([]*FileProgress, 0, len(t.files))
 	for _, fp := range t.files {
 		// Create a copy to avoid race conditions
-		copy := &FileProgress{
+		snapshot := &FileProgress{
 			NodeNo:    fp.NodeNo,
 			FileName:  fp.FileName,
 			Current:   atomic.LoadInt64(&fp.Current),
@@ -126,7 +126,7 @@ func (t *Tracker) GetFileProgress() []*FileProgress {
 			Complete:  fp.Complete,
 			Error:     fp.Error,
 		}
-		result = append(result, copy)
+		result = append(result, snapshot)
 	}
 	return result
 }

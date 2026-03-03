@@ -33,9 +33,9 @@ type FilesRestUploadCmd struct {
 }
 
 func (c *FilesUploadCmd) Execute(args []string) error {
-	if string(c.Files.Source) == "help" && string(c.Files.Destination) == "" {
+	if string(c.Files.Source) == "help" && c.Files.Destination == "" {
 		return PrintHelp(false, "Specify a source and destination at the end of the command. Ex: aerolab files upload -n bob ./newresolv.conf /etc/resolv.conf\n\n")
-	} else if string(c.Files.Source) == "" || string(c.Files.Destination) == "" {
+	} else if string(c.Files.Source) == "" || c.Files.Destination == "" {
 		return PrintHelp(false, "Specify a source and destination at the end of the command. Ex: aerolab files upload -n bob ./newresolv.conf /etc/resolv.conf\n\n")
 	}
 	cmd := []string{"files", "upload"}
@@ -87,16 +87,15 @@ func (c *FilesUploadCmd) Upload(system *System, inventory *backends.Inventory, a
 			return err
 		}
 		// Check if nodes exist in the running instances
-		new := instances.WithNodeNo(nodes...).Describe()
-		if new.Count() != len(nodes) {
-			// Find which nodes are missing
+		filtered := instances.WithNodeNo(nodes...).Describe()
+		if filtered.Count() != len(nodes) {
 			foundNodes := []int{}
-			for _, inst := range new {
+			for _, inst := range filtered {
 				foundNodes = append(foundNodes, inst.NodeNo)
 			}
 			return fmt.Errorf("some nodes not found or not running: %s (requested: %v, found: %v)", c.Nodes.String(), nodes, foundNodes)
 		}
-		instances = new
+		instances = filtered
 	} else {
 		instances = instances.Describe()
 	}

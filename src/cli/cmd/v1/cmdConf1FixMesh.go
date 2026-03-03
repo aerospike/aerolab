@@ -348,7 +348,7 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 	return data, nil
 }
 
-func fixAccessAddress(old []byte, newIp string) (new []byte, err error) {
+func fixAccessAddress(old []byte, newIp string) (result []byte, err error) {
 	conf, err := aeroconf.Parse(bytes.NewReader(old))
 	if err != nil {
 		return old, err

@@ -291,6 +291,7 @@ func telemetryShipFile(file string) error {
 	if err != nil {
 		return err
 	}
+	defer ret.Body.Close()
 	if ret.StatusCode < 200 || ret.StatusCode > 299 {
 		return fmt.Errorf("returned ret code: %d:%s", ret.StatusCode, ret.Status)
 	}

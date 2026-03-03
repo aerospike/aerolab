@@ -126,7 +126,7 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 	}
 
 	// Validate local files exist (handle bind: prefix for local source)
-	for _, k := range []*string{(*string)(c.SftpKey), (*string)(c.PatternsFile)} {
+	for _, k := range []*string{c.SftpKey, (*string)(c.PatternsFile)} {
 		if k != nil && *k != "" {
 			if _, err := os.Stat(*k); err != nil {
 				return fmt.Errorf("could not access %s: %w", *k, err)
@@ -272,7 +272,7 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 			return fmt.Errorf("failed to get logs from cluster %s: %w", c.ClusterSource, err)
 		}
 		c.LocalSource = flags.Filename(localSource)
-		defer os.RemoveAll(string(localSource))
+		defer os.RemoveAll(localSource)
 	}
 
 	// Validate S3 and SFTP credentials not redacted

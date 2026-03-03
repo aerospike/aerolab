@@ -300,8 +300,8 @@ func makePartCommand() partcommand {
 	return "#!/bin/bash\nset -x\nset -e\n"
 }
 
-func (c *partcommand) Add(new string) {
-	*c = *c + "\n" + partcommand(new)
+func (c *partcommand) Add(cmd string) {
+	*c = *c + "\n" + partcommand(cmd)
 }
 
 func (c *partcommand) String() string {

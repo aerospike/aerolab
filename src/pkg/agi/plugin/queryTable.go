@@ -32,7 +32,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 	}
 	stmt := aerospike.NewStatement(p.config.Aerospike.Namespace, target.Target, binList...)
 	var exp *aerospike.Expression
-	var new *aerospike.Expression
+	var filterExp *aerospike.Expression
 	var vals []*aerospike.Expression
 	var valsOr *aerospike.Expression
 	for _, filter := range target.Payload.FilterVariables {
@@ -51,14 +51,14 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 			valsOr = aerospike.ExpOr(vals...)
 		}
 		if filter.MustExist {
-			new = aerospike.ExpAnd(aerospike.ExpBinExists(filter.Name), valsOr)
+			filterExp = aerospike.ExpAnd(aerospike.ExpBinExists(filter.Name), valsOr)
 		} else {
-			new = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
+			filterExp = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
 		}
 		if exp == nil {
-			exp = new
+			exp = filterExp
 		} else {
-			exp = aerospike.ExpAnd(exp, new)
+			exp = aerospike.ExpAnd(exp, filterExp)
 		}
 	}
 	for _, bin := range target.Payload.Bins {

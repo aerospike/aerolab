@@ -1,6 +1,25 @@
 version: "2"
 linters:
+  enable:
+    - bodyclose
+    - copyloopvar
+    #- dupl
+    - errcheck
+    #- goconst
+    #- gosec
+    - govet
+    - ineffassign
+    - misspell
+    - predeclared
+    - staticcheck
+    - unconvert
+    #- unparam
   settings:
+    gosec:
+      excludes:
+        - G104
+        - G115
+        - G117
     errcheck:
       exclude-functions:
         - (*github.com/aerospike/aerolab/pkg/backend/backends.Architecture).FromString

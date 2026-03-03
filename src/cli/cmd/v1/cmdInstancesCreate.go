@@ -385,7 +385,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				if err != nil {
 					return nil, err
 				}
-				lenghts := []int{0, 0, 0, 0, 0, 0, 0, 0}
+				lengths := []int{0, 0, 0, 0, 0, 0, 0, 0}
 				for _, it := range instanceTypes {
 					region := it.Region
 					// GCP stores zones (us-central1-a) in Region field, need to convert to region (us-central1)
@@ -400,32 +400,32 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 					if len(it.Arch) > 0 {
 						arch = it.Arch[0].String()
 					}
-					if lenghts[0] < len(it.Name) {
-						lenghts[0] = len(it.Name)
+					if lengths[0] < len(it.Name) {
+						lengths[0] = len(it.Name)
 					}
-					if lenghts[1] < len(arch) {
-						lenghts[1] = len(arch)
+					if lengths[1] < len(arch) {
+						lengths[1] = len(arch)
 					}
-					if lenghts[2] < len(fmt.Sprintf("%d", it.CPUs)) {
-						lenghts[2] = len(fmt.Sprintf("%d", it.CPUs))
+					if lengths[2] < len(fmt.Sprintf("%d", it.CPUs)) {
+						lengths[2] = len(fmt.Sprintf("%d", it.CPUs))
 					}
-					if lenghts[3] < len(fmt.Sprintf("%0.2f", it.MemoryGiB)) {
-						lenghts[3] = len(fmt.Sprintf("%0.2f", it.MemoryGiB))
+					if lengths[3] < len(fmt.Sprintf("%0.2f", it.MemoryGiB)) {
+						lengths[3] = len(fmt.Sprintf("%0.2f", it.MemoryGiB))
 					}
-					if lenghts[4] < len(fmt.Sprintf("%d", it.GPUs)) {
-						lenghts[4] = len(fmt.Sprintf("%d", it.GPUs))
+					if lengths[4] < len(fmt.Sprintf("%d", it.GPUs)) {
+						lengths[4] = len(fmt.Sprintf("%d", it.GPUs))
 					}
-					if lenghts[5] < len(fmt.Sprintf("%d", it.NvmeCount)) {
-						lenghts[5] = len(fmt.Sprintf("%d", it.NvmeCount))
+					if lengths[5] < len(fmt.Sprintf("%d", it.NvmeCount)) {
+						lengths[5] = len(fmt.Sprintf("%d", it.NvmeCount))
 					}
-					if lenghts[6] < len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB)) {
-						lenghts[6] = len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB))
+					if lengths[6] < len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB)) {
+						lengths[6] = len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB))
 					}
-					if lenghts[7] < len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand)) {
-						lenghts[7] = len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand))
+					if lengths[7] < len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand)) {
+						lengths[7] = len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand))
 					}
 				}
-				format := fmt.Sprintf("%%-%ds (Arch=%%%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lenghts[0], lenghts[1], lenghts[2], lenghts[3], lenghts[4], lenghts[5], lenghts[6], lenghts[7])
+				format := fmt.Sprintf("%%-%ds (Arch=%%%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6], lengths[7])
 				foundTypes := []string{}
 				sort.Slice(instanceTypes, func(i, j int) bool {
 					// safely extract instance type prefix for sorting

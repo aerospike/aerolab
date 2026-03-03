@@ -358,3 +358,46 @@ func agiGetReader(ingestProgressPath string, fname string) (r io.ReadCloser, err
 	}
 	return ret, nil
 }
+
+// cut is a helper function for parsing /proc/meminfo style lines.
+// It splits a string by separator and returns the field at the specified index.
+//
+// Parameters:
+//   - s: String to split
+//   - field: 1-based index of field to return
+//   - sep: Separator string
+//
+// Returns:
+//   - string: The field at the specified index, or empty string if not found
+func cut(s string, field int, sep string) string {
+	parts := []string{}
+	for _, p := range splitMultiple(s, sep) {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	if field > len(parts) || field < 1 {
+		return ""
+	}
+	return parts[field-1]
+}
+
+// splitMultiple splits a string by a separator, handling multiple consecutive separators
+func splitMultiple(s string, sep string) []string {
+	result := []string{}
+	current := ""
+	for _, c := range s {
+		if string(c) == sep {
+			if current != "" {
+				result = append(result, current)
+				current = ""
+			}
+		} else {
+			current += string(c)
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
+}

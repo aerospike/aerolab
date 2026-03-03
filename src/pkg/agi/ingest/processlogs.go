@@ -205,7 +205,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 					i.binList.lock.Unlock()
 					err = i.db.Put(i.wp, key, data)
 					if err != nil {
-						if err.Matches(types.ResultCode(types.DEVICE_OVERLOAD)) {
+						if err.Matches(types.DEVICE_OVERLOAD) {
 							log.Printf("ERROR: Log Processor: DEVICE_OVERLOAD, backoff and try again...")
 							time.Sleep(time.Duration(10+rand.IntN(1000-10)) * time.Millisecond)
 						} else {

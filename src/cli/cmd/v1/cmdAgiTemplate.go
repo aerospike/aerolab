@@ -313,7 +313,7 @@ func (c *AgiTemplateVacuumCmd) VacuumAgiTemplates(system *System, inventory *bac
 			}
 		} else {
 			logger.Info("Removing %d dangling AGI template creation instance(s)", len(agiDanglingInstances))
-			err := backends.InstanceList(agiDanglingInstances).Terminate(time.Minute * 10)
+			err := agiDanglingInstances.Terminate(time.Minute * 10)
 			if err != nil {
 				return err
 			}
@@ -357,7 +357,7 @@ func (c *AgiTemplateVacuumCmd) VacuumAgiTemplates(system *System, inventory *bac
 			}
 		} else {
 			logger.Info("Removing %d outdated AGI template(s)", len(outdatedImages))
-			err := backends.ImageList(outdatedImages).DeleteImages(time.Minute * 10)
+			err := outdatedImages.DeleteImages(time.Minute * 10)
 			if err != nil {
 				return err
 			}

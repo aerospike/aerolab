@@ -611,7 +611,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		// write new config
 		err = client.WriteFile(false, &sshexec.FileWriter{
 			DestPath:    "/etc/aerospike/aerospike.conf",
-			Source:      bytes.NewReader([]byte(newConfig)),
+			Source:      bytes.NewReader(newConfig),
 			Permissions: 0644,
 		})
 		if err != nil {
@@ -637,7 +637,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		}
 		// upload existing features file path if specified
 		if featuresFilePath != "" && i.isNew {
-			features, err := os.ReadFile(string(featuresFilePath))
+			features, err := os.ReadFile(featuresFilePath)
 			if err != nil {
 				errs = append(errs, err)
 				return
@@ -1071,12 +1071,12 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 			logger.Info("feature-file=%s version=%s valid-until=%s serial=%d maxNodes=%d", ffFile.name, ffFile.version, ffFile.validUntil.String(), ffFile.serial, ffFile.maxNodes)
 		}
 	}
-	if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+	if featuresFilePath == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 		logger.Warn("you are attempting to install version 4.6-6.0 and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		var ignoreMe string
 		//nolint:errcheck
 		fmt.Scanln(&ignoreMe)
-	} else if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+	} else if featuresFilePath == "" && aver_major == 6 && aver_minor > 0 {
 		if c.NodeCount == 1 {
 			logger.Warn("FeaturesFilePath does not contain a valid feature file. Using embedded features files.")
 		} else {
@@ -1085,7 +1085,7 @@ func (c *ClusterCreateCmd) FeaturesFilePathResolve(system *System, inventory *ba
 			//nolint:errcheck
 			fmt.Scanln(&ignoreMe)
 		}
-	} else if string(featuresFilePath) != "" && foundFile.maxNodes > 0 && foundFile.maxNodes < c.NodeCount {
+	} else if featuresFilePath != "" && foundFile.maxNodes > 0 && foundFile.maxNodes < c.NodeCount {
 		logger.Warn("selected cluster size %d is larger than the feature file allows (%d). This will cause the cluster to not form.\n\nPress ENTER if you still wish to proceed", c.NodeCount, foundFile.maxNodes)
 		var ignoreMe string
 		//nolint:errcheck

@@ -43,12 +43,12 @@ type pair struct{ x, y int }
 // Second, the name is frequently interpreted as meaning that you have
 // to wait longer (to be patient) for the diff, meaning that it is a slower algorithm,
 // when in fact the algorithm is faster than the standard one.
-func Diff(oldName string, old []byte, newName string, new []byte) []byte {
-	if bytes.Equal(old, new) {
+func Diff(oldName string, old []byte, newName string, updated []byte) []byte {
+	if bytes.Equal(old, updated) {
 		return nil
 	}
 	x := lines(old)
-	y := lines(new)
+	y := lines(updated)
 
 	// Print diff header.
 	var out bytes.Buffer
