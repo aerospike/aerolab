@@ -4,6 +4,9 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 
 	cmd "github.com/aerospike/aerolab/cli/cmd/v1"
@@ -80,6 +83,7 @@ func defaultHomeLogic() {
 					log.Printf("Could not migrate AeroLab configuration: %s", err)
 					os.Exit(1)
 				}
+				fixHomeOwnership(newHome)
 				return
 			} else {
 				// Accidental upgrade, perform rollback
@@ -109,6 +113,7 @@ func customHomeLogic() {
 			log.Printf("Could not create home directory %s: %s", customHome, err)
 			os.Exit(1)
 		}
+		fixHomeOwnership(customHome)
 		return
 	}
 	if isV8Home(customHome) {
@@ -147,6 +152,43 @@ func isRunningAsAerolab8() bool {
 	return baseName == "aerolab8"
 }
 
+// fixHomeOwnership corrects ownership of the aerolab home directory when
+// running under sudo. Without this, 'sudo aerolab' creates ~/.config/aerolab
+// owned by root, breaking subsequent non-sudo runs.
+func fixHomeOwnership(homePath string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	sudoUID := os.Getenv("SUDO_UID")
+	sudoGID := os.Getenv("SUDO_GID")
+	if sudoUID == "" || sudoGID == "" {
+		return
+	}
+	uid, err := strconv.Atoi(sudoUID)
+	if err != nil {
+		return
+	}
+	gid, err := strconv.Atoi(sudoGID)
+	if err != nil {
+		return
+	}
+	// Also fix the parent directory (e.g. ~/.config) in case MkdirAll created it
+	parent := path.Dir(homePath)
+	if parent != "" && parent != "." && parent != "/" {
+		//nolint:errcheck
+		os.Chown(parent, uid, gid)
+	}
+	//nolint:errcheck
+	filepath.WalkDir(homePath, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		//nolint:errcheck
+		os.Chown(p, uid, gid)
+		return nil
+	})
+}
+
 func rollbackTo79(home string) bool {
 	// if we're already running as aerolab8, skip the downgrade
 	if isRunningAsAerolab8() {
@@ -155,7 +197,13 @@ func rollbackTo79(home string) bool {
 		os.MkdirAll(home, 0700)
 		//nolint:errcheck
 		os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
+		fixHomeOwnership(home)
 		return false
+	}
+
+	if err := cmd.CheckBinaryDirWritable(); err != nil {
+		log.Printf("AeroLab needs to perform an auto-downgrade to v7, but %s", err)
+		os.Exit(1)
 	}
 
 	// get current binary path
@@ -192,6 +240,7 @@ func rollbackTo79(home string) bool {
 	os.MkdirAll(home, 0700)
 	//nolint:errcheck
 	os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
+	fixHomeOwnership(home)
 	log.Println("WARNING: AeroLab v8 has been installed, though it is still in development. The following actions are being performed:")
 	log.Println("1. Copying self to `aerolab8`")
 	log.Println("2. Installing the latest AeroLab v7 available (replaces current binary)")

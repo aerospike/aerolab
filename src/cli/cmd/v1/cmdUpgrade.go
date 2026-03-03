@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -227,6 +228,10 @@ func (c *UpgradeCmd) UpgradeAerolab(log *logger.Logger) error {
 		return nil
 	}
 
+	if err := CheckBinaryDirWritable(); err != nil {
+		return err
+	}
+
 	// create the temporary file
 	dest, err := os.OpenFile(cur+"-upgrade", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
 	if err != nil {
@@ -292,5 +297,27 @@ func (c *UpgradeCmd) UpgradeAerolab(log *logger.Logger) error {
 		return fmt.Errorf("failed to rename temp file '%s' to final destination '%s': %s", cur+"-upgrade", cur, err)
 	}
 
+	return nil
+}
+
+// CheckBinaryDirWritable verifies that the directory containing the aerolab
+// binary is writable. Returns nil if writable, or an error with guidance to
+// re-run with elevated privileges.
+func CheckBinaryDirWritable() error {
+	cur, err := GetSelfPath()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(cur)
+	testFile := filepath.Join(dir, ".aerolab-write-test")
+	f, err := os.Create(testFile)
+	if err != nil {
+		if runtime.GOOS == "windows" {
+			return fmt.Errorf("no write permission to '%s' (binary location): please re-run as Administrator", dir)
+		}
+		return fmt.Errorf("no write permission to '%s' (binary location): please re-run with sudo", dir)
+	}
+	f.Close()
+	os.Remove(testFile)
 	return nil
 }
