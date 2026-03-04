@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const openAPIURL = "https://api.aerospike.cloud/v1/openapi.yaml"
+const openAPIURL = "https://api.aerospike.com/v1/openapi.yaml"
 
 type CloudGenConfTemplatesCmd struct {
 	OutputDir string  `short:"d" long:"output-dir" description:"Directory to save template files" default:"."`
