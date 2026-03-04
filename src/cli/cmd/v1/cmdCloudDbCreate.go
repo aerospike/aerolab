@@ -59,6 +59,11 @@ func (c *CloudClustersCreateCmd) Execute(args []string) error {
 }
 
 func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+	if c.CustomConf != "" {
+		if err := c.extractCustomConfDefaults(); err != nil {
+			return err
+		}
+	}
 	if c.Name == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -284,7 +289,7 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 		return fmt.Errorf("failed to marshal default aerospikeServer: %w", err)
 	}
 
-	request := cloud.CreateClusterRequest{
+	baseRequest := cloud.CreateClusterRequest{
 		Name:             c.Name,
 		DataPlaneVersion: c.DataPlaneVersion,
 		Infrastructure:   infrastructure,
@@ -292,10 +297,14 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 		AerospikeServer:  aerospikeServerJSON,
 	}
 
+	// request is any so that mergeFullRequest can return a map[string]any
+	// that preserves all JSON fields without lossy typed-struct round-tripping
+	var request any = baseRequest
+
 	// Apply custom configuration if provided
 	if c.CustomConf != "" {
 		logger.Info("Loading custom configuration from: %s", c.CustomConf)
-		customRequest, err := c.loadAndMergeCustomConfig(c.CustomConf, request, logger)
+		customRequest, err := c.loadAndMergeCustomConfig(c.CustomConf, baseRequest, logger)
 		if err != nil {
 			return fmt.Errorf("failed to load custom configuration: %w", err)
 		}
@@ -603,7 +612,7 @@ func (c *CloudClustersCreateCmd) getClusterByName(client *cloud.Client, name str
 // loadAndMergeCustomConfig loads a custom JSON configuration file and merges it with the base request.
 // It auto-detects whether the JSON is a full request body or just the aerospikeServer section.
 // Custom configuration takes precedence over the base request values.
-func (c *CloudClustersCreateCmd) loadAndMergeCustomConfig(filePath string, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (cloud.CreateClusterRequest, error) {
+func (c *CloudClustersCreateCmd) loadAndMergeCustomConfig(filePath string, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (any, error) {
 	// Read the custom config file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -642,44 +651,30 @@ func (c *CloudClustersCreateCmd) loadAndMergeCustomConfig(filePath string, baseR
 	return c.mergeAerospikeServerOnly(data, baseRequest, logger)
 }
 
-// mergeFullRequest merges a full request JSON with the base request
-func (c *CloudClustersCreateCmd) mergeFullRequest(data []byte, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (cloud.CreateClusterRequest, error) {
-	// First, convert base request to a map for merging
+// mergeFullRequest merges a full request JSON with the base request.
+// Returns map[string]any to avoid lossy round-tripping through typed structs
+// which would drop JSON fields not defined in the Go types.
+func (c *CloudClustersCreateCmd) mergeFullRequest(data []byte, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (map[string]any, error) {
 	baseData, err := json.Marshal(baseRequest)
 	if err != nil {
-		return baseRequest, fmt.Errorf("failed to marshal base request: %w", err)
+		return nil, fmt.Errorf("failed to marshal base request: %w", err)
 	}
 
 	var baseMap map[string]any
 	if err := json.Unmarshal(baseData, &baseMap); err != nil {
-		return baseRequest, fmt.Errorf("failed to unmarshal base request: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal base request: %w", err)
 	}
 
-	// Parse custom config
 	var customMap map[string]any
 	if err := json.Unmarshal(data, &customMap); err != nil {
-		return baseRequest, fmt.Errorf("failed to parse custom config: %w", err)
+		return nil, fmt.Errorf("failed to parse custom config: %w", err)
 	}
 
-	// Deep merge: custom config takes precedence
-	mergedMap := deepMerge(baseMap, customMap)
-
-	// Convert back to CreateClusterRequest
-	mergedData, err := json.Marshal(mergedMap)
-	if err != nil {
-		return baseRequest, fmt.Errorf("failed to marshal merged config: %w", err)
-	}
-
-	var result cloud.CreateClusterRequest
-	if err := json.Unmarshal(mergedData, &result); err != nil {
-		return baseRequest, fmt.Errorf("failed to unmarshal merged config: %w", err)
-	}
-
-	return result, nil
+	return deepMerge(baseMap, customMap), nil
 }
 
 // mergeAerospikeServerOnly merges an aerospikeServer-only JSON with the base request
-func (c *CloudClustersCreateCmd) mergeAerospikeServerOnly(data []byte, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (cloud.CreateClusterRequest, error) {
+func (c *CloudClustersCreateCmd) mergeAerospikeServerOnly(data []byte, baseRequest cloud.CreateClusterRequest, logger *logger.Logger) (any, error) {
 	// Parse the aerospikeServer section
 	var customServer map[string]any
 	if err := json.Unmarshal(data, &customServer); err != nil {
@@ -707,6 +702,63 @@ func (c *CloudClustersCreateCmd) mergeAerospikeServerOnly(data []byte, baseReque
 
 	baseRequest.AerospikeServer = mergedData
 	return baseRequest, nil
+}
+
+// extractCustomConfDefaults reads the custom config file and populates missing CLI fields
+// from the JSON so that validation can pass without requiring redundant CLI flags.
+// Only extracts values when the custom config is a full request body (not aerospikeServer-only).
+func (c *CloudClustersCreateCmd) extractCustomConfDefaults() error {
+	data, err := os.ReadFile(c.CustomConf)
+	if err != nil {
+		return fmt.Errorf("failed to read custom config file: %w", err)
+	}
+
+	var rawConfig map[string]any
+	if err := json.Unmarshal(data, &rawConfig); err != nil {
+		return fmt.Errorf("failed to parse custom config JSON: %w", err)
+	}
+
+	_, hasInfra := rawConfig["infrastructure"]
+	_, hasCloud := rawConfig["aerospikeCloud"]
+	_, hasName := rawConfig["name"]
+	_, hasServer := rawConfig["aerospikeServer"]
+	if !hasInfra && !hasCloud && !hasName && !hasServer {
+		return nil
+	}
+
+	if c.Name == "" {
+		if name, ok := rawConfig["name"].(string); ok && name != "" {
+			c.Name = name
+		}
+	}
+
+	if infra, ok := rawConfig["infrastructure"].(map[string]any); ok {
+		if c.InstanceType == "" {
+			if v, ok := infra["instanceType"].(string); ok && v != "" {
+				c.InstanceType = v
+			}
+		}
+		if c.Region == "" {
+			if v, ok := infra["region"].(string); ok && v != "" {
+				c.Region = v
+			}
+		}
+	}
+
+	if ac, ok := rawConfig["aerospikeCloud"].(map[string]any); ok {
+		if c.ClusterSize == 0 {
+			if v, ok := ac["clusterSize"].(float64); ok && v > 0 {
+				c.ClusterSize = int(v)
+			}
+		}
+		if c.DataStorage == "" {
+			if v, ok := ac["dataStorage"].(string); ok && v != "" {
+				c.DataStorage = v
+			}
+		}
+	}
+
+	return nil
 }
 
 // deepMerge recursively merges two maps, with the override map taking precedence

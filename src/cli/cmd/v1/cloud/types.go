@@ -141,11 +141,7 @@ type Infrastructure struct {
 	CIDRBlock              string                  `json:"cidrBlock,omitempty"`
 	NetworkID              string                  `json:"networkId,omitempty"`
 	AccountID              string                  `json:"accountId,omitempty"`
-	NetworkAttachedStorage *NetworkAttachedStorage `json:"networkAttachedStorage,omitempty"`
-}
-
-type NetworkAttachedStorage struct {
-	// Define based on the actual schema
+	NetworkAttachedStorage json.RawMessage `json:"networkAttachedStorage,omitempty"`
 }
 
 // Aerospike Cloud Types
