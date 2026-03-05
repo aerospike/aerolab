@@ -19,7 +19,7 @@ type CloudClustersUpdateCmd struct {
 	Name         string  `short:"n" long:"name" description:"Name of the cluster"`
 	InstanceType string  `short:"i" long:"instance-type" description:"Instance type (vertical scaling)"`
 	ClusterSize  int     `short:"s" long:"cluster-size" description:"Number of nodes in cluster (horizontal scaling)"`
-	Wait         bool    `short:"w" long:"wait" description:"Wait for cluster update to complete"`
+	NoWait       bool    `short:"w" long:"no-wait" description:"Do not wait for cluster update to complete"`
 	DryRun       bool    `long:"dry-run" description:"Print the JSON request that would be sent without actually sending it"`
 	CustomConf   string  `short:"o" long:"custom-conf" description:"Path to custom JSON configuration file (full request body or aerospikeServer section only). Custom config takes precedence over flags."`
 	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -161,7 +161,7 @@ func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *b
 	}
 
 	// Wait for update to complete if --wait is specified
-	if c.Wait {
+	if !c.NoWait {
 		logger.Info("Waiting for cluster update to complete...")
 		clusterResult, err := c.waitForClusterUpdateComplete(client, clusterID, logger)
 		// Print the cluster result regardless of success or error
