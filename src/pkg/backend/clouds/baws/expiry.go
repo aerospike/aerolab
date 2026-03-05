@@ -2,6 +2,7 @@ package baws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -36,6 +37,30 @@ type ExpiryDetail struct {
 	Environment        map[string]string `json:"environment" yaml:"environment"`
 	SchedulerState     string            `json:"schedulerState" yaml:"schedulerState"`
 	FunctionState      string            `json:"functionState" yaml:"functionState"`
+}
+
+// getExpiryDetail safely extracts *ExpiryDetail from BackendSpecific, handling
+// nil and map[string]interface{} (from JSON/YAML deserialization) gracefully.
+func getExpiryDetail(e *backends.ExpirySystem) *ExpiryDetail {
+	if e.BackendSpecific == nil {
+		e.BackendSpecific = &ExpiryDetail{}
+		return e.BackendSpecific.(*ExpiryDetail)
+	}
+	if ed, ok := e.BackendSpecific.(*ExpiryDetail); ok {
+		return ed
+	}
+	if m, ok := e.BackendSpecific.(map[string]any); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var ed ExpiryDetail
+			if err := json.Unmarshal(jsonBytes, &ed); err == nil {
+				e.BackendSpecific = &ed
+				return &ed
+			}
+		}
+	}
+	e.BackendSpecific = &ExpiryDetail{}
+	return e.BackendSpecific.(*ExpiryDetail)
 }
 
 func (s *b) ExpiryChangeConfiguration(logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error {
@@ -216,9 +241,10 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		}
 		if e != nil && e.FrequencyMinutes > 0 {
 			intervalMinutes = e.FrequencyMinutes
-			expireEksctl = e.BackendSpecific.(*ExpiryDetail).ExpireEksctl
-			cleanupDNS = e.BackendSpecific.(*ExpiryDetail).CleanupDNS
-			logLevel = e.BackendSpecific.(*ExpiryDetail).LogLevel
+			ed := getExpiryDetail(e)
+			expireEksctl = ed.ExpireEksctl
+			cleanupDNS = ed.CleanupDNS
+			logLevel = ed.LogLevel
 		}
 	}
 	log.Detail("Connecting to AWS")
@@ -733,6 +759,7 @@ func (s *b) ExpiryChangeFrequency(intervalMinutes int, zones ...string) error {
 				reterr = errors.Join(reterr, err)
 				return
 			}
+			ed := getExpiryDetail(e)
 			_, err = sclient.UpdateSchedule(context.TODO(), &scheduler.UpdateScheduleInput{
 				Name:               aws.String("aerolab-expiries-" + zone),
 				ScheduleExpression: aws.String(fmt.Sprintf("rate(%d minutes)", intervalMinutes)),
@@ -741,8 +768,8 @@ func (s *b) ExpiryChangeFrequency(intervalMinutes int, zones ...string) error {
 					Mode: stypes.FlexibleTimeWindowModeOff,
 				},
 				Target: &stypes.Target{
-					Arn:     aws.String(e.BackendSpecific.(*ExpiryDetail).SchedulerTargetArn),
-					RoleArn: aws.String(e.BackendSpecific.(*ExpiryDetail).IAMScheduler),
+					Arn:     aws.String(ed.SchedulerTargetArn),
+					RoleArn: aws.String(ed.IAMScheduler),
 				},
 			})
 			if err != nil {

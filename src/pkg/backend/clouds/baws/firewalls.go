@@ -2,6 +2,7 @@ package baws
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -15,6 +16,28 @@ import (
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 )
+
+// getIpPermission safely extracts types.IpPermission from a PortOut's BackendSpecific,
+// handling nil and map[string]interface{} (from JSON/YAML deserialization) gracefully.
+func getIpPermission(port *backends.PortOut) (types.IpPermission, bool) {
+	if port.BackendSpecific == nil {
+		return types.IpPermission{}, false
+	}
+	if perm, ok := port.BackendSpecific.(types.IpPermission); ok {
+		return perm, true
+	}
+	if m, ok := port.BackendSpecific.(map[string]any); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var perm types.IpPermission
+			if err := json.Unmarshal(jsonBytes, &perm); err == nil {
+				port.BackendSpecific = perm
+				return perm, true
+			}
+		}
+	}
+	return types.IpPermission{}, false
+}
 
 func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
 	log := s.log.WithPrefix("GetFirewalls: job=" + shortuuid.New() + " ")
@@ -239,7 +262,9 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backends.Firewall, ports b
 					continue
 				}
 				// all checks passed, rule match
-				deleteRules.IpPermissions = append(deleteRules.IpPermissions, fwport.BackendSpecific.(types.IpPermission))
+				if perm, ok := getIpPermission(fwport); ok {
+					deleteRules.IpPermissions = append(deleteRules.IpPermissions, perm)
+				}
 			}
 		default:
 			return errors.New("action on port not specified")
