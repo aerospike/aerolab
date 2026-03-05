@@ -104,6 +104,30 @@ type InstanceDetail struct {
 	Docker container.Summary `json:"docker" yaml:"docker"`
 }
 
+// getInstanceDetail safely extracts *InstanceDetail from BackendSpecific, handling
+// nil and map[string]interface{} (from JSON/YAML deserialization) gracefully.
+func getInstanceDetail(inst *backends.Instance) *InstanceDetail {
+	if inst.BackendSpecific == nil {
+		inst.BackendSpecific = &InstanceDetail{}
+		return inst.BackendSpecific.(*InstanceDetail)
+	}
+	if id, ok := inst.BackendSpecific.(*InstanceDetail); ok {
+		return id
+	}
+	if m, ok := inst.BackendSpecific.(map[string]any); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id InstanceDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				inst.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	inst.BackendSpecific = &InstanceDetail{}
+	return inst.BackendSpecific.(*InstanceDetail)
+}
+
 // getImageDetail safely extracts *ImageDetail from BackendSpecific, initializing it if needed.
 // This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
 // or already the correct type.
@@ -511,7 +535,7 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 		useDockerExec := false
 		if d, ok := i.Tags["aerolab.custom.image"]; ok && d == "true" {
 			useDockerExec = true
-			for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
+			for _, x := range getInstanceDetail(i).Docker.Ports {
 				if x.PrivatePort == 22 {
 					useDockerExec = false
 					break
@@ -581,7 +605,7 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				return
 			}
 			sshPort := 0
-			for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
+			for _, x := range getInstanceDetail(i).Docker.Ports {
 				if x.PrivatePort == 22 {
 					sshPort = int(x.PublicPort)
 					break
@@ -676,7 +700,7 @@ func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username str
 			return nil, errors.New("required key not found")
 		}
 		sshPort := 0
-		for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
+		for _, x := range getInstanceDetail(i).Docker.Ports {
 			if x.PrivatePort == 22 {
 				sshPort = int(x.PublicPort)
 				break

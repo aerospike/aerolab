@@ -71,7 +71,7 @@ func (u *usedPorts) getNextFree(start int) int {
 func (u *usedPorts) reset(used backends.InstanceList) {
 	usedPorts := []int{}
 	for _, inst := range used.Describe() {
-		for _, port := range inst.BackendSpecific.(*InstanceDetail).Docker.Ports {
+		for _, port := range getInstanceDetail(inst).Docker.Ports {
 			usedPorts = append(usedPorts, int(port.PublicPort))
 		}
 	}
