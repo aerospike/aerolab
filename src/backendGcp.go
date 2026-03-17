@@ -362,7 +362,7 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 		if len(deployRegion) > 2 {
 			deployRegion = deployRegion[:len(deployRegion)-1]
 		}
-		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"), "")
+		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"), "", false)
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
