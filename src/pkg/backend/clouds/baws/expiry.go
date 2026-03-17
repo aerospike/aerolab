@@ -316,6 +316,16 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 			return err
 		}
 	}
+	if expireEksctl {
+		log.Detail("Attaching IAMFullAccess policy for EKS expiry support")
+		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
+			RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
+			PolicyArn: aws.String("arn:aws:iam::aws:policy/IAMFullAccess"),
+		})
+		if err != nil {
+			return err
+		}
+	}
 
 	log.Detail("Creating scheduler IAM role")
 	schedRole, err := iamclient.CreateRole(context.TODO(), &iam.CreateRoleInput{
@@ -531,7 +541,8 @@ func (s *b) ExpiryRemove(zones ...string) error {
 			if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException") {
 				reterr = errors.Join(reterr, err)
 			}
-			for _, npolicy := range getExpiryJSONStringList("lambda-role-attach-policies.json") {
+			knownPolicies := getExpiryJSONStringList("lambda-role-attach-policies.json")
+			for _, npolicy := range knownPolicies {
 				_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
 					PolicyArn: aws.String(npolicy),
 					RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
@@ -545,6 +556,26 @@ func (s *b) ExpiryRemove(zones ...string) error {
 				RoleName:   aws.String("aerolab-expiries-lambda-" + zone),
 			})
 			if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+				reterr = errors.Join(reterr, err)
+			}
+			attachedOut, err := iamclient.ListAttachedRolePolicies(context.TODO(), &iam.ListAttachedRolePoliciesInput{
+				RoleName: aws.String("aerolab-expiries-lambda-" + zone),
+			})
+			if err == nil {
+				for _, p := range attachedOut.AttachedPolicies {
+					arn := aws.ToString(p.PolicyArn)
+					if !slices.Contains(knownPolicies, arn) {
+						log.Warn("Detaching manually-added policy %s from role aerolab-expiries-lambda-%s", arn, zone)
+					}
+					_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
+						PolicyArn: p.PolicyArn,
+						RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
+					})
+					if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+						reterr = errors.Join(reterr, err)
+					}
+				}
+			} else if !strings.Contains(err.Error(), "NoSuchEntity") {
 				reterr = errors.Join(reterr, err)
 			}
 			_, err = iamclient.DeleteRole(context.TODO(), &iam.DeleteRoleInput{
