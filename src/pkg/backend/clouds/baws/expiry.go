@@ -121,6 +121,10 @@ func (s *b) expiryChangeConfiguration(zone string, log *logger.Logger, logLevel 
 	if err != nil {
 		return err
 	}
+	iamclient, err := getIamClient(s.credentials, &zone)
+	if err != nil {
+		return err
+	}
 
 	log.Detail("Updating lambda function configuration")
 	_, err = lclient.UpdateFunctionConfiguration(context.TODO(), &lambda.UpdateFunctionConfigurationInput{
@@ -135,6 +139,31 @@ func (s *b) expiryChangeConfiguration(zone string, log *logger.Logger, logLevel 
 	})
 	if err != nil {
 		return err
+	}
+
+	// Keep IAM role attachment in sync with expireEksctl toggle.
+	iamFullAccessArn := "arn:aws:iam::aws:policy/IAMFullAccess"
+	roleName := "aerolab-expiries-lambda-" + zone
+	if expireEksctl {
+		log.Detail("Ensuring IAMFullAccess policy is attached for EKS expiry support")
+		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
+			RoleName:  aws.String(roleName),
+			PolicyArn: aws.String(iamFullAccessArn),
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Detail("Ensuring IAMFullAccess policy is detached when EKS expiry is disabled")
+		_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
+			RoleName:  aws.String(roleName),
+			PolicyArn: aws.String(iamFullAccessArn),
+		})
+		if err != nil &&
+			!strings.Contains(err.Error(), "NoSuchEntity") &&
+			!strings.Contains(err.Error(), "PolicyNotAttached") {
+			return err
+		}
 	}
 	return nil
 }
