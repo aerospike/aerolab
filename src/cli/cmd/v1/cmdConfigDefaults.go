@@ -181,7 +181,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 	switch keyField.Type().Kind() {
 	case reflect.Int, reflect.Int64:
 		if keyField.Type().String() == "time.Duration" {
-			v, err := time.ParseDuration(value)
+			v, err := ParseExtendedDuration(value)
 			if err != nil {
 				fmt.Printf("ERROR: value must be a duration (%s)\n", value)
 				return errors.New("ERROR: value must be a duration")
@@ -241,7 +241,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 			keyField.Set(reflect.ValueOf(&boolVal))
 		case "int", "int64":
 			if keyField.Type().String() == "time.Duration" {
-				v, err := time.ParseDuration(value)
+				v, err := ParseExtendedDuration(value)
 				if err != nil {
 					fmt.Println("ERROR: value must be a duration")
 					return errors.New("ERROR: value must be a duration")
@@ -302,7 +302,7 @@ func (c *ConfigDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			if keyField.Type().String() != "time.Duration" {
 				ret <- ConfigValueCmd{start, fmt.Sprintf("%d", keyField.Int())}
 			} else {
-				defDuration, err := time.ParseDuration(tagDefault)
+				defDuration, err := ParseExtendedDuration(tagDefault)
 				if !onlyChanged || err != nil || defDuration != time.Duration(keyField.Int()) {
 					ret <- ConfigValueCmd{start, fmt.Sprintf("%v", time.Duration(keyField.Int()))}
 				}

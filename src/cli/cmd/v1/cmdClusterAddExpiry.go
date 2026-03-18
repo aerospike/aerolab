@@ -12,7 +12,7 @@ import (
 type ClusterAddExpiryCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	ExpireIn    time.Duration   `short:"e" long:"expiry" description:"Expiry in duration from now" default:"30h"`
+	ExpireIn    TypeExpiry       `short:"e" long:"expiry" description:"Expiry in duration from now; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -86,15 +86,28 @@ func (c *ClusterAddExpiryCmd) AddExpiryCluster(system *System, inventory *backen
 		logger.Info("No nodes to add expiry")
 		return nil
 	}
+	expiry := time.Time{}
 	if c.ExpireIn == 0 {
 		logger.Info("Removing expiry from %d nodes", cluster.Count())
-		err = cluster.ChangeExpiry(time.Time{})
 	} else {
 		logger.Info("Adding expiry to %d nodes", cluster.Count())
-		err = cluster.ChangeExpiry(time.Now().Add(c.ExpireIn))
+		expiry = time.Now().Add(c.ExpireIn.Duration())
 	}
+	err = cluster.ChangeExpiry(expiry)
 	if err != nil {
 		return err
+	}
+	for _, inst := range cluster.Describe() {
+		if inst.AttachedVolumes == nil {
+			continue
+		}
+		dotVols := inst.AttachedVolumes.WithDeleteOnTermination(true)
+		if dotVols.Count() == 0 {
+			continue
+		}
+		if vErr := dotVols.ChangeExpiry(expiry); vErr != nil {
+			logger.Warn("Failed to update volume expiry for %s:%d: %s", inst.ClusterName, inst.NodeNo, vErr)
+		}
 	}
 	return nil
 }

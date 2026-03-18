@@ -346,7 +346,7 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	// Parse instance expiry duration
 	var expireDuration time.Duration
 	if expireStr != "" {
-		if d, err := time.ParseDuration(expireStr); err == nil {
+		if d, err := ParseExtendedDuration(expireStr); err == nil {
 			expireDuration = d
 		}
 	}
@@ -358,7 +358,7 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	// Note: 0 is a valid value meaning "never expire", so only use default if tag is missing
 	var efsExpireDuration time.Duration
 	if efsExpireStr != "" {
-		if d, err := time.ParseDuration(efsExpireStr); err == nil {
+		if d, err := ParseExtendedDuration(efsExpireStr); err == nil {
 			efsExpireDuration = d
 		} else {
 			efsExpireDuration = 96 * time.Hour // Parse error, use default
@@ -442,8 +442,8 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 			DisablePublicIP:     disablePublicIP,
 			Route53ZoneId:       route53ZoneID,
 			Route53DomainName:   route53Domain,
-			Expires:             expireDuration,
-			EFSExpires:          efsExpireDuration,
+			Expires:             TypeExpiry(expireDuration),
+			EFSExpires:          TypeExpiry(efsExpireDuration),
 		},
 	}
 
@@ -541,7 +541,7 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	// Parse instance expiry duration
 	var expireDuration time.Duration
 	if expireStr != "" {
-		if d, err := time.ParseDuration(expireStr); err == nil {
+		if d, err := ParseExtendedDuration(expireStr); err == nil {
 			expireDuration = d
 		}
 	}
@@ -553,7 +553,7 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	// Note: 0 is a valid value meaning "never expire", so only use default if tag is missing
 	var volExpireDuration time.Duration
 	if volExpireStr != "" {
-		if d, err := time.ParseDuration(volExpireStr); err == nil {
+		if d, err := ParseExtendedDuration(volExpireStr); err == nil {
 			volExpireDuration = d
 		} else {
 			volExpireDuration = 96 * time.Hour // Parse error, use default
@@ -624,8 +624,8 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 			TerminateOnPoweroff: terminateOnPoweroff,
 			SpotInstance:        spotInstance,
 			Zone:                guiZone(zone),
-			Expires:             expireDuration,
-			VolExpires:          volExpireDuration,
+			Expires:             TypeExpiry(expireDuration),
+			VolExpires:          TypeExpiry(volExpireDuration),
 		},
 	}
 

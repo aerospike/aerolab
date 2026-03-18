@@ -56,8 +56,9 @@ nodeGroups:
     desiredCapacity: 4
     volumeSize: 100
     volumeType: gp2
-    ssh: # import default public key (~/.ssh/id_rsa.pub)
+    ssh:
       allow: true
+      publicKeyPath: ~/.ssh/id_rsa.pub
     # AUTOSCALER: define minSize and maxSize as well as the above desiredCapacity; for ease of use keep minSize==desiredCapacity
     minSize: 2
     maxSize: 8

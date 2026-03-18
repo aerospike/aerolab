@@ -68,6 +68,11 @@ func (c *ClientCreateEksCtlCmd) Execute(args []string) error {
 		return errors.New("AWS region must be specified (use -r AWSREGION)")
 	}
 
+	_, _, earlyEdition, earlyVersion := GetAerolabVersion()
+	if strings.Contains(earlyEdition, "unofficial") && c.AerolabBinary == "" {
+		return fmt.Errorf("running unofficial aerolab build (%s); --aerolab-binary flag is required to specify the path to a Linux aerolab binary", earlyVersion)
+	}
+
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -138,14 +143,8 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		return fmt.Errorf("failed to get bootstrap script: %w", err)
 	}
 
-	// Check if running unofficial build
-	_, _, edition, currentAerolabVersion := GetAerolabVersion()
-	isUnofficial := strings.Contains(edition, "unofficial")
+	_, _, _, currentAerolabVersion := GetAerolabVersion()
 	useLocalBinary := c.AerolabBinary != ""
-
-	if isUnofficial && !useLocalBinary {
-		return fmt.Errorf("running unofficial aerolab build (%s); --aerolab-binary flag is required to specify the path to a Linux aerolab binary", currentAerolabVersion)
-	}
 
 	// Get aerolab installer script (only if not using local binary)
 	var aerolabScript []byte
@@ -352,7 +351,6 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 			RetrySleep:     c.RetrySleep,
 		})
 		if output.Output.Err != nil {
-			// Save script failure to local machine for debugging
 			failure := scriptlog.NewScriptFailureWithPath(
 				client.ClusterName,
 				client.NodeNo,
@@ -369,7 +367,55 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
-		// 7. Create /root/eks directory
+		// 6. Configure aerolab backend to AWS
+		logger.Debug("Configuring aerolab backend on %s:%d", client.ClusterName, client.NodeNo)
+		configBackendCmd := []string{"aerolab", "config", "backend", "-t", "aws", "-r", c.EksAwsRegion}
+		output = client.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        configBackendCmd,
+				SessionTimeout: 2 * time.Minute,
+			},
+			Username:       "root",
+			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
+		})
+		if output.Output.Err != nil {
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:aerolab-config-backend",
+				[]byte(strings.Join(configBackendCmd, " ")),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to configure aerolab backend: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
+		}
+
+		// 7. Install expiry system
+		logger.Debug("Installing expiry system on %s:%d", client.ClusterName, client.NodeNo)
+		expiryInstallCmd := []string{"aerolab", "config", "aws", "expiry-install"}
+		output = client.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        expiryInstallCmd,
+				SessionTimeout: 5 * time.Minute,
+			},
+			Username:       "root",
+			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
+		})
+		if output.Output.Err != nil {
+			logger.Warn("Expiry system could not be installed on %s:%d: %s; EKS clusters may not expire",
+				client.ClusterName, client.NodeNo, output.Output.Err)
+		}
+
+		// 8. Create /root/eks directory
 		logger.Debug("Creating /root/eks directory on %s:%d", client.ClusterName, client.NodeNo)
 		mkdirCmd := []string{"mkdir", "-p", "/root/eks"}
 		output = client.Exec(&backends.ExecInput{
@@ -400,7 +446,24 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 
-		// 8. Upload EKS YAML templates
+		// 9. Generate SSH key pair if ~/.ssh/id_rsa doesn't exist (required by eksctl templates)
+		logger.Debug("Ensuring SSH key pair exists on %s:%d", client.ClusterName, client.NodeNo)
+		sshKeyGenCmd := []string{"bash", "-c", `[ -f /root/.ssh/id_rsa ] || ssh-keygen -t rsa -N '' -f /root/.ssh/id_rsa -q`}
+		output = client.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        sshKeyGenCmd,
+				SessionTimeout: 30 * time.Second,
+			},
+			Username:       "root",
+			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
+		})
+		if output.Output.Err != nil {
+			return fmt.Errorf("failed to generate SSH key pair on %s:%d: %w", client.ClusterName, client.NodeNo, output.Output.Err)
+		}
+
+		// 10. Upload EKS YAML templates
 		logger.Debug("Uploading EKS YAML templates to %s:%d", client.ClusterName, client.NodeNo)
 		for filename, contents := range eksYamlFiles {
 			err = sftpClient.WriteFile(true, &sshexec.FileWriter{
@@ -413,7 +476,7 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 			}
 		}
 
-		// 9. Upload features file
+		// 11. Upload features file
 		logger.Debug("Uploading features file to %s:%d", client.ClusterName, client.NodeNo)
 		err = sftpClient.WriteFile(true, &sshexec.FileWriter{
 			DestPath:    "/root/features.conf",

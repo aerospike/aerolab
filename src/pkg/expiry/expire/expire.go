@@ -249,22 +249,29 @@ func (h *ExpiryHandler) expireEksctl(region string) error {
 		for _, stack := range stackList {
 			if stack.Name == "eksctl-"+aws.ToString(eksCluster.Cluster.Name)+"-cluster" {
 				log.Print("EKS: Listing EBS Volumes")
-				delvols, err := ec2svc.DescribeVolumes(context.TODO(), &ec2.DescribeVolumesInput{
+				clusterName := aws.ToString(eksCluster.Cluster.Name)
+				var eksVolumes []ec2types.Volume
+				volPaginator := ec2.NewDescribeVolumesPaginator(ec2svc, &ec2.DescribeVolumesInput{
 					Filters: []ec2types.Filter{
 						{
-							Name:   aws.String("tag:kubernetes.io/cluster/" + aws.ToString(eksCluster.Cluster.Name)),
+							Name:   aws.String("tag:kubernetes.io/cluster/" + clusterName),
 							Values: []string{"owned"},
 						}, {
 							Name:   aws.String("tag:KubernetesCluster"),
-							Values: []string{aws.ToString(eksCluster.Cluster.Name)},
+							Values: []string{clusterName},
 						},
 					},
 				})
-				if err != nil {
-					return fmt.Errorf("could not ec2.ListVolumes: %w", err)
+				for volPaginator.HasMorePages() {
+					page, err := volPaginator.NextPage(context.TODO())
+					if err != nil {
+						return fmt.Errorf("could not ec2.DescribeVolumes: %w", err)
+					}
+					eksVolumes = append(eksVolumes, page.Volumes...)
 				}
-				log.Printf("EKS: Deleting %d EBS volumes created using the ebs-csi driver (tag:KubernetesCluster={CLUSTERNAME} tag:kubernetes.io/cluster/{CLUSTERNAME}=owned)", len(delvols.Volumes))
-				for _, delvol := range delvols.Volumes {
+				log.Printf("EKS: Found %d EBS volumes for cluster %s (tag:KubernetesCluster tag:kubernetes.io/cluster/=owned)", len(eksVolumes), clusterName)
+				expiryTime := time.Now().Format(time.RFC3339)
+				for _, delvol := range eksVolumes {
 					doNotExpire := false
 					for _, tag := range delvol.Tags {
 						if aws.ToString(tag.Key) == "aerolab/do-not-expire" {
@@ -273,15 +280,27 @@ func (h *ExpiryHandler) expireEksctl(region string) error {
 						}
 					}
 					if doNotExpire {
-						log.Printf("Skipping %s (aerolab/do-not-expire tag set)", *delvol.VolumeId)
+						log.Printf("EKS: Skipping volume %s (aerolab/do-not-expire tag set)", aws.ToString(delvol.VolumeId))
 						continue
 					}
-					log.Printf("Deleting %s", *delvol.VolumeId)
+					log.Printf("EKS: Tagging volume %s for aerolab standard volume expiry", aws.ToString(delvol.VolumeId))
+					_, err = ec2svc.CreateTags(context.TODO(), &ec2.CreateTagsInput{
+						Resources: []string{aws.ToString(delvol.VolumeId)},
+						Tags: []ec2types.Tag{
+							{Key: aws.String(baws.TAG_AEROLAB_VERSION), Value: aws.String("eks-expiry")},
+							{Key: aws.String(baws.TAG_EXPIRES), Value: aws.String(expiryTime)},
+							{Key: aws.String(baws.TAG_NAME), Value: aws.String("eks-" + clusterName)},
+						},
+					})
+					if err != nil {
+						log.Printf("EKS: Warning: could not tag volume %s for expiry: %s", aws.ToString(delvol.VolumeId), err)
+					}
+					log.Printf("EKS: Attempting direct delete of volume %s", aws.ToString(delvol.VolumeId))
 					_, err = ec2svc.DeleteVolume(context.TODO(), &ec2.DeleteVolumeInput{
 						VolumeId: delvol.VolumeId,
 					})
 					if err != nil {
-						return fmt.Errorf("could not ec2.DeleteVolume: %w", err)
+						log.Printf("EKS: Warning: could not delete volume %s now (tagged for standard expiry, will be retried): %s", aws.ToString(delvol.VolumeId), err)
 					}
 				}
 				log.Print("Checking IAM Identity Providers (tag:alpha.eksctl.io/cluster-name={CLUSTERNAME})")

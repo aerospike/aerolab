@@ -214,7 +214,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 						delZones = append(delZones, zone)
 						newZones = append(newZones, zone)
 					} else {
-						log.Warn("Not installing, already installed in %s (version %s)", zone, strings.Trim(esys.Version, "\n \t\r"))
+						log.Info("Not installing, already installed in %s (version %s)", zone, strings.Trim(esys.Version, "\n \t\r"))
 					}
 					break
 				}

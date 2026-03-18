@@ -5,12 +5,115 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	flags "github.com/rglonek/go-flags"
 )
+
+// TypeExpiry is a time.Duration that supports calendar-aware Y (years), M (months)
+// and fixed W (weeks), D (days) units in addition to standard Go duration units.
+type TypeExpiry time.Duration
+
+func (t TypeExpiry) Duration() time.Duration {
+	return time.Duration(t)
+}
+
+func (t TypeExpiry) String() string {
+	return time.Duration(t).String()
+}
+
+func (t *TypeExpiry) UnmarshalFlag(value string) error {
+	d, err := ParseExtendedDuration(value)
+	if err != nil {
+		return err
+	}
+	*t = TypeExpiry(d)
+	return nil
+}
+
+func (t TypeExpiry) MarshalFlag() (string, error) {
+	return time.Duration(t).String(), nil
+}
+
+// ParseExtendedDuration parses a duration string with extended calendar units.
+//
+// Calendar units (use time.Now and AddDate for correct rollover):
+//
+//	Y/y = calendar years, M = calendar months
+//
+// Fixed units:
+//
+//	W/w = 7 days, D/d = 24 hours
+//
+// Standard Go units (lowercase only, handled by time.ParseDuration):
+//
+//	h, m (minutes), s, ms, us, ns
+//
+// Composite values are supported: "1Y6M", "1D2h30m", "2W12h".
+// Extended units must appear before standard units.
+func ParseExtendedDuration(s string) (time.Duration, error) {
+	return parseExtendedDurationFrom(s, time.Now())
+}
+
+func parseExtendedDurationFrom(s string, now time.Time) (time.Duration, error) {
+	if s == "" || s == "0" {
+		return 0, nil
+	}
+
+	original := s
+	var years, months int
+	var total time.Duration
+
+	for len(s) > 0 {
+		i := 0
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == 0 || i >= len(s) {
+			break
+		}
+
+		n, err := strconv.Atoi(s[:i])
+		if err != nil {
+			return 0, fmt.Errorf("time: invalid duration %q", original)
+		}
+
+		switch s[i] {
+		case 'Y', 'y':
+			years += n
+		case 'M':
+			months += n
+		case 'W', 'w':
+			total += time.Duration(n) * 7 * 24 * time.Hour
+		case 'D', 'd':
+			total += time.Duration(n) * 24 * time.Hour
+		default:
+			goto hms
+		}
+		s = s[i+1:]
+		continue
+	hms:
+		break
+	}
+
+	if years > 0 || months > 0 {
+		total += now.AddDate(years, months, 0).Sub(now)
+	}
+
+	if s == "" {
+		return total, nil
+	}
+
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("time: invalid duration %q", original)
+	}
+	return total + d, nil
+}
 
 type TypeClusterName string
 type TypeAgiClusterName string
@@ -105,10 +208,10 @@ func (t *TypeNode) Int() int {
 //  4. Use the type on a struct field and add the tag: webchoice:"method::List"
 //
 // The web UI reflect system (ResolveDynamicChoices in cmdWebUIReflect.go) will:
-//  - Detect the webchoice:"method::List" tag
-//  - Call the List() method via reflection
-//  - Populate the Choices field in the ParameterInfo sent to the frontend
-//  - The frontend SelectInput component renders it as a searchable dropdown
+//   - Detect the webchoice:"method::List" tag
+//   - Call the List() method via reflection
+//   - Populate the Choices field in the ParameterInfo sent to the frontend
+//   - The frontend SelectInput component renders it as a searchable dropdown
 //
 // For static choices, use webchoice:"value1,value2,value3" instead.
 type guiZone string

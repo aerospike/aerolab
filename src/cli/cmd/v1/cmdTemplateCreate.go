@@ -317,7 +317,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		Arch:               c.Arch,
 		AWS: InstancesCreateCmdAws{
 			ImageID:            "",
-			Expire:             20 * time.Minute,
+			Expire:             TypeExpiry(20 * time.Minute),
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       guiInstanceType(awsInstanceType),
 			Disks:              []string{"type=gp2,size=20"},
@@ -329,7 +329,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		},
 		GCP: InstancesCreateCmdGcp{
 			ImageName:          "",
-			Expire:             20 * time.Minute,
+			Expire:             TypeExpiry(20 * time.Minute),
 			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
 			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=20"},
@@ -351,8 +351,9 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			ShmSize:            0,
 			AdvancedConfigPath: "",
 		},
-		NoInstallExpiry: false,
-		DryRun:          false,
+		NoInstallExpiry:           false,
+		DryRun:                    false,
+		suppressEquivalentCommand: true,
 	}
 	imagesCreate := &ImagesCreateCmd{
 		Name:         instName,

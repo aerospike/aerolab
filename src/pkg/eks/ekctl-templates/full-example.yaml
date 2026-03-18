@@ -64,8 +64,9 @@ nodeGroups: # to define more nodegroups, copy-paste the below definition block, 
     instanceType: r5a.2xlarge
     volumeSize: 100
     volumeType: gp2
-    ssh: # import default public key (~/.ssh/id_rsa.pub)
+    ssh:
       allow: true
+      publicKeyPath: ~/.ssh/id_rsa.pub
     desiredCapacity: 4
     minSize: 4 # for ease of use minSize==desiredCapacity
     maxSize: 8

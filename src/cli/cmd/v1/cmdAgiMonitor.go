@@ -130,7 +130,7 @@ type AgiMonitorCreateCmdAws struct {
 	ElasticIP         string        `long:"elastic-ip" description:"Pre-allocated Elastic IP to associate with the monitor instance; can be the allocation ID (eipalloc-xxx) or the IP address itself; useful when DNS is already configured to point to this IP for autocert"`
 	Route53ZoneId     string        `long:"route53-zoneid" description:"If set, will automatically update a route53 DNS domain with the monitor URL; expiry system will also be updated accordingly"`
 	Route53DomainName string        `long:"route53-fqdn" description:"The route domain the zone refers to; eg monitor.eu-west-1.myagi.org"`
-	Expires           time.Duration `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
+	Expires           TypeExpiry     `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
 	// AWS credentials - alternative to using instance profile
 	AWSKeyId     string `long:"key-id" description:"AWS Access Key ID; alternative to using --role instance profile; use ENV::VARNAME to read from environment variable"`
 	AWSSecretKey string `long:"secret-key" description:"AWS Secret Access Key; alternative to using --role instance profile; use ENV::VARNAME to read from environment variable"`
@@ -142,7 +142,7 @@ type AgiMonitorCreateCmdGcp struct {
 	Zone         guiZone         `long:"zone" description:"Zone name to deploy to" webrequired:"true" webchoice:"method::List"`
 	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	InstanceRole string        `long:"role" description:"Instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
-	Expires      time.Duration `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
+	Expires      TypeExpiry     `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
 }
 
 // Monitor notification constants

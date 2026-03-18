@@ -171,12 +171,12 @@ type AgiCreateCmdAws struct {
 	EFSName             string          `long:"efs-name" description:"EFS volume name" default:"{AGI_NAME}"`
 	EFSPath             string          `long:"efs-path" description:"EFS mount path" default:"/"`
 	EFSMultiZone        bool            `long:"efs-multizone" description:"Enable multi-AZ EFS (higher cost)"`
-	EFSExpires          time.Duration   `long:"efs-expire" description:"EFS expiry after last use" default:"96h"`
+	EFSExpires          TypeExpiry      `long:"efs-expire" description:"EFS expiry after last use" default:"96h"`
 	EFSFips             bool            `long:"efs-fips" description:"Enable FIPS mode for the EFS mount"`
 	TerminateOnPoweroff bool            `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
 	SpotInstance        bool            `long:"spot-instance" description:"Request spot instance"`
 	SpotFallback        bool            `long:"spot-fallback" description:"Fall back to on-demand if spot unavailable"`
-	Expires             time.Duration   `long:"expire" description:"Instance expiry time" default:"30h"`
+	Expires             TypeExpiry      `long:"expire" description:"Instance expiry time" default:"30h"`
 	Route53ZoneId       string          `long:"route53-zoneid" description:"Route53 zone ID for DNS"`
 	Route53DomainName   string          `long:"route53-domain" description:"Route53 domain name"`
 	DisablePublicIP     bool            `long:"disable-public-ip" description:"Disable public IP assignment"`
@@ -190,10 +190,10 @@ type AgiCreateCmdGcp struct {
 	Tags                []string        `long:"tag" description:"Network tags"`
 	Labels              []string        `long:"label" description:"Labels (key=value)"`
 	SpotInstance        bool            `long:"spot-instance" description:"Request spot instance"`
-	Expires             time.Duration   `long:"expire" description:"Instance expiry time" default:"30h"`
+	Expires             TypeExpiry      `long:"expire" description:"Instance expiry time" default:"30h"`
 	WithVol             bool            `long:"with-vol" description:"Use persistent volume for storage"`
 	VolName             string          `long:"vol-name" description:"Volume name" default:"{AGI_NAME}"`
-	VolExpires          time.Duration   `long:"vol-expire" description:"Volume expiry after last use" default:"96h"`
+	VolExpires          TypeExpiry      `long:"vol-expire" description:"Volume expiry after last use" default:"96h"`
 	VolFips             bool            `long:"vol-fips" description:"Enable FIPS mode for the volume mount"`
 	TerminateOnPoweroff bool            `long:"terminate-on-poweroff" description:"Terminate instance on poweroff"`
 }
@@ -1079,7 +1079,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 					logger.Warn("Failed to remove EFS volume expiry: %s", err)
 				}
 			} else {
-				newExpiry := time.Now().Add(c.AWS.EFSExpires)
+				newExpiry := time.Now().Add(c.AWS.EFSExpires.Duration())
 				logger.Debug("Resetting EFS volume expiry to %s", newExpiry.Format(time.RFC3339))
 				if err := vol.ChangeExpiry(newExpiry); err != nil {
 					logger.Warn("Failed to reset EFS volume expiry: %s", err)
@@ -1165,7 +1165,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 					logger.Warn("Failed to remove GCP volume expiry: %s", err)
 				}
 			} else {
-				newExpiry := time.Now().Add(c.GCP.VolExpires)
+				newExpiry := time.Now().Add(c.GCP.VolExpires.Duration())
 				logger.Debug("Resetting GCP volume expiry to %s", newExpiry.Format(time.RFC3339))
 				if err := vol.ChangeExpiry(newExpiry); err != nil {
 					logger.Warn("Failed to reset GCP volume expiry: %s", err)
@@ -1302,6 +1302,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			ExposePorts: []string{exposePort},
 			Privileged:  c.Docker.Privileged,
 		},
+		suppressEquivalentCommand: true,
 	}
 
 	// Add bind mount for files directory if specified (must be added BEFORE input mount)

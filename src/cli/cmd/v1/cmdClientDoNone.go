@@ -135,16 +135,6 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 		}
 	}
 
-	// Print equivalent command line if interactive choices were made
-	if madeInteractiveChoices {
-		action := "create"
-		if isGrow {
-			action = "grow"
-		}
-		cmdLine := ReconstructCommandLine([]string{"client", action, "none"}, c, false)
-		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
-	}
-
 	// Set client type tag
 	clientType := "none"
 	if c.TypeOverride != "" {
@@ -179,22 +169,23 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 
 	// Create instances using base command by properly mapping all fields
 	instancesCmd := InstancesCreateCmd{
-		ClusterName:        c.ClientName.String(),
-		Count:              c.ClientCount,
-		Owner:              c.Owner,
-		Type:               clientType,
-		Tags:               tags,
-		OS:                 c.OS,
-		Version:            c.Version,
-		Arch:               c.Arch,
-		AWS:                c.AWS,
-		GCP:                c.GCP,
-		Docker:             c.Docker,
-		ParallelSSHThreads: c.ParallelSSHThreads,
-		MaxRetries:         c.MaxRetries,
-		RetrySleep:         c.RetrySleep,
-		CapacityRetries:    c.CapacityRetries,
-		CapacityRetrySleep: c.CapacityRetrySleep,
+		ClusterName:               c.ClientName.String(),
+		Count:                     c.ClientCount,
+		Owner:                     c.Owner,
+		Type:                      clientType,
+		Tags:                      tags,
+		OS:                        c.OS,
+		Version:                   c.Version,
+		Arch:                      c.Arch,
+		AWS:                       c.AWS,
+		GCP:                       c.GCP,
+		Docker:                    c.Docker,
+		ParallelSSHThreads:        c.ParallelSSHThreads,
+		MaxRetries:                c.MaxRetries,
+		RetrySleep:                c.RetrySleep,
+		CapacityRetries:           c.CapacityRetries,
+		CapacityRetrySleep:        c.CapacityRetrySleep,
+		suppressEquivalentCommand: true,
 	}
 
 	// Create instances using base command
@@ -204,6 +195,12 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 	}
 
 	instances, err := instancesCmd.CreateInstances(system, inventory, args, action)
+	if madeInteractiveChoices || instancesCmd.interactiveChoicesMade {
+		c.AWS = instancesCmd.AWS
+		c.GCP = instancesCmd.GCP
+		cmdLine := ReconstructCommandLine([]string{"client", action, "none"}, c, false)
+		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client instances: %w", err)
 	}

@@ -33,8 +33,9 @@ nodeGroups:
     desiredCapacity: 4
     volumeSize: 100
     volumeType: gp2
-    ssh: # import default public key (~/.ssh/id_rsa.pub)
+    ssh:
       allow: true
+      publicKeyPath: ~/.ssh/id_rsa.pub
     iam:
       withAddonPolicies:
         ebs: true

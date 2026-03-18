@@ -58,6 +58,11 @@ type InstancesCreateCmd struct {
 	CapacityRetries    int           `long:"capacity-retries" description:"Maximum retries for capacity errors (AWS/GCP only)" default:"0" simplemode:"false"`
 	CapacityRetrySleep time.Duration `long:"capacity-retry-sleep" description:"Sleep duration between capacity retries" default:"60s" simplemode:"false"`
 	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	// Set by callers to suppress the "Equivalent command" output when CreateInstances
+	// is invoked indirectly (e.g. from cluster create, client create).
+	suppressEquivalentCommand bool
+	// Set by CreateInstances when interactive choices (instance type, zone, etc.) were made.
+	interactiveChoicesMade bool
 }
 
 type InstanceDNS struct {
@@ -81,7 +86,7 @@ func (d *InstanceDNS) makeInstanceDNS() *backends.InstanceDNS {
 
 type InstancesCreateCmdAws struct {
 	ImageID            string          `long:"image" description:"Custom image ID to use for the instances; ignores OS, Version, Arch"`
-	Expire             time.Duration   `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	Expire             TypeExpiry      `long:"expire" description:"Expire the instances in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	NetworkPlacement   string          `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string        `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
@@ -94,7 +99,7 @@ type InstancesCreateCmdAws struct {
 
 type InstancesCreateCmdGcp struct {
 	ImageName          string          `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch; format: projects/<project>/global/images/<image>"`
-	Expire             time.Duration   `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	Expire             TypeExpiry      `long:"expire" description:"Expire the instances in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	Zone               guiZone         `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region" webchoice:"method::List"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string        `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
@@ -179,6 +184,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 	// Track if any interactive choices were made
 	madeInteractiveChoices := false
+	c.interactiveChoicesMade = false
 
 	if c.Count < 1 {
 		return nil, errors.New("count must be at least 1")
@@ -809,10 +815,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	}
 	var expire time.Time
 	if system.Opts.Config.Backend.Type == "aws" && c.AWS.Expire > 0 {
-		expire = time.Now().Add(c.AWS.Expire)
+		expire = time.Now().Add(c.AWS.Expire.Duration())
 	}
 	if system.Opts.Config.Backend.Type == "gcp" && c.GCP.Expire > 0 {
-		expire = time.Now().Add(c.GCP.Expire)
+		expire = time.Now().Add(c.GCP.Expire.Duration())
 	}
 	awsCustomImageID := ""
 	if awsCustomImage {
@@ -1042,8 +1048,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		system.Logger.Info("  Instance cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costPPH*100)/100, math.Ceil(costPPH*24*100)/100, math.Ceil(costPPH*24*30*100)/100)
 		system.Logger.Info("  Storage cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costGB*100)/100, math.Ceil(costGB*24*100)/100, math.Ceil(costGB*24*30*100)/100)
 	}
+	// Expose to callers whether interactive choices were made
+	c.interactiveChoicesMade = madeInteractiveChoices
 	// Print equivalent command line if interactive choices were made
-	if madeInteractiveChoices {
+	// (suppressed when called from a parent command that prints its own equivalent)
+	if madeInteractiveChoices && !c.suppressEquivalentCommand {
 		cmdLine := ReconstructCommandLine([]string{"instances", action}, c, false)
 		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
 	}

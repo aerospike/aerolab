@@ -18,7 +18,17 @@ func GetInstallScript() ([]byte, error) {
 		Required: installers.Installs{
 			Dependencies: []installers.Dependency{
 				{Command: "curl", Package: "curl"},
+				{Command: "unzip", Package: "unzip"},
+				{Command: "vim", Package: "vim"},
+				{Command: "ssh", Package: "openssh-client"},
+				{Command: "zip", Package: "zip"},
+				{Command: "git", Package: "git"},
+				{Command: "jq", Package: "jq"},
+				{Command: "less", Package: "less"},
+				{Command: "wget", Package: "wget"},
+				{Command: "tmux", Package: "tmux"},
 			},
+			Packages: []string{"tzdata"},
 		},
 	}
 	installScript, err := processTemplate("scripts/eksctl.sh.tpl", map[string]any{})

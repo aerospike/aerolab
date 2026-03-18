@@ -466,7 +466,7 @@ func getFieldValueString(fieldVal reflect.Value, defaultVal string) (string, boo
 				return "", false
 			}
 			if defaultVal != "" {
-				if defaultDur, err := time.ParseDuration(defaultVal); err == nil {
+				if defaultDur, err := ParseExtendedDuration(defaultVal); err == nil {
 					if durVal == defaultDur {
 						return "", false
 					}

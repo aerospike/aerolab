@@ -68,8 +68,8 @@ type ClusterCreateCmdAws struct {
 	EFSFips             bool            `long:"aws-efs-fips" description:"enable FIPS mode for the EFS mount" simplemode:"false"`
 	TerminateOnPoweroff bool            `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	SpotInstance        bool            `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires             time.Duration   `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	EFSExpires          time.Duration   `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
+	Expires             TypeExpiry      `long:"aws-expire" description:"length of life of nodes prior to expiry; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	EFSExpires          TypeExpiry      `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
 	IAMInstanceProfile  string          `long:"aws-instance-profile" description:"IAM instance profile to use for the instances"`
 	InstanceDNS         InstanceDNS     `group:"Automated AWS Route53 DNS" namespace:"aws" description:"backend-aws"`
 }
@@ -84,11 +84,11 @@ type ClusterCreateCmdGcp struct {
 	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	FirewallName        []string        `long:"firewall" description:"Name to use for an extra firewall, can be specified multiple times" simplemode:"false"`
 	SpotInstance        bool            `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires             time.Duration   `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	Expires             TypeExpiry      `long:"gcp-expire" description:"length of life of nodes prior to expiry; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	VolMount            string          `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath" simplemode:"false"`
 	VolCreate           bool            `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist" simplemode:"false"`
 	VolFips             bool            `long:"gcp-vol-fips" description:"enable FIPS mode for the volume mount" simplemode:"false"`
-	VolExpires          time.Duration   `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
+	VolExpires          TypeExpiry      `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
 	VolDescription      string          `long:"gcp-vol-desc" description:"set volume description field value" simplemode:"false"`
 	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times" simplemode:"false"`
 	VolSize             int             `long:"gcp-vol-size" description:"set volume size in GB" simplemode:"false"`
@@ -370,12 +370,13 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			SwapLimit:          c.Docker.SwapLimit,
 			AdvancedConfigPath: "",
 		},
-		NoInstallExpiry:    false,
-		MaxRetries:         c.MaxRetries,
-		RetrySleep:         c.RetrySleep,
-		CapacityRetries:    c.CapacityRetries,
-		CapacityRetrySleep: c.CapacityRetrySleep,
-		DryRun:             false,
+		NoInstallExpiry:           false,
+		MaxRetries:                c.MaxRetries,
+		RetrySleep:                c.RetrySleep,
+		CapacityRetries:           c.CapacityRetries,
+		CapacityRetrySleep:        c.CapacityRetrySleep,
+		DryRun:                    false,
+		suppressEquivalentCommand: true,
 	}
 	oldInst := backends.InstanceList{}
 	if action == "grow" {
@@ -479,6 +480,13 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 
 	// create instances
 	newInst, err := inst.CreateInstances(system, inventory, args, action)
+	if inst.interactiveChoicesMade {
+		c.Aws.InstanceType = inst.AWS.InstanceType
+		c.Gcp.InstanceType = inst.GCP.InstanceType
+		c.Gcp.Zone = inst.GCP.Zone
+		cmdLine := ReconstructCommandLine([]string{"cluster", action}, c, false)
+		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
+	}
 	if err != nil {
 		return nil, err
 	}

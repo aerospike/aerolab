@@ -316,7 +316,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		Arch:               c.Arch,
 		AWS: InstancesCreateCmdAws{
 			ImageID:            "",
-			Expire:             time.Duration(c.Timeout) * time.Minute,
+			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       guiInstanceType(awsInstanceType),
 			Disks:              []string{"type=gp2,size=30"},
@@ -328,7 +328,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		},
 		GCP: InstancesCreateCmdGcp{
 			ImageName:          "",
-			Expire:             time.Duration(c.Timeout) * time.Minute,
+			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
 			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=30"},
@@ -350,8 +350,9 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			ShmSize:            0,
 			AdvancedConfigPath: "",
 		},
-		NoInstallExpiry: false,
-		DryRun:          false,
+		NoInstallExpiry:           false,
+		DryRun:                    false,
+		suppressEquivalentCommand: true,
 	}
 
 	// Build version string for the image

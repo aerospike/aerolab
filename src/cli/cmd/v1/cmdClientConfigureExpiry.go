@@ -12,7 +12,7 @@ import (
 type ClientChangeExpiryCmd struct {
 	ClientName TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
-	ExpireIn   time.Duration  `short:"e" long:"expiry" description:"Expiry in duration from now (0 to remove expiry)" default:"30h"`
+	ExpireIn   TypeExpiry      `short:"e" long:"expiry" description:"Expiry in duration from now; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M (0 to remove expiry)" default:"30h"`
 	Help       HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -87,15 +87,28 @@ func (c *ClientChangeExpiryCmd) ChangeExpiryClient(system *System, inventory *ba
 		return nil
 	}
 
+	expiry := time.Time{}
 	if c.ExpireIn == 0 {
 		logger.Info("Removing expiry from %d client machines", len(clients))
-		err = clients.ChangeExpiry(time.Time{})
 	} else {
 		logger.Info("Adding expiry to %d client machines", len(clients))
-		err = clients.ChangeExpiry(time.Now().Add(c.ExpireIn))
+		expiry = time.Now().Add(c.ExpireIn.Duration())
 	}
+	err = clients.ChangeExpiry(expiry)
 	if err != nil {
 		return err
+	}
+	for _, inst := range clients {
+		if inst.AttachedVolumes == nil {
+			continue
+		}
+		dotVols := inst.AttachedVolumes.WithDeleteOnTermination(true)
+		if dotVols.Count() == 0 {
+			continue
+		}
+		if vErr := dotVols.ChangeExpiry(expiry); vErr != nil {
+			logger.Warn("Failed to update volume expiry for %s:%d: %s", inst.ClusterName, inst.NodeNo, vErr)
+		}
 	}
 	return nil
 }

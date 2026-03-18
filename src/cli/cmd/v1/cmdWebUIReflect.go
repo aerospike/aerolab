@@ -7,7 +7,6 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"time"
 	"unicode"
 
 	"gopkg.in/yaml.v3"
@@ -993,7 +992,7 @@ func setFieldValue(fieldVal reflect.Value, value any) error {
 			}
 			// Try parsing as duration if the type is time.Duration
 			if fieldVal.Type().String() == "time.Duration" {
-				dur, err := time.ParseDuration(v)
+				dur, err := ParseExtendedDuration(v)
 				if err != nil {
 					// Fall back to parsing as plain integer (nanoseconds)
 					var n int64

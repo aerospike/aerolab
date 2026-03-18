@@ -36,7 +36,7 @@ type VolumesCreateCmdAws struct {
 	Throughput        int           `long:"throughput" description:"Throughput of the volume"`
 	Encrypted         bool          `long:"encrypted" description:"Whether the volume is encrypted"`
 	SharedDiskOneZone bool          `long:"shared-disk-one-zone" description:"Whether the volume is shared in one zone"`
-	Expire            time.Duration `long:"expire" description:"Expire the volume in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	Expire            TypeExpiry     `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 }
 
 type VolumesCreateCmdGcp struct {
@@ -45,7 +45,7 @@ type VolumesCreateCmdGcp struct {
 	DiskType   string        `long:"disk-type" description:"Type of disk to use"`
 	Iops       int           `long:"iops" description:"Iops of the volume"`
 	Throughput int           `long:"throughput" description:"Throughput of the volume"`
-	Expire     time.Duration `long:"expire" description:"Expire the volume in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
+	Expire     TypeExpiry     `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 }
 
 type VolumesCreateCmdDocker struct {
@@ -112,11 +112,11 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
 		if c.AWS.Expire > 0 {
-			expire = time.Now().Add(c.AWS.Expire)
+			expire = time.Now().Add(c.AWS.Expire.Duration())
 		}
 	case "gcp":
 		if c.GCP.Expire > 0 {
-			expire = time.Now().Add(c.GCP.Expire)
+			expire = time.Now().Add(c.GCP.Expire.Duration())
 		}
 	}
 	backendSpecificParams := map[backends.BackendType]any{

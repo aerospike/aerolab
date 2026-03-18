@@ -15,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -146,19 +145,8 @@ type WebUICmd struct {
 	simpleModeConfig *SimpleModeConfig
 }
 
-// parseDurationWithDays parses a duration string that supports day notation (e.g., "30d", "24h", "30m")
 func parseDurationWithDays(s string) (time.Duration, error) {
-	if s == "" || s == "0" {
-		return 0, nil
-	}
-	if before, ok := strings.CutSuffix(s, "d"); ok {
-		days, err := strconv.Atoi(before)
-		if err != nil {
-			return 0, fmt.Errorf("invalid day duration: %s", s)
-		}
-		return time.Duration(days) * 24 * time.Hour, nil
-	}
-	return time.ParseDuration(s)
+	return ParseExtendedDuration(s)
 }
 
 func (c *WebUICmd) Execute(args []string) error {

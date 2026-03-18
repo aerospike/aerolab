@@ -280,20 +280,21 @@ func (c *ClientCreateGraphCmd) createGraphOnDocker(system *System, inventory *ba
 
 	// Create instances using InstancesCreateCmd with custom docker image
 	instancesCmd := InstancesCreateCmd{
-		ClusterName:        c.ClientName.String(),
-		Count:              c.ClientCount,
-		Owner:              c.Owner,
-		Type:               c.TypeOverride,
-		Tags:               graphTags,
-		OS:                 "ubuntu",
-		Version:            "24.04",
-		Arch:               "amd64",
-		Docker:             c.Docker,
-		ParallelSSHThreads: c.ParallelSSHThreads,
-		MaxRetries:         c.MaxRetries,
-		RetrySleep:         c.RetrySleep,
-		CapacityRetries:    c.CapacityRetries,
-		CapacityRetrySleep: c.CapacityRetrySleep,
+		ClusterName:               c.ClientName.String(),
+		Count:                     c.ClientCount,
+		Owner:                     c.Owner,
+		Type:                      c.TypeOverride,
+		Tags:                      graphTags,
+		OS:                        "ubuntu",
+		Version:                   "24.04",
+		Arch:                      "amd64",
+		Docker:                    c.Docker,
+		ParallelSSHThreads:        c.ParallelSSHThreads,
+		MaxRetries:                c.MaxRetries,
+		RetrySleep:                c.RetrySleep,
+		CapacityRetries:           c.CapacityRetries,
+		CapacityRetrySleep:        c.CapacityRetrySleep,
+		suppressEquivalentCommand: true,
 	}
 
 	// We need special handling for custom docker image in docker backend
