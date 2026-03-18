@@ -161,10 +161,28 @@ func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends
 		ConnectTimeout:  c.ConnectTimeout,
 		ParallelThreads: c.ParallelThreads,
 	})
+	var hasErr bool
 	for _, o := range output {
 		if o.Output.Err != nil {
-			return output, ErrSomeNodesReturnedAnError
+			hasErr = true
+			nodeID := "unknown"
+			if o.Instance != nil {
+				nodeID = fmt.Sprintf("%s:%d (%s)", o.Instance.ClusterName, o.Instance.NodeNo, o.Instance.Name)
+			}
+			system.Logger.Error("node %s: %s", nodeID, o.Output.Err)
+			if len(o.Output.Stdout) > 0 {
+				system.Logger.Detail("node %s stdout: %s", nodeID, string(o.Output.Stdout))
+			}
+			if len(o.Output.Stderr) > 0 {
+				system.Logger.Detail("node %s stderr: %s", nodeID, string(o.Output.Stderr))
+			}
+			for _, w := range o.Output.Warn {
+				system.Logger.Warn("node %s: %s", nodeID, w)
+			}
 		}
+	}
+	if hasErr {
+		return output, ErrSomeNodesReturnedAnError
 	}
 	return output, nil
 }

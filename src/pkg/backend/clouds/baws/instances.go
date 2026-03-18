@@ -469,53 +469,57 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		return nil
 	}
 
-	// Check if we should remove SSH keys by querying AWS directly for remaining instances
-	// We can't rely on s.instances because it may only contain a filtered/subset of instances
-	// (e.g., template.create might only have template instances in its inventory, not all project instances)
-	removeSSHKey := false
-	remainingInstanceCount := 0
-	zones, _ := s.ListEnabledZones()
-	for _, zone := range zones {
-		cli, err := getEc2Client(s.credentials, &zone)
-		if err != nil {
-			log.Detail("Failed to get EC2 client for zone %s to check remaining instances: %s", zone, err)
-			continue
-		}
-		listFilters := []types.Filter{
-			{
-				Name:   aws.String("tag-key"),
-				Values: []string{TAG_AEROLAB_VERSION},
-			},
-			{
-				Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-				Values: []string{s.project},
-			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{"pending", "running", "stopping", "stopped"},
-			},
-		}
-		paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
-			Filters: listFilters,
-		})
-		for paginator.HasMorePages() {
-			out, err := paginator.NextPage(context.TODO())
+	// DISABLED: SSH key auto-deletion on terminate.
+	// The guard below only queries ListEnabledZones(), so it misses instances in non-enabled
+	// regions. When it incorrectly concludes all instances are gone, it deletes the local key
+	// files. The next InstancesCreate generates a new key pair, orphaning any instances that
+	// still exist in other regions (they have the old public key baked in via UserData).
+	// The key files are ~2KB per project — not worth the risk of premature deletion.
+	/*
+		removeSSHKey := false
+		remainingInstanceCount := 0
+		zones, _ := s.ListEnabledZones()
+		for _, zone := range zones {
+			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
-				log.Detail("Failed to query instances in zone %s: %s", zone, err)
-				break
+				log.Detail("Failed to get EC2 client for zone %s to check remaining instances: %s", zone, err)
+				continue
 			}
-			for _, res := range out.Reservations {
-				remainingInstanceCount += len(res.Instances)
+			listFilters := []types.Filter{
+				{
+					Name:   aws.String("tag-key"),
+					Values: []string{TAG_AEROLAB_VERSION},
+				},
+				{
+					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+					Values: []string{s.project},
+				},
+				{
+					Name:   aws.String("instance-state-name"),
+					Values: []string{"pending", "running", "stopping", "stopped"},
+				},
+			}
+			paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
+				Filters: listFilters,
+			})
+			for paginator.HasMorePages() {
+				out, err := paginator.NextPage(context.TODO())
+				if err != nil {
+					log.Detail("Failed to query instances in zone %s: %s", zone, err)
+					break
+				}
+				for _, res := range out.Reservations {
+					remainingInstanceCount += len(res.Instances)
+				}
 			}
 		}
-	}
-	// Only remove SSH keys if all remaining instances are being terminated
-	if remainingInstanceCount == instances.Count() {
-		removeSSHKey = true
-		log.Detail("All %d remaining instances in project are being terminated, will remove SSH keys", remainingInstanceCount)
-	} else {
-		log.Detail("Not removing SSH keys: %d instances remaining in project, %d being terminated", remainingInstanceCount, instances.Count())
-	}
+		if remainingInstanceCount == instances.Count() {
+			removeSSHKey = true
+			log.Detail("All %d remaining instances in project are being terminated, will remove SSH keys", remainingInstanceCount)
+		} else {
+			log.Detail("Not removing SSH keys: %d instances remaining in project, %d being terminated", remainingInstanceCount, instances.Count())
+		}
+	*/
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
@@ -707,13 +711,15 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		}
 	}
 
-	// if no more instances exist for this project, delete the ssh key from amazon and locally from filepath.Join(s.sshKeysDir, s.project)
-	if removeSSHKey && s.createInstanceCount.Get() == 0 {
-		log.Detail("Remove SSH keys as no more instances exist for this project")
-		os.Remove(filepath.Join(s.sshKeysDir, s.project))
-		os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
-		log.Detail("SSH keys removed")
-	}
+	// DISABLED: see comment at top of InstancesTerminate about SSH key auto-deletion.
+	/*
+		if removeSSHKey && s.createInstanceCount.Get() == 0 {
+			log.Detail("Remove SSH keys as no more instances exist for this project")
+			os.Remove(filepath.Join(s.sshKeysDir, s.project))
+			os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
+			log.Detail("SSH keys removed")
+		}
+	*/
 	return nil
 }
 

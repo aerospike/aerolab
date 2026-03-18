@@ -125,6 +125,10 @@ func (s *b) expiryChangeConfiguration(zone string, log *logger.Logger, logLevel 
 	if err != nil {
 		return err
 	}
+	stsclient, err := getStsClient(s.credentials, &zone)
+	if err != nil {
+		return err
+	}
 
 	log.Detail("Updating lambda function configuration")
 	_, err = lclient.UpdateFunctionConfiguration(context.TODO(), &lambda.UpdateFunctionConfigurationInput{
@@ -141,29 +145,25 @@ func (s *b) expiryChangeConfiguration(zone string, log *logger.Logger, logLevel 
 		return err
 	}
 
-	// Keep IAM role attachment in sync with expireEksctl toggle.
-	iamFullAccessArn := "arn:aws:iam::aws:policy/IAMFullAccess"
-	roleName := "aerolab-expiries-lambda-" + zone
+	log.Detail("Getting caller identity - account ID")
+	ident, err := stsclient.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
+	}
+	accountId := *ident.Account
+
+	policyFile := "lambda-policy-without-eks.json"
 	if expireEksctl {
-		log.Detail("Ensuring IAMFullAccess policy is attached for EKS expiry support")
-		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
-			RoleName:  aws.String(roleName),
-			PolicyArn: aws.String(iamFullAccessArn),
-		})
-		if err != nil {
-			return err
-		}
-	} else {
-		log.Detail("Ensuring IAMFullAccess policy is detached when EKS expiry is disabled")
-		_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
-			RoleName:  aws.String(roleName),
-			PolicyArn: aws.String(iamFullAccessArn),
-		})
-		if err != nil &&
-			!strings.Contains(err.Error(), "NoSuchEntity") &&
-			!strings.Contains(err.Error(), "PolicyNotAttached") {
-			return err
-		}
+		policyFile = "lambda-policy-with-eks.json"
+	}
+	log.Detail("Updating lambda IAM inline policy to %s", policyFile)
+	_, err = iamclient.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
+		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + zone),
+		RoleName:       aws.String("aerolab-expiries-lambda-" + zone),
+		PolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString(policyFile), zone, accountId, zone, accountId, zone)),
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -321,39 +321,18 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		return err
 	}
 
-	log.Detail("Creating embedded lambda IAM policy")
+	policyFile := "lambda-policy-without-eks.json"
+	if expireEksctl {
+		policyFile = "lambda-policy-with-eks.json"
+	}
+	log.Detail("Creating lambda IAM inline policy from %s", policyFile)
 	_, err = iamclient.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
-		PolicyName: aws.String("aerolab-expiries-lambda-policy-" + zone),
-		RoleName:   aws.String("aerolab-expiries-lambda-" + zone),
-		PolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString("lambda-role-policy.json"), zone, accountId,
-			zone, accountId, zone,
-			accountId,
-			accountId, accountId, accountId, accountId, accountId, accountId,
-			accountId)),
+		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + zone),
+		RoleName:       aws.String("aerolab-expiries-lambda-" + zone),
+		PolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString(policyFile), zone, accountId, zone, accountId, zone)),
 	})
 	if err != nil {
 		return err
-	}
-
-	log.Detail("Attaching base lambda IAM policies")
-	for _, npolicy := range getExpiryJSONStringList("lambda-role-attach-policies.json") {
-		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
-			RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
-			PolicyArn: aws.String(npolicy),
-		})
-		if err != nil {
-			return err
-		}
-	}
-	if expireEksctl {
-		log.Detail("Attaching IAMFullAccess policy for EKS expiry support")
-		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
-			RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
-			PolicyArn: aws.String("arn:aws:iam::aws:policy/IAMFullAccess"),
-		})
-		if err != nil {
-			return err
-		}
 	}
 
 	log.Detail("Creating scheduler IAM role")
@@ -570,7 +549,7 @@ func (s *b) ExpiryRemove(zones ...string) error {
 			if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException") {
 				reterr = errors.Join(reterr, err)
 			}
-			knownPolicies := getExpiryJSONStringList("lambda-role-attach-policies.json")
+			var knownPolicies []string
 			for _, npolicy := range knownPolicies {
 				_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
 					PolicyArn: aws.String(npolicy),

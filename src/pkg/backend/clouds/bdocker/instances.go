@@ -337,7 +337,12 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		return nil
 	}
 
-	removeSSHKey := s.instances.WithBackendType(backends.BackendTypeDocker).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count()
+	// DISABLED: SSH key auto-deletion on terminate.
+	// The inventory (s.instances) may be a filtered subset, and the key is shared across all
+	// backends/regions. Incorrectly concluding all instances are gone deletes the local key
+	// files, orphaning instances that still exist elsewhere.
+	// The key files are ~2KB per project — not worth the risk of premature deletion.
+	// removeSSHKey := s.instances.WithBackendType(backends.BackendTypeDocker).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count()
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)   //nolint:errcheck
@@ -377,13 +382,15 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		}
 	}
 
-	// if no more instances exist for this project, delete the ssh key from amazon and locally from filepath.Join(s.sshKeysDir, s.project)
-	if removeSSHKey && s.createInstanceCount.Get() == 0 {
-		log.Detail("Remove SSH keys as no more instances exist for this project")
-		os.Remove(filepath.Join(s.sshKeysDir, s.project))
-		os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
-		log.Detail("SSH keys removed")
-	}
+	// DISABLED: see comment at top of InstancesTerminate about SSH key auto-deletion.
+	/*
+		if removeSSHKey && s.createInstanceCount.Get() == 0 {
+			log.Detail("Remove SSH keys as no more instances exist for this project")
+			os.Remove(filepath.Join(s.sshKeysDir, s.project))
+			os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
+			log.Detail("SSH keys removed")
+		}
+	*/
 	return nil
 }
 
