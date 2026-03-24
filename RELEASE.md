@@ -4,7 +4,7 @@ AeroLab v8 is a complete refactor of the AeroLab codebase with all API calls, no
 
 #### Status
 
-This Prerelease Build is missing the `WebUI` feature normally available under the `aerolab webui` command, and it's accompanying `rest-api` command. It is otherwise considered feature complete.
+This Prerelease Build is considered feature complete.
 
 While extensive testing has been performed, Aerolab v8 is still in beta and may contain bugs. Please report any issues you find and do not use in production.
 
