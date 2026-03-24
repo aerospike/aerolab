@@ -235,6 +235,8 @@ endif
 .PHONY: prep
 prep:
 	go generate ./...
+	cp go.mod ..
+	cp go.sum ..
 	printf -- "-unofficial" > cli/cmd/v1/embed_tail.txt
 
 .PHONY: compile_linux_amd64
