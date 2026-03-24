@@ -7,7 +7,7 @@ AeroLab can be used as a Go library to programmatically create, manage, and oper
 When you call `Initialize()`, the following configuration loading chain is applied automatically:
 
 1. **Environment variables** - Special AeroLab environment variables are respected (see [Environment Variables](#environment-variables))
-2. **Struct tag defaults** - All command parameters are initialized with their default values from struct tags
+2. **Struct tag defaults** - All command parameters are initialized with their default values from struct tags (applied via `ApplyDefaults()` when `SkipArgsParsing` is true, or via `ParseArgs` otherwise)
 3. **Config file defaults** - Values from the AeroLab config file (`~/.config/aerolab/conf`) overwrite the tag defaults
 
 After initialization, you can override any values you need before calling command functions.
@@ -210,6 +210,7 @@ err = createCmd.ClusterCreate(system, []string{"cluster", "create"}, []string{},
 |--------|-------------|
 | `cmd.AerolabRootDir()` | Get the AeroLab home directory path |
 | `cmd.Initialize(init, cmd, params, args...)` | Initialize the system. For library use, set `init.SkipArgsParsing = true` |
+| `system.ApplyDefaults()` | Apply struct-tag default values to all options. Called automatically by `Initialize` when `SkipArgsParsing` is true |
 | `system.GetBackend(pollHourly)` | Initialize or reinitialize the backend |
 | `system.WriteConfigFile()` | Save current config to disk |
 | `system.Backend.GetInventory()` | Get the current inventory |

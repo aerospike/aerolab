@@ -260,6 +260,8 @@ func Initialize(i *Init, command []string, params any, args ...string) (*System,
 		if err != nil {
 			return s, err
 		}
+	} else {
+		s.ApplyDefaults()
 	}
 
 	// backend gets initialized later, as main() calls this always WITHOUT InitBackend, and the Execute functions can choose to initialize it after parsing args
@@ -353,6 +355,14 @@ func (i *Init) upgradeCheck(s *System) {
 //go:embed initialize-backend-error.txt
 var initializeBackendError string
 var errNoBackendConfigured = fmt.Errorf(initializeBackendError, os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+
+// ApplyDefaults applies struct-tag default values to all command options.
+// This is called automatically during Initialize when SkipArgsParsing is true,
+// ensuring that system.Opts fields like Cluster.Create.DistroName have their
+// declared defaults (e.g. "ubuntu") rather than Go zero values.
+func (s *System) ApplyDefaults() {
+	_, _ = s.Parser.ParseArgs([]string{"--"})
+}
 
 // force (re)initialize the backend
 func (s *System) GetBackend(pollInventoryHourly bool) error {
