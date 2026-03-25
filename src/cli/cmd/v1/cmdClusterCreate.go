@@ -247,6 +247,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	case "amazon":
 		versionList = []string{"2023", "2"}
 	}
+	// ajohnson found this one, fixed it
 	// Don't eagerly resolve "latest" to the newest OS version here — older
 	// Aerospike releases may not have packages for the newest version.
 	// TemplateCreateCmd already has fallback logic that tries each version in
