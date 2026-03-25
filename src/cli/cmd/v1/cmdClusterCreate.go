@@ -247,17 +247,33 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	case "amazon":
 		versionList = []string{"2023", "2"}
 	}
-	if c.DistroVersion.String() == "latest" {
-		c.DistroVersion = TypeDistroVersion(versionList[0])
+	// Don't eagerly resolve "latest" to the newest OS version here — older
+	// Aerospike releases may not have packages for the newest version.
+	// TemplateCreateCmd already has fallback logic that tries each version in
+	// order when DistroVersion is "latest".
+	isLatestDistro := c.DistroVersion.String() == "latest"
+
+	findTemplate := func() (name string, osVersion string) {
+		versions := versionList
+		if !isLatestDistro {
+			versions = []string{c.DistroVersion.String()}
+		}
+		for _, v := range versions {
+			tpls := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(v).WithArchitecture(arch).WithTags(
+				map[string]string{
+					"aerolab.soft.version": av,
+					"aerolab.image.type":   "aerospike",
+				},
+			)
+			if tpls.Count() > 0 {
+				return tpls.Describe()[0].Name, v
+			}
+		}
+		return "", ""
 	}
 
-	templates := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(c.DistroVersion.String()).WithArchitecture(arch).WithTags(
-		map[string]string{
-			"aerolab.soft.version": av,
-			"aerolab.image.type":   "aerospike",
-		},
-	)
-	if templates.Count() == 0 {
+	templateName, resolvedVersion := findTemplate()
+	if templateName == "" {
 		tpl := &TemplateCreateCmd{
 			Distro:           c.DistroName.String(),
 			DistroVersion:    c.DistroVersion.String(),
@@ -279,17 +295,14 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			return nil, err
 		}
 		inventory = system.Backend.GetInventory()
-		templates := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(c.DistroVersion.String()).WithArchitecture(arch).WithTags(
-			map[string]string{
-				"aerolab.soft.version": av,
-				"aerolab.image.type":   "aerospike",
-			},
-		)
-		templateName = templates.Describe()[0].Name
+		templateName, resolvedVersion = findTemplate()
+		if templateName == "" {
+			return nil, errors.New("template not found after creation")
+		}
 	} else {
-		templateName = templates.Describe()[0].Name
-		logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.DistroName.String(), c.DistroVersion.String(), arch.String())
+		logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.DistroName.String(), resolvedVersion, arch.String())
 	}
+	c.DistroVersion = TypeDistroVersion(resolvedVersion)
 
 	// run instances create
 	var tags []string
