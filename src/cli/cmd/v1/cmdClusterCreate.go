@@ -601,7 +601,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				return
 			}
 			if !c.Docker.NoPatchV7Config && i.isNew {
-				newConfig, err = patchDockerNamespacesV7(newConfig)
+				newConfig, err = patchDockerNamespacesV7(newConfig, c.AerospikeVersion.String())
 				if err != nil {
 					errs = append(errs, err)
 					return
@@ -844,7 +844,14 @@ func patchAccessAddressForDocker(in []byte, port string, privateIp string) (out 
 	return buf.Bytes(), nil
 }
 
-func patchDockerNamespacesV7(conf []byte) (newconf []byte, err error) {
+func patchDockerNamespacesV7(conf []byte, aerospikeVersion string) (newconf []byte, err error) {
+	vers := strings.Split(aerospikeVersion, ".")
+	major, _ := strconv.Atoi(vers[0])
+	minor := 0
+	if len(vers) > 1 {
+		minor, _ = strconv.Atoi(vers[1])
+	}
+
 	ac, err := aeroconf.Parse(bytes.NewReader(conf))
 	if err != nil {
 		return conf, err
@@ -878,13 +885,26 @@ func patchDockerNamespacesV7(conf []byte) (newconf []byte, err error) {
 	if err != nil {
 		return conf, err
 	}
-	err = st.SetValue("index-stage-size", "128M")
-	if err != nil {
-		return conf, err
+	// memory-size: removed in 7.0
+	if major < 7 {
+		err = st.SetValue("memory-size", "1G")
+		if err != nil {
+			return conf, err
+		}
 	}
-	err = st.SetValue("sindex-stage-size", "128M")
-	if err != nil {
-		return conf, err
+	// index-stage-size: introduced in 6.0
+	if major >= 6 {
+		err = st.SetValue("index-stage-size", "128M")
+		if err != nil {
+			return conf, err
+		}
+	}
+	// sindex-stage-size: introduced in 6.1
+	if major > 6 || (major == 6 && minor >= 1) {
+		err = st.SetValue("sindex-stage-size", "128M")
+		if err != nil {
+			return conf, err
+		}
 	}
 	err = st.NewStanza("storage-engine device")
 	if err != nil {
