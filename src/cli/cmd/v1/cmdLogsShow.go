@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ func (c *LogsShowCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	_, err = c.ShowLogs(system, system.Backend.GetInventory(), system.Logger, args, "show")
+	_, err = c.ShowLogs(system, system.Backend.GetInventory(), system.Logger, args, "show", os.Stdout)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -38,7 +39,10 @@ func (c *LogsShowCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, action string) (backends.InstanceList, error) {
+func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, action string, out io.Writer) (backends.InstanceList, error) {
+	if out == nil {
+		out = os.Stdout
+	}
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"logs", action}, c, args...)
@@ -65,7 +69,7 @@ func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, lo
 		// Processing loop - actually perform the operation
 		for _, clusterName := range clusters {
 			c.ClusterName = TypeClusterName(clusterName)
-			inst, err := c.ShowLogs(system, inventory, logger, args, action)
+			inst, err := c.ShowLogs(system, inventory, logger, args, action, out)
 			if err != nil {
 				return nil, err
 			}
@@ -116,7 +120,7 @@ func (c *LogsShowCmd) ShowLogs(system *System, inventory *backends.Inventory, lo
 		ExecDetail: sshexec.ExecDetail{
 			Command:        command,
 			Stdin:          os.Stdin,  // Required for Ctrl+C handling in follow mode
-			Stdout:         os.Stdout, // Direct output to stdout
+			Stdout:         out,       // Direct output to stdout
 			Stderr:         os.Stderr, // Direct output to stderr
 			SessionTimeout: 0,         // No timeout for follow mode
 			Env:            []*sshexec.Env{},
