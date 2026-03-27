@@ -2,7 +2,6 @@ package baws
 
 import (
 	"embed"
-	"encoding/json"
 )
 
 //go:embed scripts/*
@@ -18,18 +17,4 @@ func getExpiryJSONString(name string) string {
 		return ""
 	}
 	return string(content)
-}
-
-func getExpiryJSONStringList(name string) []string {
-	name = "expiryiam/" + name
-	content, err := expiryiam.ReadFile(name)
-	if err != nil {
-		return []string{}
-	}
-	var list []string
-	err = json.Unmarshal(content, &list)
-	if err != nil {
-		return []string{}
-	}
-	return list
 }
