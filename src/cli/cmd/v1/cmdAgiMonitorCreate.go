@@ -1,3 +1,5 @@
+//go:build !noagi
+
 package cmd
 
 import (

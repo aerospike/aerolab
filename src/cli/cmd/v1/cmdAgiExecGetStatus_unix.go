@@ -1,4 +1,4 @@
-//go:build darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
+//go:build !noagi && (darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris)
 
 package cmd
 

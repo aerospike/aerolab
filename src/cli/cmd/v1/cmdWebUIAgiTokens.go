@@ -1,3 +1,5 @@
+//go:build !nowebui
+
 package cmd
 
 import (

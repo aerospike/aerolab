@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -119,26 +117,15 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 			expire = time.Now().Add(c.GCP.Expire.Duration())
 		}
 	}
-	backendSpecificParams := map[backends.BackendType]any{
-		"aws": &baws.CreateVolumeParams{
-			SizeGiB:           c.AWS.SizeGiB,
-			Placement:         c.AWS.Placement,
-			DiskType:          c.AWS.DiskType,
-			Iops:              c.AWS.Iops,
-			Throughput:        c.AWS.Throughput,
-			Encrypted:         c.AWS.Encrypted,
-			SharedDiskOneZone: c.AWS.SharedDiskOneZone,
-		},
-		"gcp": &bgcp.CreateVolumeParams{
-			SizeGiB:    c.GCP.SizeGiB,
-			Placement:  string(c.GCP.Zone),
-			DiskType:   c.GCP.DiskType,
-			Iops:       c.GCP.Iops,
-			Throughput: c.GCP.Throughput,
-		},
-		"docker": &bdocker.CreateVolumeParams{
-			Driver: c.Docker.Driver,
-		},
+	backendSpecificParams := map[backends.BackendType]any{}
+	if p := buildAWSVolumeParams(c); p != nil {
+		backendSpecificParams["aws"] = p
+	}
+	if p := buildGCPVolumeParams(c); p != nil {
+		backendSpecificParams["gcp"] = p
+	}
+	backendSpecificParams["docker"] = &bdocker.CreateVolumeParams{
+		Driver: c.Docker.Driver,
 	}
 	create := &backends.CreateVolumeInput{
 		BackendType:           backends.BackendType(system.Opts.Config.Backend.Type),
@@ -163,8 +150,8 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 			return nil, err
 		}
 		// Update the placement in backend params with the resolved region/zone
-		if awsParams, ok := create.BackendSpecificParams[backends.BackendTypeAWS].(*baws.CreateVolumeParams); ok {
-			awsParams.Placement = awsRegion
+		if p, ok := create.BackendSpecificParams[backends.BackendTypeAWS]; ok {
+			updateAWSVolumePlacement(p, awsRegion)
 		}
 	}
 	if system.Opts.Config.Backend.Type != "docker" {

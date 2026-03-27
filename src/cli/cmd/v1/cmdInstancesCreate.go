@@ -16,9 +16,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
@@ -831,6 +829,16 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
 	}
+	backendSpecificParams := map[backends.BackendType]any{}
+	awsParams := buildAWSInstanceParams(c, itype, awsCustomImageID)
+	if awsParams != nil {
+		backendSpecificParams["aws"] = awsParams
+	}
+	gcpParams := buildGCPInstanceParams(c, itype, gcpCustomImageID)
+	if gcpParams != nil {
+		backendSpecificParams["gcp"] = gcpParams
+	}
+	backendSpecificParams["docker"] = dockerParams
 	createInstancesInput := &backends.CreateInstanceInput{
 		ClusterName:        c.ClusterName,
 		Nodes:              c.Count,
@@ -850,34 +858,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			CapacityRetries:    c.CapacityRetries,
 			CapacityRetrySleep: c.CapacityRetrySleep,
 		},
-		BackendSpecificParams: map[backends.BackendType]any{
-			"aws": &baws.CreateInstanceParams{
-				Image:              nil,
-				NetworkPlacement:   c.AWS.NetworkPlacement,
-				InstanceType:       itype,
-				Disks:              c.AWS.Disks,
-				Firewalls:          c.AWS.Firewalls,
-				SpotInstance:       c.AWS.SpotInstance,
-				DisablePublicIP:    c.AWS.DisablePublicIP,
-				IAMInstanceProfile: c.AWS.IAMInstanceProfile,
-				CustomDNS:          c.AWS.CustomDNS.makeInstanceDNS(),
-				CustomImageID:      awsCustomImageID,
-			},
-			"gcp": &bgcp.CreateInstanceParams{
-				Image:              nil,
-				NetworkPlacement:   string(c.GCP.Zone),
-				InstanceType:       itype,
-				Disks:              c.GCP.Disks,
-				Firewalls:          c.GCP.Firewalls,
-				SpotInstance:       c.GCP.SpotInstance,
-				IAMInstanceProfile: c.GCP.IAMInstanceProfile,
-				CustomDNS:          c.GCP.CustomDNS.makeInstanceDNS(),
-				MinCpuPlatform:     c.GCP.MinCPUPlatform,
-				CustomImageID:      gcpCustomImageID,
-				OnHostMaintenance:  c.GCP.OnHostMaintenance,
-			},
-			"docker": dockerParams,
-		},
+		BackendSpecificParams: backendSpecificParams,
 	}
 	for k := range createInstancesInput.BackendSpecificParams {
 		if string(k) != system.Opts.Config.Backend.Type {
@@ -893,7 +874,6 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		pf.Flush()
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["aws"]; ok {
-		// determine architecture for filtering (same logic as above)
 		narch := itypeArch
 		switch c.Arch {
 		case "amd64":
@@ -901,19 +881,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		case "arm64":
 			narch = backends.ArchitectureARM64
 		}
-		if strings.HasPrefix(c.AWS.ImageID, "ami-") {
-			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithImageID(c.AWS.ImageID).Describe()[0]
-		} else {
-			// when selecting by name, filter by architecture to ensure we get the correct one
-			img := inventory.Images.WithName(c.AWS.ImageID).WithArchitecture(narch).Describe()
-			if img.Count() == 0 {
-				return nil, errors.New("aws: image Name " + c.AWS.ImageID + " not found with architecture " + narch.String())
-			}
-			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = img[0]
+		if err := resolveAWSInstanceImage(createInstancesInput.BackendSpecificParams["aws"], inventory, c.AWS.ImageID, narch); err != nil {
+			return nil, err
 		}
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["gcp"]; ok {
-		// determine architecture for filtering (same logic as above)
 		narch := itypeArch
 		switch c.Arch {
 		case "amd64":
@@ -921,12 +893,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		case "arm64":
 			narch = backends.ArchitectureARM64
 		}
-		// when selecting by name, filter by architecture to ensure we get the correct one
-		img := inventory.Images.WithName(c.GCP.ImageName).WithArchitecture(narch).Describe()
-		if img.Count() == 0 {
-			return nil, errors.New("gcp: image " + c.GCP.ImageName + " not found with architecture " + narch.String())
+		if err := resolveGCPInstanceImage(createInstancesInput.BackendSpecificParams["gcp"], inventory, c.GCP.ImageName, narch); err != nil {
+			return nil, err
 		}
-		createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams).Image = img[0]
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["docker"]; ok {
 		if !dockerCustomImage {
@@ -960,13 +929,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	var image *backends.Image
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
-		if awsParams, ok := createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams); ok && awsParams.Image != nil {
-			image = awsParams.Image
-		}
+		image = getAWSInstanceImage(createInstancesInput.BackendSpecificParams["aws"])
 	case "gcp":
-		if gcpParams, ok := createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams); ok && gcpParams.Image != nil {
-			image = gcpParams.Image
-		}
+		image = getGCPInstanceImage(createInstancesInput.BackendSpecificParams["gcp"])
 	case "docker":
 		if dockerParams, ok := createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams); ok && dockerParams.Image != nil {
 			image = dockerParams.Image

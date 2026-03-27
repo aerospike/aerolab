@@ -2,9 +2,6 @@ package backend
 
 import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	_ "github.com/aerospike/aerolab/pkg/backend/clouds/baws"
-	_ "github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	_ "github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 )
 
 // Config is an alias for backends.Config, providing a simplified interface for backend configuration.

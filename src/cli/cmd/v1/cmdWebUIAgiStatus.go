@@ -1,3 +1,5 @@
+//go:build !noagi && !nowebui
+
 package cmd
 
 import (

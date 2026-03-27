@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -204,10 +203,9 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				if port.SourceId != "" {
 					source = port.SourceId
 				}
-				switch v := port.BackendSpecific.(type) {
-				case *bgcp.PortDetail:
-					targets = append(targets, v.TargetTags...)
-					targets = append(targets, v.DestinationRanges...)
+				if tags, dests := firewallGcpPortDetails(port.BackendSpecific); tags != nil || dests != nil {
+					targets = append(targets, tags...)
+					targets = append(targets, dests...)
 				}
 				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.FromPort, port.ToPort))
 			}
@@ -229,10 +227,9 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				if port.SourceId != "" {
 					source = port.SourceId
 				}
-				switch v := port.BackendSpecific.(type) {
-				case *bgcp.PortDetail:
-					targets = append(targets, v.TargetTags...)
-					targets = append(targets, v.DestinationRanges...)
+				if tags, dests := firewallGcpPortDetails(port.BackendSpecific); tags != nil || dests != nil {
+					targets = append(targets, tags...)
+					targets = append(targets, dests...)
 				}
 				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.FromPort, port.ToPort))
 			}

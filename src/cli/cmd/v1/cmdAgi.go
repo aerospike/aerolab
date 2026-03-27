@@ -1,3 +1,5 @@
+//go:build !noagi
+
 package cmd
 
 // AgiCmd is the main AGI (Aerospike Grafana Integration) command structure.

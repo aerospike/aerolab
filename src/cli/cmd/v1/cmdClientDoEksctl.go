@@ -1,3 +1,5 @@
+//go:build !noeks
+
 package cmd
 
 import (
