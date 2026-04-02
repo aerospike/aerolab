@@ -217,24 +217,8 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		return nil, errors.New("architecture not found for instance type " + c.Aws.InstanceType.String() + " or " + c.Gcp.InstanceType.String())
 	}
 
-	version, flavor, err := resolveAerospikeServerVersion(c.AerospikeVersion.String())
-	if err != nil {
-		return nil, err
-	}
-	av := version.Name + "-" + flavor
-	switch flavor {
-	case "enterprise":
-		c.AerospikeVersion = TypeAerospikeVersion(version.Name)
-	case "community":
-		c.AerospikeVersion = TypeAerospikeVersion(version.Name + "c")
-	case "federal":
-		c.AerospikeVersion = TypeAerospikeVersion(version.Name + "f")
-	}
-	featuresFilePath, err := c.FeaturesFilePathResolve(system, inventory, logger)
-	if err != nil {
-		return nil, err
-	}
-
+	// Build OS version priority list (newest first) — needed before version
+	// resolution so that only-registry can search by OS version.
 	var versionList []string
 	switch c.DistroName.String() {
 	case "ubuntu":
@@ -254,6 +238,77 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	// TemplateCreateCmd already has fallback logic that tries each version in
 	// order when DistroVersion is "latest".
 	isLatestDistro := c.DistroVersion.String() == "latest"
+
+	// Determine template source and registry URL early for version resolution
+	templateSource := c.Docker.TemplateSource
+	if system.Opts.Config.Backend.Type != "docker" {
+		templateSource = "only-build"
+	}
+	registryURL := system.Opts.Config.Backend.DockerRegistryURL
+	isLatestVersion := strings.HasPrefix(c.AerospikeVersion.String(), "latest")
+
+	var av string
+	var flavor string
+	var registryEntries []RegistryEntry
+	var preResolvedEntry *RegistryEntry
+
+	if isLatestVersion && templateSource == "only-registry" {
+		// For only-registry with latest, resolve the newest version available
+		// in the registry rather than consulting the Aerospike downloads website.
+		flavor = "enterprise"
+		if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
+			flavor = "community"
+		} else if strings.HasSuffix(c.AerospikeVersion.String(), "f") {
+			flavor = "federal"
+		}
+		if registryURL == "" {
+			return nil, fmt.Errorf("template-source is only-registry but no registry URL configured; set it with: aerolab config backend --docker-registry-region na")
+		}
+		var err error
+		registryEntries, err = fetchRegistryMetadata(registryURL)
+		if err != nil {
+			return nil, fmt.Errorf("registry fetch failed: %w", err)
+		}
+		osVersions := versionList
+		if !isLatestDistro {
+			osVersions = []string{c.DistroVersion.String()}
+		}
+		entry := findLatestRegistryEntry(registryEntries, flavor, c.DistroName.String(), osVersions, arch.String())
+		if entry == nil {
+			return nil, fmt.Errorf("no templates found in registry for %s %s %s", flavor, c.DistroName.String(), arch.String())
+		}
+		av = entry.AerospikeVersion + "-" + flavor
+		switch flavor {
+		case "enterprise":
+			c.AerospikeVersion = TypeAerospikeVersion(entry.AerospikeVersion)
+		case "community":
+			c.AerospikeVersion = TypeAerospikeVersion(entry.AerospikeVersion + "c")
+		case "federal":
+			c.AerospikeVersion = TypeAerospikeVersion(entry.AerospikeVersion + "f")
+		}
+		preResolvedEntry = entry
+		logger.Info("Registry latest version: %s", av)
+	} else {
+		version, flavorResolved, err := resolveAerospikeServerVersion(c.AerospikeVersion.String())
+		if err != nil {
+			return nil, err
+		}
+		flavor = flavorResolved
+		av = version.Name + "-" + flavor
+		switch flavor {
+		case "enterprise":
+			c.AerospikeVersion = TypeAerospikeVersion(version.Name)
+		case "community":
+			c.AerospikeVersion = TypeAerospikeVersion(version.Name + "c")
+		case "federal":
+			c.AerospikeVersion = TypeAerospikeVersion(version.Name + "f")
+		}
+	}
+
+	featuresFilePath, err := c.FeaturesFilePathResolve(system, inventory, logger)
+	if err != nil {
+		return nil, err
+	}
 
 	findTemplate := func() (name string, osVersion string) {
 		versions := versionList
@@ -292,21 +347,16 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			return err
 		}
 
-		templateSource := c.Docker.TemplateSource
-		if system.Opts.Config.Backend.Type != "docker" {
-			templateSource = "only-build"
-		}
 		switch templateSource {
 		case "only-build", "only-registry", "best-option":
 		default:
 			return nil, fmt.Errorf("invalid template-source %q: must be one of best-option, only-registry, only-build", templateSource)
 		}
 
-		registryURL := system.Opts.Config.Backend.DockerRegistryURL
 		useRegistry := registryURL != "" && templateSource != "only-build"
 
 		if templateSource == "only-registry" && registryURL == "" {
-			return nil, fmt.Errorf("template-source is only-registry but no registry URL configured; set it with: aerolab config backend --docker-registry-url <url>")
+			return nil, fmt.Errorf("template-source is only-registry but no registry URL configured; set it with: aerolab config backend --docker-registry-region na")
 		}
 
 		registryLoaded := false
@@ -316,14 +366,22 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			if !isLatestDistro {
 				osVersions = []string{c.DistroVersion.String()}
 			}
-			entries, err := fetchRegistryMetadata(registryURL)
-			if err != nil {
-				if templateSource == "only-registry" {
-					return nil, fmt.Errorf("registry fetch failed: %w", err)
+			if registryEntries == nil {
+				entries, err := fetchRegistryMetadata(registryURL)
+				if err != nil {
+					if templateSource == "only-registry" {
+						return nil, fmt.Errorf("registry fetch failed: %w", err)
+					}
+					logger.Warn("Registry metadata fetch failed (%s), falling back to local build", err)
+				} else {
+					registryEntries = entries
 				}
-				logger.Warn("Registry metadata fetch failed (%s), falling back to local build", err)
-			} else {
-				entry := findRegistryEntry(entries, av, c.DistroName.String(), osVersions, arch.String())
+			}
+			if registryEntries != nil {
+				entry := preResolvedEntry
+				if entry == nil {
+					entry = findRegistryEntry(registryEntries, av, c.DistroName.String(), osVersions, arch.String())
+				}
 				if entry == nil {
 					if templateSource == "only-registry" {
 						return nil, fmt.Errorf("template not found in registry for %s %s %s %s", av, c.DistroName.String(), c.DistroVersion.String(), arch.String())
@@ -345,8 +403,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 						"aerolab.version": aerolabVersion,
 					}
 					logger.Info("Downloading template from registry: %s", entry.FileName)
-					err = loadTemplateFromRegistry(system, registryURL, entry, region, projectLabels)
-					if err != nil {
+					if err := loadTemplateFromRegistry(system, registryURL, entry, region, projectLabels); err != nil {
 						if templateSource == "only-registry" {
 							return nil, fmt.Errorf("registry load failed: %w", err)
 						}

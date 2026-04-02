@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/aerospike/aerolab/pkg/utils/versions"
 )
 
 type RegistryEntry struct {
@@ -59,6 +61,42 @@ func findRegistryEntry(entries []RegistryEntry, av string, osName string, osVers
 		}
 	}
 	return nil
+}
+
+// findLatestRegistryEntry finds the registry entry with the highest Aerospike
+// version matching the given flavor, OS name, OS version list, and architecture.
+// When multiple OS versions share the same highest Aerospike version, the one
+// appearing earliest in osVersionList (newest OS) is preferred.
+func findLatestRegistryEntry(entries []RegistryEntry, flavor string, osName string, osVersionList []string, arch string) *RegistryEntry {
+	var best *RegistryEntry
+	bestOsIdx := len(osVersionList)
+	for i := range entries {
+		e := &entries[i]
+		if e.Flavor != flavor || e.OsName != osName || e.Architecture != arch {
+			continue
+		}
+		osIdx := -1
+		for j, osVer := range osVersionList {
+			if e.OsVersion == osVer {
+				osIdx = j
+				break
+			}
+		}
+		if osIdx == -1 {
+			continue
+		}
+		if best == nil {
+			best = e
+			bestOsIdx = osIdx
+			continue
+		}
+		cmp := versions.Compare(e.AerospikeVersion, best.AerospikeVersion)
+		if cmp > 0 || (cmp == 0 && osIdx < bestOsIdx) {
+			best = e
+			bestOsIdx = osIdx
+		}
+	}
+	return best
 }
 
 func loadTemplateFromRegistry(system *System, registryURL string, entry *RegistryEntry, region string, projectLabels map[string]string) error {
