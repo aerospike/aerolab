@@ -1,6 +1,10 @@
 package bgcp
 
-import "github.com/aerospike/aerolab/pkg/backend/backends"
+import (
+	"io"
+
+	"github.com/aerospike/aerolab/pkg/backend/backends"
+)
 
 func (s *b) DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerCreateNetwork")
@@ -12,6 +16,10 @@ func (s *b) DockerDeleteNetwork(region string, name string) error {
 
 func (s *b) DockerPruneNetworks(region string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerPruneNetworks")
+}
+
+func (s *b) DockerLoadImage(region string, reader io.Reader, projectLabels map[string]string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerLoadImage")
 }
 
 func (s *b) AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error {

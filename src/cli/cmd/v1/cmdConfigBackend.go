@@ -15,6 +15,12 @@ import (
 	flags "github.com/rglonek/go-flags"
 )
 
+const (
+	DockerRegistryURLNA       = "https://storage.googleapis.com/aerospike-docker-images-na"
+	DockerRegistryURLEU       = "https://storage.googleapis.com/aerospike-docker-images-eu"
+	DockerRegistryURLDisabled = ""
+)
+
 type ConfigBackendCmd struct {
 	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp|none" default:"" webchoice:"aws,gcp,docker,none"`
 	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.config/aerolab" webtype:"text"`
@@ -30,9 +36,11 @@ type ConfigBackendCmd struct {
 	GCPClientID     string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use" hidden:"true"`
 	GCPClientSecret string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use" hidden:"true"`
 
-	Arch        string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
-	TmpDir      flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`
-	CheckAccess bool           `long:"check-access" description:"check access to the backend"`
+	Arch                 string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
+	DockerRegistryRegion string         `long:"docker-registry-region" description:"DOCKER: region for pre-built template image registry; values: na, eu, disabled" default:"na"`
+	DockerRegistryURL    string         `long:"docker-registry-url" description:"DOCKER: URL for pre-built template image registry; set to empty to disable" default:"https://storage.googleapis.com/aerospike-docker-images-na" hidden:"true"`
+	TmpDir               flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`
+	CheckAccess          bool           `long:"check-access" description:"check access to the backend"`
 
 	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet   string
@@ -76,6 +84,18 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	}
 	if c.Arch == "unset" {
 		c.Arch = ""
+	}
+
+	// map DockerRegistryRegion to DockerRegistryURL
+	switch strings.ToLower(c.DockerRegistryRegion) {
+	case "na":
+		c.DockerRegistryURL = DockerRegistryURLNA
+	case "eu":
+		c.DockerRegistryURL = DockerRegistryURLEU
+	case "disabled", "":
+		c.DockerRegistryURL = DockerRegistryURLDisabled
+	default:
+		return Error(fmt.Errorf("docker-registry-region must be one of: na, eu, disabled"), system, []string{"config", "backend"}, c, args)
 	}
 
 	// check if we are setting the backend type
@@ -126,6 +146,11 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
 	}
+	/*
+		if c.Type == "docker" {
+			fmt.Printf("Config.Backend.DockerRegistryURL = %s\n", c.DockerRegistryURL)
+		}
+	*/
 	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 
 	// check access to the backend

@@ -1,6 +1,10 @@
 package baws
 
-import "github.com/aerospike/aerolab/pkg/backend/backends"
+import (
+	"io"
+
+	"github.com/aerospike/aerolab/pkg/backend/backends"
+)
 
 func (s *b) DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeAWS, "DockerCreateNetwork")
@@ -12,4 +16,8 @@ func (s *b) DockerDeleteNetwork(region string, name string) error {
 
 func (s *b) DockerPruneNetworks(region string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeAWS, "DockerPruneNetworks")
+}
+
+func (s *b) DockerLoadImage(region string, reader io.Reader, projectLabels map[string]string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeAWS, "DockerLoadImage")
 }

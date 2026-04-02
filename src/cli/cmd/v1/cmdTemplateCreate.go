@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 type TemplateCreateCmd struct {
 	Distro           string        `short:"d" long:"distro" description:"Distro to create the template for" default:"ubuntu"`
 	DistroVersion    string        `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
-	Arch             string        `short:"a" long:"arch" description:"Architecture to create the template for" default:"amd64"`
+	Arch             string        `short:"a" long:"arch" description:"Architecture to create the template for; empty=auto-detect from host/backend" default:""`
 	AerospikeVersion string        `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
 	Owner            string        `short:"o" long:"owner" description:"Owner of the template"`
 	DisablePublicIP  bool          `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
@@ -110,6 +111,25 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+
+	// Auto-detect architecture from backend config / host, matching cluster create behavior
+	if c.Arch == "" {
+		switch system.Opts.Config.Backend.Type {
+		case "docker":
+			ar := system.Opts.Config.Backend.Arch
+			if ar == "" {
+				ar = runtime.GOARCH
+			}
+			c.Arch = ar
+		case "aws":
+			c.Arch = "amd64"
+		case "gcp":
+			c.Arch = "amd64"
+		default:
+			c.Arch = runtime.GOARCH
+		}
+		logger.Info("Auto-detected architecture: %s", c.Arch)
 	}
 
 	version, flavor, err := resolveAerospikeServerVersion(c.AerospikeVersion)

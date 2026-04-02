@@ -3,6 +3,7 @@ package backends
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"path"
 	"slices"
 	"sync"
@@ -136,6 +137,7 @@ type Cloud interface {
 	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
 	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
 	DockerPruneNetworks(region string) error
+	DockerLoadImage(region string, reader io.Reader, projectLabels map[string]string) error
 	// resolve network placement
 	ResolveNetworkPlacement(placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 	// VPC peering
@@ -191,6 +193,7 @@ type Backend interface {
 	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
 	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
 	DockerPruneNetworks(region string) error
+	DockerLoadImage(region string, reader io.Reader, projectLabels map[string]string) error
 	// instance types and pricing
 	GetVolumePrices(backendType BackendType) (VolumePriceList, error)
 	GetInstanceTypes(backendType BackendType) (InstanceTypeList, error)

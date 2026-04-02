@@ -111,6 +111,7 @@ type ClusterCreateCmdDocker struct {
 	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:"" simplemode:"false"`
 	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
 	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	TemplateSource    string   `long:"template-source" description:"Template acquisition strategy: best-option (try registry then build), only-registry (registry only, fail if unavailable), only-build (local build only)" default:"best-option" webchoice:"best-option,only-registry,only-build"`
 }
 
 type ClusterGrowCmd struct {
@@ -275,21 +276,97 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 
 	templateName, resolvedVersion := findTemplate()
 	if templateName == "" {
-		tpl := &TemplateCreateCmd{
-			Distro:           c.DistroName.String(),
-			DistroVersion:    c.DistroVersion.String(),
-			Arch:             arch.String(),
-			AerospikeVersion: c.AerospikeVersion.String(),
-			Owner:            c.Owner,
-			DisablePublicIP:  system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
-			Timeout:          10,
-			NoVacuum:         c.NoVacuumOnFail,
-			DryRun:           c.PriceOnly,
+		buildTemplate := func() error {
+			tpl := &TemplateCreateCmd{
+				Distro:           c.DistroName.String(),
+				DistroVersion:    c.DistroVersion.String(),
+				Arch:             arch.String(),
+				AerospikeVersion: c.AerospikeVersion.String(),
+				Owner:            c.Owner,
+				DisablePublicIP:  system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
+				Timeout:          10,
+				NoVacuum:         c.NoVacuumOnFail,
+				DryRun:           c.PriceOnly,
+			}
+			_, err := tpl.CreateTemplate(system, inventory, logger.WithPrefix("[template.create] "), nil)
+			return err
 		}
-		_, err := tpl.CreateTemplate(system, inventory, logger.WithPrefix("[template.create] "), nil)
-		if err != nil {
-			return nil, err
+
+		templateSource := c.Docker.TemplateSource
+		if system.Opts.Config.Backend.Type != "docker" {
+			templateSource = "only-build"
 		}
+		switch templateSource {
+		case "only-build", "only-registry", "best-option":
+		default:
+			return nil, fmt.Errorf("invalid template-source %q: must be one of best-option, only-registry, only-build", templateSource)
+		}
+
+		registryURL := system.Opts.Config.Backend.DockerRegistryURL
+		useRegistry := registryURL != "" && templateSource != "only-build"
+
+		if templateSource == "only-registry" && registryURL == "" {
+			return nil, fmt.Errorf("template-source is only-registry but no registry URL configured; set it with: aerolab config backend --docker-registry-url <url>")
+		}
+
+		registryLoaded := false
+		if useRegistry {
+			logger.Info("Checking template registry")
+			osVersions := versionList
+			if !isLatestDistro {
+				osVersions = []string{c.DistroVersion.String()}
+			}
+			entries, err := fetchRegistryMetadata(registryURL)
+			if err != nil {
+				if templateSource == "only-registry" {
+					return nil, fmt.Errorf("registry fetch failed: %w", err)
+				}
+				logger.Warn("Registry metadata fetch failed (%s), falling back to local build", err)
+			} else {
+				entry := findRegistryEntry(entries, av, c.DistroName.String(), osVersions, arch.String())
+				if entry == nil {
+					if templateSource == "only-registry" {
+						return nil, fmt.Errorf("template not found in registry for %s %s %s %s", av, c.DistroName.String(), c.DistroVersion.String(), arch.String())
+					}
+					logger.Warn("No matching template in registry, falling back to local build")
+				} else {
+					zones, _ := system.Backend.ListEnabledRegions(backends.BackendTypeDocker)
+					region := "default"
+					if len(zones) > 0 {
+						region = zones[0]
+					}
+					project := os.Getenv("AEROLAB_PROJECT")
+					if project == "" {
+						project = "default"
+					}
+					_, _, _, aerolabVersion := GetAerolabVersion()
+					projectLabels := map[string]string{
+						"aerolab.project": project,
+						"aerolab.version": aerolabVersion,
+					}
+					logger.Info("Downloading template from registry: %s", entry.FileName)
+					err = loadTemplateFromRegistry(system, registryURL, entry, region, projectLabels)
+					if err != nil {
+						if templateSource == "only-registry" {
+							return nil, fmt.Errorf("registry load failed: %w", err)
+						}
+						logger.Warn("Registry load failed (%s), falling back to local build", err)
+					} else {
+						registryLoaded = true
+					}
+				}
+			}
+		}
+
+		if !registryLoaded {
+			if templateSource == "only-registry" {
+				return nil, fmt.Errorf("template not available from registry")
+			}
+			if err := buildTemplate(); err != nil {
+				return nil, err
+			}
+		}
+
 		logger.Info("Refreshing inventory")
 		err = system.Backend.RefreshChangedInventory()
 		if err != nil {
@@ -325,9 +402,24 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			logger.Warn("To enable public IP access address, run: aerolab cluster add public-ip -n %s", c.ClusterName.String())
 		}
 	}
-	dockerExposePorts := []string{"+3100:3000"}
+	containerServicePort := "3000"
+	if c.CustomConfigFilePath != "" && system.Opts.Config.Backend.Type == "docker" {
+		if confData, err := os.ReadFile(string(c.CustomConfigFilePath)); err == nil {
+			if cfg, err := aeroconf.Parse(bytes.NewReader(confData)); err == nil {
+				if cfg.Type("network") == aeroconf.ValueStanza {
+					ns := cfg.Stanza("network")
+					if ns.Type("service") == aeroconf.ValueStanza {
+						if vals, err := ns.Stanza("service").GetValues("port"); err == nil && len(vals) > 0 && vals[0] != nil {
+							containerServicePort = *vals[0]
+						}
+					}
+				}
+			}
+		}
+	}
+	dockerExposePorts := []string{"+3100:" + containerServicePort}
 	if c.Docker.ExposePortsToHost != "" {
-		dockerExposePorts = append([]string{"+3100:3000"}, strings.Split(c.Docker.ExposePortsToHost, ",")...)
+		dockerExposePorts = append([]string{"+3100:" + containerServicePort}, strings.Split(c.Docker.ExposePortsToHost, ",")...)
 	}
 
 	inst := &InstancesCreateCmd{
@@ -614,7 +706,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				errs = append(errs, err)
 				return
 			}
-			if !c.Docker.NoPatchV7Config && i.isNew {
+			if !c.Docker.NoPatchV7Config && i.isNew && c.CustomConfigFilePath == "" {
 				newConfig, err = patchDockerNamespacesV7(newConfig, c.AerospikeVersion.String())
 				if err != nil {
 					errs = append(errs, err)
