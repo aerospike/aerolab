@@ -134,7 +134,7 @@ func (s *b) DockerLoadImage(region string, reader io.Reader, projectLabels map[s
 	}
 
 	// Inspect the loaded image to get its original labels
-	inspectData, _, err := cli.ImageInspectWithRaw(context.Background(), inspectRef)
+	inspectData, err := cli.ImageInspect(context.Background(), inspectRef)
 	if err != nil {
 		return fmt.Errorf("inspect loaded image %s: %w", inspectRef, err)
 	}
