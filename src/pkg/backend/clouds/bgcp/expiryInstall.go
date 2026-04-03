@@ -10,8 +10,11 @@ import (
 	"strings"
 	"time"
 
+	compute "cloud.google.com/go/compute/apiv1"
+	"cloud.google.com/go/compute/apiv1/computepb"
 	functions "cloud.google.com/go/functions/apiv2"
 	functionspb "cloud.google.com/go/functions/apiv2/functionspb"
+	"cloud.google.com/go/iam"
 	"cloud.google.com/go/iam/apiv1/iampb"
 	run "cloud.google.com/go/run/apiv2"
 	scheduler "cloud.google.com/go/scheduler/apiv1"
@@ -284,7 +287,62 @@ func (s *b) deployFunctionBucketCode(ctx context.Context, projectID, region stri
 	}
 
 	log.Detail("Upload complete.")
+
+	if err := s.grantGCFServiceAgentBucketAccess(ctx, bucket, projectID); err != nil {
+		log.Warn("Failed to grant GCF service agent bucket access (function deployment may still succeed): %s", err)
+	}
+
 	return nil
+}
+
+func (s *b) grantGCFServiceAgentBucketAccess(ctx context.Context, bucket *storage.BucketHandle, projectID string) error {
+	log := s.log.WithPrefix("grantGCFServiceAgentBucketAccess: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	projectNumber, err := s.getProjectNumber(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("look up project number: %w", err)
+	}
+
+	member := fmt.Sprintf("serviceAccount:service-%s@gcf-admin-robot.iam.gserviceaccount.com", projectNumber)
+	role := iam.RoleName("roles/storage.objectViewer")
+
+	policy, err := bucket.IAM().Policy(ctx)
+	if err != nil {
+		return fmt.Errorf("get bucket IAM policy: %w", err)
+	}
+	if policy.HasRole(member, role) {
+		log.Detail("GCF service agent already has objectViewer on bucket")
+		return nil
+	}
+	policy.Add(member, role)
+	if err := bucket.IAM().SetPolicy(ctx, policy); err != nil {
+		return fmt.Errorf("set bucket IAM policy: %w", err)
+	}
+	log.Detail("Granted objectViewer to %s", member)
+	return nil
+}
+
+func (s *b) getProjectNumber(ctx context.Context, projectID string) (string, error) {
+	log := s.log.WithPrefix("getProjectNumber: ")
+	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return "", fmt.Errorf("get credentials: %w", err)
+	}
+	projClient, err := compute.NewProjectsRESTClient(ctx, option.WithCredentials(cli))
+	if err != nil {
+		return "", fmt.Errorf("create projects client: %w", err)
+	}
+	defer projClient.Close()
+	proj, err := projClient.Get(ctx, &computepb.GetProjectRequest{Project: projectID})
+	if err != nil {
+		return "", fmt.Errorf("get project: %w", err)
+	}
+	if proj.Id == nil {
+		return "", fmt.Errorf("project %s has no numeric ID", projectID)
+	}
+	return strconv.FormatUint(*proj.Id, 10), nil
 }
 
 func (s *b) deployFunction(ctx context.Context, projectID, region, token string, logLevel int, cleanupDNS bool) error {
