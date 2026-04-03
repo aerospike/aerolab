@@ -108,9 +108,17 @@ REMOTE_METADATA=$(mktemp)
 trap 'rm -f "$BLACKLIST_CLEAN" "$PUBLISHED_VERSIONS" "$REMOTE_METADATA"' EXIT
 
 if [[ -f "$BLACKLIST_FILE" ]]; then
-    sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$BLACKLIST_FILE" > "$BLACKLIST_CLEAN"
+    # Blacklist format (one per line, # comments supported):
+    #   version        — blacklisted on all architectures
+    #   arm64:version  — blacklisted only on arm64
+    #   amd64:version  — blacklisted only on amd64
+    sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$BLACKLIST_FILE" | \
+        awk -F: -v arch="$ARCH" '{
+            if (NF == 1) print $0
+            else if ($1 == arch) print $2
+        }' > "$BLACKLIST_CLEAN"
     BLACKLIST_COUNT=$(wc -l < "$BLACKLIST_CLEAN" | tr -d ' ')
-    echo ">>> Loaded ${BLACKLIST_COUNT} blacklisted versions"
+    echo ">>> Loaded ${BLACKLIST_COUNT} blacklisted versions (arch=${ARCH})"
 else
     echo "WARNING: blacklist file not found: ${BLACKLIST_FILE} — proceeding without blacklist" >&2
     : > "$BLACKLIST_CLEAN"
