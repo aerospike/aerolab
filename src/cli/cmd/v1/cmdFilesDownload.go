@@ -67,11 +67,6 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	// Validate cluster exists
-	_, err := c.ClusterName.GetInstanceList(inventory, backends.LifeCycleStateRunning)
-	if err != nil {
-		return err
-	}
 	instances := inventory.Instances.WithClusterName(c.ClusterName.String())
 	if instances.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.ClusterName.String())

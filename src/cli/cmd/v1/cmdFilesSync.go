@@ -63,12 +63,6 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 	}
 	defer os.RemoveAll(tmpPath)
 
-	// Validate source cluster exists
-	_, err = c.SourceCluster.GetInstanceList(inventory, backends.LifeCycleStateRunning)
-	if err != nil {
-		return err
-	}
-	// get source node
 	source := inventory.Instances.WithClusterName(c.SourceCluster.String())
 	if source.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.SourceCluster.String())
@@ -85,12 +79,6 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 		return fmt.Errorf("multiple source instances found, specify cluster name and node number")
 	}
 
-	// Validate destination cluster exists
-	_, err = c.DestinationCluster.GetInstanceList(inventory, backends.LifeCycleStateRunning)
-	if err != nil {
-		return err
-	}
-	// get destination nodes
 	dest := inventory.Instances.WithClusterName(c.DestinationCluster.String())
 	if dest.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.DestinationCluster.String())

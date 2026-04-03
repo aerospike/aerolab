@@ -9,6 +9,7 @@ DRY_RUN=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch)     ARCH="$2"; shift 2 ;;
+        --aerolab)  AEROLAB="$2"; shift 2 ;;
         --dry-run|dry-run)  DRY_RUN=(--dry-run); shift ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
