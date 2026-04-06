@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$ARCH" || "$ARCH" == "arm64" ]]; then
-    "$AEROLAB" config backend -t docker -a ""
+    "$AEROLAB" config backend -t docker -a "arm64"
     "${SCRIPT_DIR}/publish-missing-templates.sh" --auto --aerolab "$AEROLAB" --arch arm64 ${DRY_RUN[@]+"${DRY_RUN[@]}"} --flavor enterprise
     "${SCRIPT_DIR}/publish-missing-templates.sh" --auto --aerolab "$AEROLAB" --arch arm64 ${DRY_RUN[@]+"${DRY_RUN[@]}"} --flavor community
 fi

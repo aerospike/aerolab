@@ -1608,16 +1608,17 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if input.TerminateOnStop || backendSpecificParams.IAMInstanceProfile != "" {
-		serviceAccounts = []*computepb.ServiceAccount{
-			{
-				Scopes: []string{
-					"https://www.googleapis.com/auth/compute",
-				},
+		sa := &computepb.ServiceAccount{
+			Scopes: []string{
+				"https://www.googleapis.com/auth/cloud-platform",
 			},
 		}
-		if !strings.HasSuffix(backendSpecificParams.IAMInstanceProfile, "::nopricing") {
-			serviceAccounts[0].Scopes = append(serviceAccounts[0].Scopes, "https://www.googleapis.com/auth/cloud-billing.readonly")
+		iamProfile := backendSpecificParams.IAMInstanceProfile
+		iamProfile = strings.TrimSuffix(iamProfile, "::nopricing")
+		if iamProfile != "" {
+			sa.Email = &iamProfile
 		}
+		serviceAccounts = []*computepb.ServiceAccount{sa}
 	}
 
 	newNames := []string{}
