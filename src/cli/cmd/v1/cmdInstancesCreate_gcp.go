@@ -13,6 +13,7 @@ func buildGCPInstanceParams(c *InstancesCreateCmd, itype string, gcpCustomImageI
 	return &bgcp.CreateInstanceParams{
 		Image:              nil,
 		NetworkPlacement:   string(c.GCP.Zone),
+		VPCName:            string(c.GCP.VPC),
 		InstanceType:       itype,
 		Disks:              c.GCP.Disks,
 		Firewalls:          c.GCP.Firewalls,

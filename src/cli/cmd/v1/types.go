@@ -239,6 +239,32 @@ func (g guiZone) List(system *System) ([][]string, string, error) {
 	return z, def, nil
 }
 
+// guiVpc is a special string type for VPC network parameters in GCP create commands.
+// It provides dynamic choices for the web UI via the List() method.
+// See guiZone documentation above for the full pattern description.
+type guiVpc string
+
+func (g guiVpc) String() string {
+	return string(g)
+}
+
+// List returns a list of available VPC networks for the web UI VPC picker.
+func (g guiVpc) List(system *System) ([][]string, string, error) {
+	if system.Opts.Config.Backend.Type != "gcp" {
+		return nil, "", nil
+	}
+	inventory := system.Backend.GetInventory()
+	vpcs := [][]string{}
+	for _, n := range inventory.Networks.WithBackendType(backends.BackendTypeGCP).Describe() {
+		vpcs = append(vpcs, []string{n.Name, n.Name})
+	}
+	def := ""
+	if string(g) != "" {
+		def = string(g)
+	}
+	return vpcs, def, nil
+}
+
 // guiInstanceType is a special string type for instance type parameters in create commands.
 // It provides dynamic choices for the web UI via the List() method.
 // See guiZone documentation above for the full pattern description.

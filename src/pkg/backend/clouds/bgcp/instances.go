@@ -44,6 +44,8 @@ type CreateInstanceParams struct {
 	Image *backends.Image `yaml:"image" json:"image"`
 	// specify the zone for placement, e.g. us-central1-a
 	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
+	// optional: the VPC network name to use; if empty, use the default VPC
+	VPCName string `yaml:"vpcName" json:"vpcName"`
 	// instance type
 	InstanceType string `yaml:"instanceType" json:"instanceType" required:"true"`
 	// volume types and sizes, backend-specific definitions
@@ -1139,19 +1141,30 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 
 // resolve network placement based on placement string
 func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
-	if strings.Count(placement, "-") == 2 {
-		parts := strings.Split(placement, "-")
-		placement = parts[0] + "-" + parts[1]
+	return s.resolveNetworkPlacementInVPC(placement, "")
+}
+
+// resolveNetworkPlacementInVPC resolves network placement, optionally filtering by VPC name.
+// If vpcName is empty, only default VPCs are considered.
+func (s *b) resolveNetworkPlacementInVPC(placement string, vpcName string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
+	regionPlacement := placement
+	if strings.Count(regionPlacement, "-") == 2 {
+		parts := strings.Split(regionPlacement, "-")
+		regionPlacement = parts[0] + "-" + parts[1]
 	}
 	for _, n := range s.networks {
-		if !n.IsDefault {
+		if vpcName != "" {
+			if n.Name != vpcName && getValueFromURL(n.NetworkId) != vpcName {
+				continue
+			}
+		} else if !n.IsDefault {
 			continue
 		}
-		for _, s := range n.Subnets {
-			if s.ZoneName == placement || s.ZoneID == placement {
+		for _, sub := range n.Subnets {
+			if sub.ZoneName == regionPlacement || sub.ZoneID == regionPlacement {
 				vpc = n
-				subnet = s
-				zone = s.ZoneID
+				subnet = sub
+				zone = sub.ZoneID
 				break
 			}
 		}
@@ -1160,6 +1173,9 @@ func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, su
 		}
 	}
 	if subnet == nil {
+		if vpcName != "" {
+			return nil, nil, "", fmt.Errorf("no subnet found in zone %s for VPC %q", placement, vpcName)
+		}
 		return nil, nil, "", fmt.Errorf("no default subnet found in zone %s", placement)
 	}
 	return vpc, subnet, zone, nil
@@ -1331,7 +1347,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as GCP Domains does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.ResolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
+	vpc, subnet, az, err := s.resolveNetworkPlacementInVPC(backendSpecificParams.NetworkPlacement, backendSpecificParams.VPCName)
 	if err != nil {
 		return nil, err
 	}

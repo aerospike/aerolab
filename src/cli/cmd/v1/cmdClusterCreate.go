@@ -80,6 +80,7 @@ type ClusterCreateCmdGcp struct {
 	Disk                []string        `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times" default:"type=pd-ssd,size=20"`
 	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
+	VPC                 guiVpc          `long:"vpc" description:"VPC network name to use; empty=default VPC" webchoice:"method::List"`
 	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
 	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	FirewallName        []string        `long:"firewall" description:"Name to use for an extra firewall, can be specified multiple times" simplemode:"false"`
@@ -509,6 +510,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		GCP: InstancesCreateCmdGcp{
 			Expire:             c.Gcp.Expires,
 			Zone:               c.Gcp.Zone,
+			VPC:                c.Gcp.VPC,
 			InstanceType:       c.Gcp.InstanceType,
 			Disks:              c.Gcp.Disk,
 			Firewalls:          c.Gcp.FirewallName,

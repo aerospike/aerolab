@@ -99,6 +99,7 @@ type InstancesCreateCmdGcp struct {
 	ImageName          string          `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch; format: projects/<project>/global/images/<image>"`
 	Expire             TypeExpiry      `long:"expire" description:"Expire the instances in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	Zone               guiZone         `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region" webchoice:"method::List"`
+	VPC                guiVpc          `long:"vpc" description:"VPC network name to use; empty=default VPC" webchoice:"method::List"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string        `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
 	Firewalls          []string        `long:"firewall" description:"Extra firewall names to assign to the instances"`
