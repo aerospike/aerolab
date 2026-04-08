@@ -43,7 +43,11 @@ func (c *TlsGenerateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	instances, err := c.GenerateTLS(system, system.Backend.GetInventory(), system.Logger, args, "generate")
+	var inventory *backends.Inventory
+	if system.Backend != nil {
+		inventory = system.Backend.GetInventory()
+	}
+	instances, err := c.GenerateTLS(system, inventory, system.Logger, args, "generate")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

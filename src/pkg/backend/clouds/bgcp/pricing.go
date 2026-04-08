@@ -236,7 +236,6 @@ func (s *b) getVolumePricesFromGCP() (backends.VolumePriceList, error) {
 			if sku.Category.UsageType != "OnDemand" {
 				continue
 			}
-			// Match descriptions like "Standard provisioned storage", "SSD backed storage", etc.
 			var diskType string
 			desc := strings.ToLower(sku.Description)
 			switch {
@@ -244,6 +243,20 @@ func (s *b) getVolumePricesFromGCP() (backends.VolumePriceList, error) {
 				continue
 			case strings.Contains(desc, "defined duration"):
 				continue
+			// Hyperdisk capacity SKUs: "Hyperdisk Balanced Capacity in {Region}", etc.
+			case strings.Contains(desc, "hyperdisk") && strings.Contains(desc, "balanced") && strings.Contains(desc, "capacity"):
+				diskType = "hyperdisk-balanced"
+			case strings.Contains(desc, "hyperdisk") && strings.Contains(desc, "throughput") && strings.Contains(desc, "capacity"):
+				diskType = "hyperdisk-throughput"
+			case strings.Contains(desc, "hyperdisk") && strings.Contains(desc, "extreme") && strings.Contains(desc, "capacity"):
+				diskType = "hyperdisk-extreme"
+			case strings.Contains(desc, "hyperdisk") && strings.Contains(desc, "ml") && strings.Contains(desc, "capacity"):
+				diskType = "hyperdisk-ml"
+			// Skip non-capacity hyperdisk SKUs (IOPS, throughput provisioning, storage pools, replication)
+			// to prevent false matches against pd-* patterns below
+			case strings.Contains(desc, "hyperdisk"):
+				continue
+			// Persistent Disk types: "Balanced Persistent Disk Storage in {Region}", etc.
 			case strings.Contains(desc, "standard") && strings.Contains(desc, "storage"):
 				diskType = "pd-standard"
 			case strings.Contains(desc, "ssd") && strings.Contains(desc, "storage"):

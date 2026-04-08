@@ -148,6 +148,9 @@ func (t *TypeAgiClusterName) String() string {
 	return string(*t)
 }
 func (t *TypeNodes) String() string {
+	if strings.EqualFold(string(*t), "all") {
+		return ""
+	}
 	return string(*t)
 }
 func (t *TypeNodesPlusAllOption) String() string {
