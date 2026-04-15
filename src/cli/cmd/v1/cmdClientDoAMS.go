@@ -24,7 +24,7 @@ import (
 
 type ClientCreateAMSCmd struct {
 	ClientCreateNoneCmd
-	GrafanaVersion    string          `long:"grafana-version" description:"Grafana version to install" default:"latest"`
+	GrafanaVersion    string          `long:"grafana-version" description:"Grafana version to install" default:"12.4.3"`
 	PrometheusVersion string          `long:"prometheus-version" description:"Prometheus version to install" default:"latest"`
 	ConnectClusters   TypeClusterName `short:"s" long:"clusters" description:"Comma-separated list of clusters to configure as source for this AMS"`
 	ConnectClients    TypeClientName  `short:"S" long:"clients" description:"Comma-separated list of (graph) clients to configure as source for this AMS"`
@@ -439,7 +439,7 @@ func (c *ClientCreateAMSCmd) buildPrometheusConfig(clusterNodes, clientNodes map
 				nodeTargets = append(nodeTargets, node+":9100")
 			}
 		}
-		fmt.Fprintf(&script, "sed -i.bakAsd -E \"s/.*TODO_ASD_TARGETS/      - targets: ['%s'] #TODO_ASD_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(asdTargets, "','"))     //nolint:errcheck
+		fmt.Fprintf(&script, "sed -i.bakAsd -E \"s/.*TODO_ASD_TARGETS/      - targets: ['%s'] #TODO_ASD_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(asdTargets, "','"))        //nolint:errcheck
 		fmt.Fprintf(&script, "sed -i.bakAsdNode -E \"s/.*TODO_ASDN_TARGETS/      - targets: ['%s'] #TODO_ASDN_TARGETS/g\" /etc/prometheus/prometheus.yml\n", strings.Join(nodeTargets, "','")) //nolint:errcheck
 	}
 
