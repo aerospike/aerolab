@@ -12,10 +12,13 @@ ExecStart=/bin/bash /usr/local/bin/early.sh
 WantedBy=multi-user.target
 EOF
 
+if [ ! -f /usr/local/bin/early.sh ]
+then
 cat <<'EOF' > /usr/local/bin/early.sh
 #!/bin/bash
 exit 0
 EOF
+fi
 
 cat <<'EOF' > /etc/systemd/system/aerospike-late.service
 [Unit]
@@ -31,10 +34,13 @@ ExecStart=/bin/bash /usr/local/bin/late.sh
 WantedBy=multi-user.target
 EOF
 
+if [ ! -f /usr/local/bin/late.sh ]
+then
 cat <<'EOF' > /usr/local/bin/late.sh
 #!/bin/bash
 exit 0
 EOF
+fi
 
 chmod 755 /usr/local/bin/early.sh
 chmod 755 /usr/local/bin/late.sh
