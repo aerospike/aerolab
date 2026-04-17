@@ -446,27 +446,7 @@ fi
 		}
 		// set hostnames for cloud
 		if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
-			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
-			newHostname = strings.ReplaceAll(newHostname, "_", "-")
-			hComm := [][]string{
-				{"hostname", newHostname},
-			}
-			nr, err := b.RunCommands(string(c.ClientName), hComm, []int{nnode})
-			if err != nil {
-				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
-			}
-			nr, err = b.RunCommands(string(c.ClientName), [][]string{{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
-			if err != nil {
-				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
-			}
-			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClientName), nnode))...)
-			hst := fmt.Sprintf("%s-%d\n", string(c.ClientName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", hst, len(hst)}}, []int{nnode})
-			if err != nil {
-				return err
-			}
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", string(nr[0]), len(nr[0])}}, []int{nnode})
-			if err != nil {
+			if err := setCloudHostname(string(c.ClientName), nnode, nip[nnode]); err != nil {
 				return err
 			}
 		}
