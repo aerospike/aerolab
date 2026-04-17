@@ -928,6 +928,8 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,
+			MaxRetries:      c.MaxRetries,
+			RetrySleep:      c.RetrySleep,
 		})
 		if outputs == nil {
 			errs = append(errs, fmt.Errorf("no output from deploy script"))
