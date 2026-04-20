@@ -544,7 +544,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}
 	// (re)start grafana
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/all.yaml; [ ! -f /.dockerenv ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 3; pidof grafana; exit $?"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/all.yaml; [ ! -f /.dockerenv ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 3; pidof grafana || pidof grafana-server || exit 1"})
 	if err != nil {
 		return fmt.Errorf("failed to restart grafana: %s", err)
 	}
@@ -669,6 +669,7 @@ EOF
 
 func (c *clientAddAMSCmd) installScript() string {
 	return `function grafana() {
+	return 1 # TODO: temporary: disable latest grafana 13 installs
 	set -x
 	set -e
 	mkdir -p /etc/apt/keyrings/
@@ -685,8 +686,8 @@ function grafana_fallback() {
     [[ $(uname -m) =~ arm ]] && platform=arm64
     [[ $(uname -p) =~ arm ]] && platform=arm64
 	apt-get install -y adduser libfontconfig1 musl
-	wget https://dl.grafana.com/oss/release/grafana_11.3.1_amd64.deb
-	dpkg -i grafana_10.4.1_${platform}.deb
+	wget https://dl.grafana.com/grafana/release/12.4.3/grafana_12.4.3_24388279614_linux_${platform}.deb
+	dpkg -i grafana_12.4.3_24388279614_linux_${platform}.deb
 }
 
 set -x

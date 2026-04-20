@@ -1164,30 +1164,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 		log.Printf("Node IP map: %v", nip)
 		returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
-			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
-			newHostname = strings.ReplaceAll(newHostname, "_", "-")
-			hComm := [][]string{
-				{"hostname", newHostname},
-			}
-			nr, err := b.RunCommands(string(c.ClusterName), hComm, []int{nnode})
-			if err != nil {
-				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
-			}
-			nr, err = b.RunCommands(string(c.ClusterName), [][]string{{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
-			if err != nil {
-				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
-			}
-			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClusterName), nnode))...)
-			hst := fmt.Sprintf("%s-%d\n", string(c.ClusterName), nnode)
-			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
-			if err != nil {
-				return err
-			}
-			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
-			if err != nil {
-				return err
-			}
-			return nil
+			return setCloudHostname(string(c.ClusterName), nnode, nip[nnode])
 		})
 		isError := false
 		for i, ret := range returns {

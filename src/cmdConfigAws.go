@@ -38,6 +38,7 @@ type expiryInstallCmdGcp struct {
 
 type expiryInstallCmdAws struct {
 	Route53ZoneId string `long:"route53-zoneid" description:"optionally if using AGI with route53 updater, specify zoneId to cleanup"`
+	WithEks       bool   `long:"with-eks" description:"attach IAMFullAccess policy to the lambda role for EKS expiry support"`
 }
 
 func init() {
@@ -58,7 +59,7 @@ func (c *expiryInstallCmd) Execute(args []string) error {
 	if len(deployRegion) > 2 {
 		deployRegion = deployRegion[:len(deployRegion)-1]
 	}
-	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"), c.Aws.Route53ZoneId)
+	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"), c.Aws.Route53ZoneId, c.Aws.WithEks)
 	if err != nil && err.Error() != "EXISTS" {
 		return errors.New(err.Error())
 	}

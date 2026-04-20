@@ -233,7 +233,7 @@ func (d *backendAws) CreateVolume(name string, zone string, tags []string, expir
 		})
 	}
 	if expires != 0 {
-		err := d.ExpiriesSystemInstall(15, "", "")
+		err := d.ExpiriesSystemInstall(15, "", "", false)
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
@@ -336,7 +336,7 @@ func (d *backendAws) ExpiriesUpdateZoneID(zoneId string) error {
 	return err
 }
 
-func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion string, awsDnsZoneId string) error {
+func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion string, awsDnsZoneId string, withEks bool) error {
 	expInstallMutex.Lock()
 	defer expInstallMutex.Unlock()
 	if d.disableExpiryInstall {
@@ -349,6 +349,20 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 		})
 		if err == nil && funcConf.Environment != nil && funcConf.Environment.Variables != nil {
 			awsDnsZoneId = aws.StringValue(funcConf.Environment.Variables["route53_zoneid"])
+		}
+	}
+	// if reinstalling preserve withEks by checking if IAMFullAccess is currently attached
+	if !withEks {
+		attachedPolicies, err := d.iam.ListAttachedRolePolicies(&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		})
+		if err == nil {
+			for _, p := range attachedPolicies.AttachedPolicies {
+				if aws.StringValue(p.PolicyArn) == "arn:aws:iam::aws:policy/IAMFullAccess" {
+					withEks = true
+					break
+				}
+			}
 		}
 	}
 	// if a scheduler already exists, return EXISTS as it's all been already made
@@ -410,6 +424,15 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 			return err
 		}
 	}
+	if withEks {
+		_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+			PolicyArn: aws.String("arn:aws:iam::aws:policy/IAMFullAccess"),
+		})
+		if err != nil {
+			return err
+		}
+	}
 
 	schedRole, err := d.iam.CreateRole(&iam.CreateRoleInput{
 		RoleName:                 aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
@@ -466,7 +489,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 				PackageType:  aws.String("Zip"),
 				Timeout:      aws.Int64(900),
 				Publish:      aws.Bool(true),
-				Runtime:      aws.String("provided.al2"),
+				Runtime:      aws.String("provided.al2023"),
 				Environment: &lambda.Environment{
 					Variables: aws.StringMap(map[string]string{
 						"EKS_ROLE": aws.StringValue(lambdaRole.Role.Arn),
@@ -678,6 +701,27 @@ func (d *backendAws) ExpiriesSystemRemove(region string) error {
 		RoleName:   aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
 	})
 	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+	lambdaRoleName := "aerolab-expiries-lambda-" + a.opts.Config.Backend.Region
+	attachedOut, err := d.iam.ListAttachedRolePolicies(&iam.ListAttachedRolePoliciesInput{
+		RoleName: aws.String(lambdaRoleName),
+	})
+	if err == nil {
+		for _, p := range attachedOut.AttachedPolicies {
+			arn := aws.StringValue(p.PolicyArn)
+			if !inslice.HasString(awsExpiryPolicies, arn) {
+				log.Printf("WARNING: detaching manually-added policy %s from role %s", arn, lambdaRoleName)
+			}
+			_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
+				PolicyArn: p.PolicyArn,
+				RoleName:  aws.String(lambdaRoleName),
+			})
+			if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+				ret = append(ret, err.Error())
+			}
+		}
+	} else if !strings.Contains(err.Error(), "NoSuchEntity") {
 		ret = append(ret, err.Error())
 	}
 	_, err = d.iam.DeleteRole(&iam.DeleteRoleInput{
@@ -3195,7 +3239,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	}
 	if !extra.expiresTime.IsZero() {
-		err = d.ExpiriesSystemInstall(15, "", "")
+		err = d.ExpiriesSystemInstall(15, "", "", false)
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 		}

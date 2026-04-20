@@ -362,7 +362,7 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 		if len(deployRegion) > 2 {
 			deployRegion = deployRegion[:len(deployRegion)-1]
 		}
-		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"), "")
+		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"), "", false)
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
@@ -1864,23 +1864,15 @@ func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 	if err != nil {
 		return err
 	}
-	nodeCount := len(nodes)
 
-	for {
-		working := 0
-		for _, node := range nodes {
-			instIp := nodeIps[node]
-			_, err = remoteRun("root", fmt.Sprintf("%s:22", instIp), keyPath, "ls", 0)
-			if err == nil {
-				working++
-			} else {
-				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", instIp, keyPath, err)
-				time.Sleep(time.Second)
-			}
+	ips := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if ip, ok := nodeIps[node]; ok {
+			ips = append(ips, ip)
 		}
-		if working >= nodeCount {
-			break
-		}
+	}
+	if err := gcpWaitSshStable(ips, keyPath); err != nil {
+		return err
 	}
 	return nil
 }
@@ -2733,15 +2725,8 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 			time.Sleep(time.Second)
 		}
 	}
-	for {
-		// wait for instances to be made available via SSH
-		_, err = remoteRun("root", fmt.Sprintf("%s:22", instIp), keyPath, "ls", 0)
-		if err == nil {
-			break
-		} else {
-			fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", instIp, keyPath, err)
-			time.Sleep(time.Second)
-		}
+	if err = gcpWaitSshStable([]string{instIp}, keyPath); err != nil {
+		return err
 	}
 
 	if len(deployGcpTemplateShutdownMaking) > 0 {
@@ -3692,24 +3677,64 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if err != nil {
 		return err
 	}
-	newNodeCount := len(nodeIps)
 
-	for {
-		working := 0
-		for _, instIp := range nodeIps {
-			_, err = remoteRun("root", fmt.Sprintf("%s:22", instIp), keyPath, "ls", 0)
-			if err == nil {
-				working++
-			} else {
-				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", instIp, keyPath, err)
-				time.Sleep(time.Second)
-			}
-		}
-		if working >= newNodeCount {
-			break
-		}
+	ips := make([]string, 0, len(nodeIps))
+	for _, ip := range nodeIps {
+		ips = append(ips, ip)
+	}
+	if err := gcpWaitSshStable(ips, keyPath); err != nil {
+		return err
 	}
 	log.Print("All connections succeeded, continuing...")
+	return nil
+}
+
+// gcpSshRequiredConsecutive is the number of consecutive successful ssh
+// connections required per node before considering it ready. One successful
+// connect is not enough on GCP: cloud-init's late phase, the OS Login daemon,
+// and/or metadata-driven key rotation can all briefly restart sshd AFTER the
+// first connection succeeds, which then causes follow-up operations (e.g.
+// setting hostname, copying files) to fail with `dial tcp ... i/o timeout`.
+const (
+	gcpSshRequiredConsecutive = 3
+	gcpSshCheckInterval       = time.Second
+	gcpSshMaxWait             = 10 * time.Minute
+)
+
+// gcpWaitSshStable waits until every IP in ips has answered a simple `ls`
+// command gcpSshRequiredConsecutive times in a row. If any check fails, that
+// node's counter is reset. The wait is bounded by gcpSshMaxWait per node.
+func gcpWaitSshStable(ips []string, keyPath string) error {
+	if len(ips) == 0 {
+		return nil
+	}
+	remaining := make(map[string]int, len(ips))
+	for _, ip := range ips {
+		remaining[ip] = gcpSshRequiredConsecutive
+	}
+	start := time.Now()
+	for len(remaining) > 0 {
+		for ip, left := range remaining {
+			_, err := remoteRun("root", fmt.Sprintf("%s:22", ip), keyPath, "ls", 0)
+			if err != nil {
+				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", ip, keyPath, err)
+				remaining[ip] = gcpSshRequiredConsecutive
+				if time.Since(start) > gcpSshMaxWait {
+					return fmt.Errorf("ssh did not stabilize on %s within %s: %w", ip, gcpSshMaxWait, err)
+				}
+				continue
+			}
+			left--
+			if left <= 0 {
+				delete(remaining, ip)
+			} else {
+				remaining[ip] = left
+			}
+		}
+		if len(remaining) > 0 {
+			time.Sleep(gcpSshCheckInterval)
+		}
+	}
 	return nil
 }
 

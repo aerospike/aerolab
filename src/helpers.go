@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
@@ -566,4 +568,57 @@ func aeroFindUrlX(enterpriseUrl string, version string, user string, pass string
 	url = baseUrl
 	v = version
 	return
+}
+
+// setCloudHostname renames node nnode of deployName to "<deployName>-<nnode>"
+// (with underscores converted to dashes) and rewrites /etc/hostname and the
+// /etc/hosts entry for nodeIP. The whole sequence is idempotent and is
+// retried a few times to tolerate transient SSH flakiness right after cloud
+// instance boot (e.g. GCP sshd flapping during cloud-init's late phase).
+func setCloudHostname(deployName string, nnode int, nodeIP string) error {
+	newHostname := strings.ReplaceAll(fmt.Sprintf("%s-%d", deployName, nnode), "_", "-")
+	hostnameCmd := [][]string{{"hostname", newHostname}}
+	sedCmd := [][]string{{"sed", "s/" + nodeIP + ".*//g", "/etc/hosts"}}
+	hostnameFile := fmt.Sprintf("%s-%d\n", deployName, nnode)
+	hostsAppend := fmt.Sprintf("\n%s %s-%d\n", nodeIP, deployName, nnode)
+
+	const maxAttempts = 5
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if attempt > 1 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			log.Printf("set hostname: retrying %s node %d (attempt %d/%d) after: %s", deployName, nnode, attempt, maxAttempts, lastErr)
+		}
+
+		nr, err := b.RunCommands(deployName, hostnameCmd, []int{nnode})
+		if err != nil {
+			lastErr = fmt.Errorf("error running `hostname %s`: %s:%s", newHostname, err, nr)
+			continue
+		}
+
+		nr, err = b.RunCommands(deployName, sedCmd, []int{nnode})
+		if err != nil {
+			lastErr = fmt.Errorf("error running `sed s/%s.*//g /etc/hosts`: %s:%s", nodeIP, err, nr)
+			continue
+		}
+		if len(nr) == 0 {
+			lastErr = fmt.Errorf("sed returned no output for /etc/hosts")
+			continue
+		}
+		newHosts := append(nr[0], []byte(hostsAppend)...)
+
+		err = b.CopyFilesToClusterReader(deployName, []fileListReader{{"/etc/hostname", strings.NewReader(hostnameFile), len(hostnameFile)}}, []int{nnode})
+		if err != nil {
+			lastErr = fmt.Errorf("error writing /etc/hostname: %s", err)
+			continue
+		}
+
+		err = b.CopyFilesToClusterReader(deployName, []fileListReader{{"/etc/hosts", bytes.NewReader(newHosts), len(newHosts)}}, []int{nnode})
+		if err != nil {
+			lastErr = fmt.Errorf("error writing /etc/hosts: %s", err)
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("could not set hostname after %d attempts: %w", maxAttempts, lastErr)
 }

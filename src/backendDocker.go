@@ -92,7 +92,7 @@ func (d *backendDocker) GetInstanceTags(name string) (map[string]map[string]stri
 	return nil, nil
 }
 
-func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string) error {
+func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string, withEks bool) error {
 	return nil
 }
 func (d *backendDocker) ExpiriesSystemRemove(region string) error {
