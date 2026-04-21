@@ -1,0 +1,48 @@
+---
+description: Guidelines for working on the aerolab MCP server (pkg/mcp and cmdMcp.go)
+globs: src/pkg/mcp/**,src/cli/cmd/v1/cmdMcp.go
+alwaysApply: false
+---
+
+# Aerolab MCP Server
+
+`aerolab mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes every aerolab subcommand as an MCP tool. It is implemented in:
+
+- `src/cli/cmd/v1/cmdMcp.go` — thin CLI entry point, wires flags into `pkg/mcp`
+- `src/pkg/mcp/` — the actual server: tool registration, argv building, subprocess execution, help rendering, gating, and transport
+
+End-user documentation lives at `docs/mcp.md`. Keep that file in sync whenever you change behavior visible to an agent (tool names, profiles, flags, JSON schema, error messages).
+
+## Architectural rules
+
+1. **Self-introspection only** — tool definitions must come from `BuildCommandTree(&Commands{})` in `cli/cmd/v1` and the `ParameterInfo` type. Do **not** hand-maintain a tool list in `pkg/mcp`.
+2. **One-way dependency** — `pkg/mcp` may not import `cli/cmd/v1`. Conversion from `CommandInfo`/`ParameterInfo` into `mcp.Command`/`mcp.Param` happens inside `cmdMcp.go`. If you need new command metadata, add it to both sides and to the converter.
+3. **Subprocess execution** — every tool call must fork the configured aerolab binary via `pkg/mcp.Runner`. Never exec commands in-process. This is what gives us isolation, timeouts, and bounded output.
+4. **No writes to stdout in stdio mode** — stdin/stdout belong to the MCP JSON-RPC stream. All diagnostics must go to stderr. `McpCmd.Execute` must not print status when `--transport=stdio`.
+5. **Destructive gating** — a command is destructive when `Command.Destructive == true` or when `IsDestructive()` matches its leaf name. Auto-registered tools must include `confirm` and `timeout_sec` in the schema, and `autoHandler` must call `Gate.Check` before executing.
+
+## Adding a new tool
+
+Prefer adding a new aerolab subcommand (struct + `Execute` method under `cli/cmd/v1/`). It will be picked up automatically. Write a hand-written MCP tool only if it does something genuinely outside the CLI (e.g. cross-command workflows). Place these in `pkg/mcp/tools_*.go` and register them from `NewServer`.
+
+## Adding a new flag to McpCmd
+
+1. Add the field with `long:` / `description:` / `default:` tags on `McpCmd`.
+2. Parse/validate it in `runServer` before building `aerolabmcp.Config`.
+3. Extend `aerolabmcp.Config` and thread the value to the place that consumes it (runner, gate, HTTP handler, …).
+4. Update `docs/mcp.md` (Flags table and any relevant section).
+
+## Dynamic choices
+
+Parameters with `webchoice:"method::List"` become `enum` values in the JSON Schema **only when `--init-backend` is used and the backend is available**. The server must never panic if a dynamic `List()` method fails — `convertParamsForMCP` wraps the call in `safeResolveChoices`, which `recover()`s from panics and swallows errors. Keep that wrapper in place.
+
+## Tests
+
+- `pkg/mcp/*_test.go` covers schema, help, runner, gate, generic tools, auto tools, and auth. Run `go test ./pkg/mcp/...` after any change.
+- When changing behavior visible to a model (tool count, destructive set, error strings), extend the relevant test rather than deleting it.
+
+## Gotchas
+
+- `go-flags.PrintHelp` calls `os.Exit`; never use it from MCP code. Use `RenderHelpFromFactory` → `parser.WriteHelp(io.Writer)` instead.
+- `exec.Cmd.Env` replaces the parent environment completely. `Runner.Execute` starts from `os.Environ()` and appends overrides — keep that order.
+- Auto-tool names are sanitized to match `^[A-Za-z_][A-Za-z0-9_-]*$`. If you change `AutoToolName`, update `tools_auto_test.go` and `docs/mcp.md`.

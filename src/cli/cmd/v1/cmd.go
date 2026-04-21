@@ -34,6 +34,7 @@ type Commands struct {
 	WebUI        WebUICmd        `command:"webui" subcommands-optional:"true" description:"Launch AeroLab REST API server" webicon:"fas fa-globe" webhidden:"true"`
 	Version      VersionCmd      `command:"version" subcommands-optional:"true" description:"Print AeroLab version" webicon:"fas fa-code-branch"`
 	Upgrade      UpgradeCmd      `command:"upgrade" subcommands-optional:"true" description:"Upgrade AeroLab binary" webicon:"fas fa-circle-up"`
+	Mcp          McpCmd          `command:"mcp" subcommands-optional:"true" description:"Run an MCP (Model Context Protocol) server exposing every aerolab subcommand as an MCP tool" webicon:"fas fa-plug" webhidden:"true"`
 	//WebRun       webRunCmd       `command:"webrun" subcommands-optional:"true" description:"Upgrade AeroLab binary" hidden:"true"`
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }

@@ -151,6 +151,15 @@ If you're upgrading from AeroLab v7.x, see the **[Migration Guide](migration-gui
     - Token-based authentication
     - Auto-scaling with AGI Monitor (AWS/GCP)
 
+### AI Agent Integration
+
+- **[MCP Server (`aerolab mcp`)](mcp.md)** - Expose every Aerolab CLI command as a Model Context Protocol tool
+  - stdio and streamable HTTP transports
+  - Self-introspection: no hand-maintained tool registry
+  - Generic explorer tools (`aerolab_list_commands`, `aerolab_describe_command`, `aerolab_execute_command`) plus one auto-registered tool per leaf subcommand
+  - Read-only / standard / admin profiles with destructive-command gating
+  - Optional bearer-token auth for HTTP
+
 ## Reference
 
 - **[Environment Variables](reference/environment-variables.md)** - All available environment variables

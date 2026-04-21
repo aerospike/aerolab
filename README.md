@@ -7,6 +7,7 @@ AeroLab is a tool for deploying and managing Aerospike clusters across multiple 
 - [Getting Started](docs/getting-started/README.md)
 - [Commands Reference](docs/commands/)
 - [Cloud Configuration](docs/cloud/)
+- [MCP Server for AI agents](docs/mcp.md) - Drive AeroLab from Claude, Cursor, Codex, etc. via `aerolab mcp`
 - [Migration Guide](docs/migration-guide.md) - Upgrading from AeroLab 7.x to 8.x
 
 ## Quick Start
