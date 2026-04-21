@@ -29,6 +29,13 @@ type Registry struct {
 	// profile, and whether the caller passed --confirm for destructive
 	// tools. A nil gate is treated as an always-allow admin gate.
 	Gate *ProfileGate
+
+	// DisableForceJSONOutput, when true, turns off the MCP-side
+	// auto-injection of "--output=json" on read-style aerolab commands
+	// whose callers omit the flag. The default (false) means MCP callers
+	// get JSON output by default for easier machine parsing, while
+	// CLI users continue to see the human-friendly table format.
+	DisableForceJSONOutput bool
 }
 
 // Leaves returns every executable leaf (command node without children)

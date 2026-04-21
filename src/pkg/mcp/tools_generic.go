@@ -282,9 +282,14 @@ func executeCommandHandler(reg *Registry) sdkmcp.ToolHandler {
 			return errorResult(errors.New("runner not configured")), nil
 		}
 
+		// Match the auto-tool behaviour: inject --output=json for
+		// read-style commands when the caller omitted it and the server
+		// has not disabled the nudge.
+		mergedArgs := maybeInjectJSONOutput(reg, cmd, args.Args)
+
 		input := RunInput{
 			Path:            args.Path,
-			Args:            args.Args,
+			Args:            mergedArgs,
 			Positional:      args.Positional,
 			TimeoutOverride: time.Duration(args.TimeoutSec) * time.Second,
 			EnvOverride:     args.Env,

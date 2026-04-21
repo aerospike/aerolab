@@ -212,6 +212,11 @@ func autoHandler(reg *Registry, cmd *Command, nameToFlag map[string]string) sdkm
 		// on the command line.
 		args := translateArgs(raw, nameToFlag)
 
+		// Nudge read-style commands toward JSON so the LLM doesn't have
+		// to parse ANSI-decorated tables. Honours explicit caller values
+		// and the server-wide DisableForceJSONOutput switch.
+		args = maybeInjectJSONOutput(reg, cmd, args)
+
 		out := reg.Run.Execute(ctx, RunInput{
 			Path:            cmd.Path,
 			Args:            args,

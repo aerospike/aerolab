@@ -22,17 +22,18 @@ import (
 // Claude Desktop and Cursor) and streamable HTTP (for remote agents).
 // Optional bearer-token auth is enforced on the HTTP transport.
 type McpCmd struct {
-	Transport      string   `long:"transport" description:"MCP transport: stdio|http" default:"stdio" webchoice:"stdio,http"`
-	Addr           string   `long:"addr" description:"HTTP listen address (used when --transport=http)" default:"localhost:9190"`
-	AuthToken      string   `long:"auth-token" env:"AEROLAB_MCP_AUTH_TOKEN" description:"Optional bearer token required by HTTP transport. If empty, no auth is enforced"`
-	Profile        string   `long:"profile" description:"Tool profile controlling what operations are permitted" default:"standard" webchoice:"read-only,standard,admin"`
-	Binary         string   `long:"binary" description:"Path to the aerolab binary invoked for tool execution (defaults to the current executable)"`
-	InitBackend    bool     `long:"init-backend" description:"Initialize the configured backend on startup so dynamic choices (zones, instance types, VPCs) can be resolved"`
-	TimeoutSec     int      `long:"timeout" description:"Default per-call subprocess timeout in seconds (0 = no timeout)" default:"600"`
-	MaxOutputBytes int      `long:"max-output-bytes" description:"Maximum captured bytes of stdout+stderr returned per call" default:"1048576"`
-	SessionTimeout string   `long:"session-timeout" description:"Idle timeout for HTTP streaming sessions (Go duration, e.g. 30m)" default:"30m"`
-	MCPEnv         []string `long:"mcp-env" description:"Extra KEY=VAL env vars passed to every tool subprocess (repeatable)" hidden:"true"`
-	Help           HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Transport              string   `long:"transport" description:"MCP transport: stdio|http" default:"stdio" webchoice:"stdio,http"`
+	Addr                   string   `long:"addr" description:"HTTP listen address (used when --transport=http)" default:"localhost:9190"`
+	AuthToken              string   `long:"auth-token" env:"AEROLAB_MCP_AUTH_TOKEN" description:"Optional bearer token required by HTTP transport. If empty, no auth is enforced"`
+	Profile                string   `long:"profile" description:"Tool profile controlling what operations are permitted" default:"standard" webchoice:"read-only,standard,admin"`
+	Binary                 string   `long:"binary" description:"Path to the aerolab binary invoked for tool execution (defaults to the current executable)"`
+	InitBackend            bool     `long:"init-backend" description:"Initialize the configured backend on startup so dynamic choices (zones, instance types, VPCs) can be resolved"`
+	TimeoutSec             int      `long:"timeout" description:"Default per-call subprocess timeout in seconds (0 = no timeout)" default:"600"`
+	MaxOutputBytes         int      `long:"max-output-bytes" description:"Maximum captured bytes of stdout+stderr returned per call" default:"1048576"`
+	SessionTimeout         string   `long:"session-timeout" description:"Idle timeout for HTTP streaming sessions (Go duration, e.g. 30m)" default:"30m"`
+	MCPEnv                 []string `long:"mcp-env" description:"Extra KEY=VAL env vars passed to every tool subprocess (repeatable)" hidden:"true"`
+	DisableForceJSONOutput bool     `long:"mcp-disable-force-json" description:"Disable the MCP-side default of --output=json for read-style commands. By default the MCP server advertises and injects json output so agents can parse results more reliably; use this flag to fall back to each command's native default (usually table)."`
+	Help                   HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *McpCmd) Execute(args []string) error {
@@ -95,7 +96,7 @@ func (c *McpCmd) runServer(system *System) error {
 	if !c.InitBackend || system == nil || system.Backend == nil {
 		choiceSystem = nil
 	}
-	tree := convertTreeForMCP(root, choiceSystem, "")
+	tree := convertTreeForMCP(root, choiceSystem, "", !c.DisableForceJSONOutput)
 
 	registry := &aerolabmcp.Registry{
 		Root: []*aerolabmcp.Command{tree},
@@ -106,7 +107,8 @@ func (c *McpCmd) runServer(system *System) error {
 			MaxOutputBytes: c.MaxOutputBytes,
 			Env:            runnerEnv,
 		},
-		Gate: aerolabmcp.NewGate(profile),
+		Gate:                   aerolabmcp.NewGate(profile),
+		DisableForceJSONOutput: c.DisableForceJSONOutput,
 	}
 
 	cfg := aerolabmcp.Config{
@@ -163,8 +165,11 @@ func mcpImplementation() *aerolabmcp.Implementation {
 
 // convertTreeForMCP converts the CommandInfo tree from BuildCommandTree
 // into the MCP package's neutral representation. parentPath is the
-// slash-separated path of the parent (or "" for the root).
-func convertTreeForMCP(c *CommandInfo, system *System, parentPath string) *aerolabmcp.Command {
+// slash-separated path of the parent (or "" for the root). When
+// forceJSONOutput is true, read-style `--output` parameters advertise
+// "json" as their default in the schema description so agents see the
+// value the runner will ultimately inject for them.
+func convertTreeForMCP(c *CommandInfo, system *System, parentPath string, forceJSONOutput bool) *aerolabmcp.Command {
 	if c == nil {
 		return nil
 	}
@@ -179,13 +184,13 @@ func convertTreeForMCP(c *CommandInfo, system *System, parentPath string) *aerol
 		Description: c.Description,
 		Hidden:      c.Hidden,
 		Destructive: c.InvWebForce,
-		Parameters:  convertParamsForMCP(c, system),
+		Parameters:  convertParamsForMCP(c, system, forceJSONOutput),
 	}
 	for _, child := range c.Children {
 		if child == nil {
 			continue
 		}
-		cc := convertTreeForMCP(child, system, path)
+		cc := convertTreeForMCP(child, system, path, forceJSONOutput)
 		if cc != nil {
 			out.Children = append(out.Children, cc)
 		}
@@ -218,8 +223,14 @@ func safeResolveChoices(system *System, cmdPath string, p ParameterInfo) (vals, 
 }
 
 // convertParamsForMCP converts a command's []ParameterInfo into
-// []aerolabmcp.Param, resolving dynamic choices where defined.
-func convertParamsForMCP(c *CommandInfo, system *System) []aerolabmcp.Param {
+// []aerolabmcp.Param, resolving dynamic choices where defined. When
+// forceJSONOutput is true, a hint is appended to the description of every
+// read-style `--output` parameter so agents inspecting the schema see
+// that MCP auto-injects --output=json. The Default field itself is left
+// untouched — the runtime injection in pkg/mcp relies on the original
+// default to decide whether to inject (so commands already defaulting
+// to json-indent are not silently downgraded to json).
+func convertParamsForMCP(c *CommandInfo, system *System, forceJSONOutput bool) []aerolabmcp.Param {
 	if c == nil {
 		return nil
 	}
@@ -250,6 +261,14 @@ func convertParamsForMCP(c *CommandInfo, system *System) []aerolabmcp.Param {
 			if len(vals) > 0 {
 				param.Choices = vals
 				param.ChoiceLabels = labels
+			}
+		}
+		if forceJSONOutput && aerolabmcp.ShouldForceJSONOutputParam(param) {
+			hint := "MCP auto-injects --output=" + aerolabmcp.ForcedJSONOutputValue + " when omitted; pass explicitly to override."
+			if param.Description == "" {
+				param.Description = hint
+			} else {
+				param.Description = param.Description + " " + hint
 			}
 		}
 		out = append(out, param)

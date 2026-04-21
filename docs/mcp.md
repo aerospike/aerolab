@@ -40,6 +40,9 @@ aerolab mcp [OPTIONS]
   --timeout=SECONDS                Default per-call subprocess timeout (default: 600)
   --max-output-bytes=N             Cap on captured stdout+stderr per call (default: 1048576)
   --session-timeout=DURATION       Idle timeout for HTTP streaming sessions (default: 30m)
+  --mcp-disable-force-json         Disable the MCP-side default of
+                                   --output=json for read-style commands
+                                   (see "JSON-first output" below).
 ```
 
 ## Profiles
@@ -139,6 +142,23 @@ Point an HTTP-capable MCP client at `http://localhost:9190/mcp`. With bearer aut
     }
   }
 }
+```
+
+## JSON-first output for agents
+
+Most read-style aerolab commands (`cluster list`, `client list`, `inventory list`, `instances list`, `volumes list`, `net list`, `images list`, `template list`, `agi list`, `agi status`, …) expose a `--output` flag whose CLI default is `table`. Decorated tables are great for humans but awkward for LLMs to parse reliably.
+
+The MCP server therefore treats `json` as the default for agents:
+
+- Every matching `output` parameter's schema description is annotated with "MCP auto-injects --output=json when omitted; pass explicitly to override." (visible via `aerolab_describe_command`).
+- If a tool call omits `output`, the server injects `--output=json` into the forked `aerolab` argv before execution.
+- If a tool call sets `output` explicitly (to `csv`, `table`, `jq`, …), the caller's value always wins.
+- Commands whose CLI default is already a JSON-family value (e.g. `cloud-db/vpc-peering/status` defaults to `json-indent`) are left untouched.
+
+This behaviour is on by default. Pass `--mcp-disable-force-json` when starting the server to fall back to each command's native default:
+
+```bash
+aerolab mcp --transport stdio --mcp-disable-force-json
 ```
 
 ## Dynamic choices

@@ -14,8 +14,8 @@ type testOpts struct {
 }
 
 type nestedCmd struct {
-	Name string    `short:"n" long:"name" description:"thing to greet" default:"world"`
-	Sub  greetSub  `command:"sub" description:"deeply nested greet"`
+	Name string   `short:"n" long:"name" description:"thing to greet" default:"world"`
+	Sub  greetSub `command:"sub" description:"deeply nested greet"`
 	Help stubHelp `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
