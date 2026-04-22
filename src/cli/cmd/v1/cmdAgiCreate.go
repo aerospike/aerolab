@@ -202,9 +202,10 @@ type AgiCreateCmdGcp struct {
 
 // AgiCreateCmdDocker contains Docker-specific options for AGI instance creation.
 type AgiCreateCmdDocker struct {
-	ExposePortsToHost string `short:"e" long:"expose-ports" description:"Port forwarding (HOST_PORT:NODE_PORT)"`
-	Privileged        bool   `short:"B" long:"privileged" description:"Run in privileged mode"`
-	NetworkName       string `long:"network" description:"Docker network name"`
+	ExposePortsToHost string   `short:"e" long:"expose-ports" description:"Port forwarding (HOST_PORT:NODE_PORT)"`
+	Privileged        bool     `short:"B" long:"privileged" description:"Run in privileged mode"`
+	NetworkName       string   `long:"network" description:"Docker network name"`
+	Disks             []string `long:"disk" description:"Mount a host path or named volume into the container; format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: /host/data:/mnt/data or myvol:/data:ro; can be specified multiple times"`
 }
 
 // Execute implements the command execution for agi create.
@@ -1301,6 +1302,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		Docker: InstancesCreateCmdDocker{
 			ImageName:   templateName,
 			NetworkName: c.Docker.NetworkName,
+			Disks:       c.Docker.Disks,
 			ExposePorts: []string{exposePort},
 			Privileged:  c.Docker.Privileged,
 		},

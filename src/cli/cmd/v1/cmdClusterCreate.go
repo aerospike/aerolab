@@ -112,6 +112,7 @@ type ClusterCreateCmdDocker struct {
 	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:"" simplemode:"false"`
 	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
 	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	Disks             []string `long:"docker-disk" description:"Mount a host path or named volume into each container; format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: /host/data:/mnt/data or myvol:/data:ro; can be specified multiple times" simplemode:"false"`
 	TemplateSource    string   `long:"template-source" description:"Template acquisition strategy: best-option (try registry then build), only-registry (registry only, fail if unavailable), only-build (local build only)" default:"best-option" webchoice:"best-option,only-registry,only-build"`
 }
 
@@ -523,7 +524,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		Docker: InstancesCreateCmdDocker{
 			ImageName:          templateName,
 			NetworkName:        c.Docker.NetworkName,
-			Disks:              nil,
+			Disks:              c.Docker.Disks,
 			ExposePorts:        dockerExposePorts,
 			StopTimeout:        &stopTimeout,
 			Privileged:         c.Docker.Privileged,
