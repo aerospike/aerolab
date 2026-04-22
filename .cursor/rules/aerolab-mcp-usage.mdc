@@ -1,0 +1,74 @@
+---
+description: Anti-hallucination rules for calling the aerolab MCP tools as an agent
+alwaysApply: true
+---
+
+# Using the aerolab MCP (as an AI agent)
+
+These rules apply when you (the agent) interact with aerolab, regardless of
+which file you have open. They are intentionally strict to prevent
+hallucinated parameters from causing real infrastructure changes.
+
+## Use the MCP, do not shell out
+
+If the aerolab MCP is enabled in this session (i.e. `aerolab_*` tools are
+available to you), ALL aerolab interactions MUST go through those MCP tools.
+
+- Do NOT run `aerolab ...` via the Shell / Bash / terminal tool.
+- Do NOT spawn the `aerolab` binary as a subprocess yourself.
+- Do NOT tell the user to copy-paste an `aerolab` command unless they
+  explicitly asked for a CLI snippet.
+
+Shelling out bypasses the MCP's input validation, the destructive-op gate
+(`confirm=true`), the configured profile (`read-only` / `standard` / `admin`),
+logging, and the backend this server is bound to -- and may execute a
+different `aerolab` binary than the one the MCP server is using.
+
+If the MCP is NOT enabled (no `aerolab_*` tools visible), ask the user
+whether to enable it or whether they explicitly want a shell invocation.
+Never silently substitute a shell call.
+
+## Never invent values
+
+If you do not **know** a required parameter, you MUST either look it up or ask
+the user. Never guess names, versions, node numbers, IPs, AMIs, regions, etc.
+
+Discovery tools (use these first, they are read-only and cheap):
+
+- `aerolab_cluster_list`, `aerolab_client_list`, `aerolab_inventory_list`
+- `aerolab_template_list`, `aerolab_installer_list-versions`
+- `aerolab_config_backend` (shows the current backend / region)
+- `aerolab_list_commands`, `aerolab_describe_command` (command + flag lookup)
+
+If discovery does not yield the value, STOP and ask the user. "I don't know" is
+always an acceptable answer.
+
+## Never fabricate flags
+
+Only use flags present in the tool's JSON input schema or shown by
+`aerolab_describe_command` for that command. If you think a flag exists but
+it's not in the schema, it doesn't.
+
+## Report results verbatim
+
+When summarising a tool result:
+
+- Quote exact counts, names, IDs, versions, IPs, ports from the tool output.
+- Do not round, estimate, translate, or infer.
+- If a field is missing from the output, say so rather than filling it in.
+
+## On error, surface the error
+
+Non-zero exit code → return the actual error text and stop. Do not retry with
+guessed-at alternatives. Do not claim success.
+
+## Destructive ops are explicit
+
+Never set `confirm=true` unless the user has just explicitly asked for that
+exact destructive action (destroy, delete, terminate, reboot, zero-out).
+`confirm` is a guardrail, not a default.
+
+## Read before you write
+
+Before any mutating call, verify state with a read-only tool (list / describe /
+status). This eliminates most hallucinated-parameter bugs at negligible cost.

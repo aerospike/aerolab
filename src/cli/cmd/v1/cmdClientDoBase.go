@@ -16,6 +16,34 @@ import (
 
 type ClientCreateBaseCmd struct {
 	ClientCreateNoneCmd
+
+	// skipBaseInstall tells createBaseClient to skip running the base-tools
+	// install script (curl/wget/vim/git/jq/unzip/zip). Callers set this when
+	// those tools are already baked into the template image being used, to
+	// avoid re-running apt/yum on every `client create ...` invocation.
+	skipBaseInstall bool
+}
+
+// baseInstallSoftware returns the installers.Software spec describing the
+// base tools that `client create base` (and every downstream client) relies
+// on. It's exposed as a helper so template-build flows can bake the same
+// tools into the template image and then tell createBaseClient to skip the
+// per-instance install step.
+func baseInstallSoftware(debug bool) installers.Software {
+	return installers.Software{
+		Debug: debug,
+		Optional: installers.Installs{
+			Dependencies: []installers.Dependency{
+				{Command: "curl", Package: "curl"},
+				{Command: "wget", Package: "wget"},
+				{Command: "vim", Package: "vim"},
+				{Command: "git", Package: "git"},
+				{Command: "jq", Package: "jq"},
+				{Command: "unzip", Package: "unzip"},
+				{Command: "zip", Package: "zip"},
+			},
+		},
+	}
 }
 
 func (c *ClientCreateBaseCmd) Execute(args []string) error {
@@ -66,23 +94,14 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 		return nil, err
 	}
 
+	if c.skipBaseInstall {
+		logger.Debug("Skipping base tools install (pre-installed in template image)")
+		return clients, nil
+	}
+
 	logger.Info("Installing base tools on client instances")
 
-	// Install basic dependencies
-	installScript, err := installers.GetInstallScript(installers.Software{
-		Debug: system.logLevel >= 5,
-		Optional: installers.Installs{
-			Dependencies: []installers.Dependency{
-				{Command: "curl", Package: "curl"},
-				{Command: "wget", Package: "wget"},
-				{Command: "vim", Package: "vim"},
-				{Command: "git", Package: "git"},
-				{Command: "jq", Package: "jq"},
-				{Command: "unzip", Package: "unzip"},
-				{Command: "zip", Package: "zip"},
-			},
-		},
-	}, nil)
+	installScript, err := installers.GetInstallScript(baseInstallSoftware(system.logLevel >= 5), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate install script: %w", err)
 	}

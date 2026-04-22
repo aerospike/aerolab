@@ -8,11 +8,15 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/grafana"
 	"github.com/aerospike/aerolab/pkg/utils/installers/prometheus"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
@@ -120,43 +124,62 @@ func (c *ClientCreateAMSCmd) createAMSClient(system *System, inventory *backends
 		return err
 	}
 
-	// Create base client first
-	baseCmd := &ClientCreateBaseCmd{ClientCreateNoneCmd: c.ClientCreateNoneCmd}
+	// Resolve (or auto-create) the AMS template image and point the base client
+	// creation at it, so Prometheus/Grafana/Loki are not reinstalled from scratch
+	// on every AMS client.
+	if err := c.resolveAMSTemplate(system, inventory, logger, args); err != nil {
+		return err
+	}
+
+	// If a template was just auto-created, resolveAMSTemplate refreshed the
+	// backend inventory. Re-fetch the local inventory handle so the downstream
+	// instance lookup finds the newly-created image (with its correct
+	// Architecture). Without this, the image lookup misses, a placeholder
+	// Image{} with zero-value Architecture (= amd64) is fabricated, and Docker
+	// refuses to run an arm64 template on an arm64 host because the platform
+	// passed to the daemon is linux/amd64.
+	inventory = system.Backend.GetInventory()
+
+	// Create base client first. The AMS template already has the base tools
+	// (curl/wget/vim/git/jq/unzip/zip) baked in by buildAMSTemplateInstallScript,
+	// so skip the per-instance install step to avoid redundant apt/yum work.
+	baseCmd := &ClientCreateBaseCmd{
+		ClientCreateNoneCmd: c.ClientCreateNoneCmd,
+		skipBaseInstall:     true,
+	}
 	clients, err := baseCmd.createBaseClient(system, inventory, logger, args, isGrow)
 	if err != nil {
 		return err
 	}
 
-	// Install AMS on each client
-	logger.Info("Installing AMS (Prometheus, Grafana, and Loki)")
+	// Configure AMS on each client (Prometheus, Grafana, and Loki are already
+	// baked into the template image; this applies per-instance scrape targets
+	// and custom dashboards, then restarts services to pick up the config).
+	logger.Info("Configuring AMS clients (template pre-installed Prometheus, Grafana, Loki)")
 
 	for _, client := range clients.Describe() {
 		err := c.installAMS(system, client, logger, clusterNodes, clientNodes, customDashboards)
 		if err != nil {
-			return fmt.Errorf("failed to install AMS on %s:%d: %w", client.ClusterName, client.NodeNo, err)
+			return fmt.Errorf("failed to configure AMS on %s:%d: %w", client.ClusterName, client.NodeNo, err)
 		}
 
-		logger.Info("Successfully installed AMS on %s:%d", client.ClusterName, client.NodeNo)
+		logger.Info("Successfully configured AMS on %s:%d", client.ClusterName, client.NodeNo)
 		logger.Info("Username:Password is admin:admin")
 
-		// Determine access URL
-		var accessHost string
-		var accessPort = "3000"
-		if system.Opts.Config.Backend.Type == "docker" {
-			accessHost = "localhost"
-			for _, port := range c.Docker.ExposePorts {
-				if strings.Contains(port, ":3000") {
-					parts := strings.Split(strings.TrimPrefix(port, "+"), ":")
-					if len(parts) == 2 {
-						accessPort = parts[0]
-						break
-					}
-				}
+		// Prefer the backend-computed AccessURL (Docker derives it from actual
+		// runtime port mappings, which is the only reliable source when
+		// auto-increment was used to pick a free host port; cloud backends
+		// already build the public-IP URL there). Fall back to a
+		// best-effort computation if for any reason AccessURL is empty.
+		accessURL := client.AccessURL
+		if accessURL == "" {
+			if system.Opts.Config.Backend.Type == "docker" {
+				accessURL = "http://localhost:3000"
+			} else {
+				accessURL = fmt.Sprintf("http://%s:3000", client.IP.Public)
 			}
-		} else {
-			accessHost = client.IP.Public
 		}
-		logger.Info("Access Grafana at: http://%s:%s", accessHost, accessPort)
+		logger.Info("Access Grafana at: %s", accessURL)
 		logger.Info("NOTE: Remember to install the aerospike-prometheus-exporter on Aerospike server nodes: aerolab cluster add exporter")
 	}
 
@@ -225,14 +248,18 @@ func (c *ClientCreateAMSCmd) loadCustomDashboards() ([]CustomAMSDashboard, error
 	return dashboards, nil
 }
 
-// installAMS installs and configures complete AMS stack with minimal SSH calls
+// installAMS installs and configures complete AMS stack with minimal SSH calls.
+// The client instance is expected to have been booted from an AMS template image
+// that already has Prometheus, Grafana, and Loki pre-installed. This function
+// only applies per-instance configuration (Prometheus scrape targets, dashboards,
+// and service restart).
 func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instance, logger *logger.Logger, clusterNodes, clientNodes map[string][]string, customDashboards []CustomAMSDashboard) error {
-	logger.Info("Building complete installation script for %s:%d", client.ClusterName, client.NodeNo)
+	logger.Info("Building AMS per-instance configuration script for %s:%d", client.ClusterName, client.NodeNo)
 
-	// Step 1: Build ONE complete installation script
-	fullScript, err := c.buildCompleteInstallScript(client, clusterNodes, clientNodes)
+	// Step 1: Build per-instance configuration script (scrape targets only)
+	fullScript, err := c.buildAMSInstanceConfigScript(clusterNodes, clientNodes)
 	if err != nil {
-		return fmt.Errorf("failed to build installation script: %w", err)
+		return fmt.Errorf("failed to build AMS configuration script: %w", err)
 	}
 
 	// Step 2: Upload script via SFTP
@@ -258,8 +285,8 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 		return fmt.Errorf("failed to upload installation script: %w", err)
 	}
 
-	// Step 3: Execute complete installation in ONE SSH call
-	logger.Info("Installing Prometheus, Grafana, and Loki on %s:%d (this may take 10-15 minutes)", client.ClusterName, client.NodeNo)
+	// Step 3: Execute per-instance configuration in ONE SSH call
+	logger.Info("Applying AMS configuration on %s:%d", client.ClusterName, client.NodeNo)
 
 	var stdout, stderr *os.File
 	var stdin io.ReadCloser
@@ -316,9 +343,12 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 		return fmt.Errorf("failed to install dashboards: %w", err)
 	}
 
-	// Step 5: Final service restart in ONE call
-	logger.Info("Starting services on %s:%d", client.ClusterName, client.NodeNo)
-	serviceRestartCmd := "systemctl daemon-reload; systemctl restart prometheus; systemctl restart grafana-server; sleep 3; systemctl restart loki"
+	// Step 5: Final service restart in ONE call. Loki is not auto-started on
+	// first boot from the template (the Docker service shim refuses
+	// `restart` on a stopped service), so start it explicitly if a restart
+	// is not possible.
+	logger.Info("Restarting services on %s:%d", client.ClusterName, client.NodeNo)
+	serviceRestartCmd := "systemctl daemon-reload; systemctl restart prometheus; systemctl restart grafana-server; sleep 3; systemctl restart loki 2>/dev/null || systemctl start loki"
 	output = client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        []string{"bash", "-c", serviceRestartCmd},
@@ -351,15 +381,30 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 	return nil
 }
 
-// buildCompleteInstallScript builds ONE complete script for all installations
-func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instance, clusterNodes, clientNodes map[string][]string) (string, error) {
+// buildAMSTemplateInstallScript builds the installation script that is baked
+// into an AMS template image. It installs Prometheus, Grafana (with plugins
+// and generic datasource provisioning), and Loki, and enables the systemd
+// services without starting them. Per-instance configuration (Prometheus
+// scrape targets and dashboards) is handled separately when the instance
+// is created from the template.
+func (c *ClientCreateAMSCmd) buildAMSTemplateInstallScript(archStr string) ([]byte, error) {
 	var script bytes.Buffer
 
 	script.WriteString("#!/bin/bash\n")
 	script.WriteString("set -e\n")
-	script.WriteString("echo 'Starting AMS installation...'\n\n")
+	script.WriteString("echo 'Starting AMS template installation...'\n\n")
 
-	// Part 1: Prometheus installation (from installer package)
+	// Bake the base client tools (curl/wget/vim/git/jq/unzip/zip) so that
+	// `client create ams`, which is the only consumer of this template,
+	// can skip the per-instance `client create base` step entirely.
+	script.WriteString("# ===== Installing base client tools =====\n")
+	baseScript, err := installers.GetInstallScript(baseInstallSoftware(false), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base install script: %w", err)
+	}
+	script.Write(baseScript) //nolint:errcheck // bytes.Buffer.Write never fails
+	script.WriteString("\necho 'Base client tools installed'\n\n")
+
 	script.WriteString("# ===== Installing Prometheus =====\n")
 	var promVersion *string
 	if c.PrometheusVersion != "latest" && c.PrometheusVersion != "" {
@@ -367,12 +412,12 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 	}
 	prometheusScript, err := prometheus.GetLinuxInstallScript(promVersion, nil, true, false) // enable but don't start yet
 	if err != nil {
-		return "", fmt.Errorf("failed to get Prometheus install script: %w", err)
+		return nil, fmt.Errorf("failed to get Prometheus install script: %w", err)
 	}
 	script.Write(prometheusScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\necho 'Prometheus installed'\n\n")
 
-	// Part 2: Grafana installation (from installer package)
+	// Install Grafana (from installer package)
 	script.WriteString("# ===== Installing Grafana =====\n")
 	grafanaVersion := c.GrafanaVersion
 	if grafanaVersion == "latest" {
@@ -380,56 +425,85 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 	}
 	grafanaScript, err := grafana.GetInstallScript(grafanaVersion, true, false) // enable but don't start yet
 	if err != nil {
-		return "", fmt.Errorf("failed to get Grafana install script: %w", err)
+		return nil, fmt.Errorf("failed to get Grafana install script: %w", err)
 	}
 	script.Write(grafanaScript) //nolint:errcheck // bytes.Buffer.Write never fails
 	script.WriteString("\necho 'Grafana installed'\n\n")
 
-	// Part 3: Configure Prometheus
-	script.WriteString("# ===== Configuring Prometheus =====\n")
-	script.WriteString(c.buildPrometheusConfig(clusterNodes, clientNodes))
-	script.WriteString("\necho 'Prometheus configured'\n\n")
-
-	// Part 4: Configure Grafana
+	// Configure Grafana (static: plugins, datasource provisioning, systemd override)
 	script.WriteString("# ===== Configuring Grafana =====\n")
 	script.WriteString(c.buildGrafanaConfig())
 	script.WriteString("\necho 'Grafana configured'\n\n")
 
-	// Part 5: Install Loki
+	// Install Loki
 	script.WriteString("# ===== Installing Loki =====\n")
-	script.WriteString(c.buildLokiInstall(client))
+	script.WriteString(c.buildLokiInstallForArch(archStr))
 	script.WriteString("\necho 'Loki installed'\n\n")
 
-	// Part 6: Setup autostart scripts
-	script.WriteString("# ===== Setting up autostart scripts =====\n")
-	/*script.WriteString(`mkdir -p /opt/autoload
-	echo 'service prometheus start' > /opt/autoload/01-prometheus
-	echo 'service grafana-server start' > /opt/autoload/02-grafana
-	echo 'service loki start' > /opt/autoload/03-loki
-	chmod 755 /opt/autoload/*
-	`)*/
+	// Bake static content that was previously fetched per-instance from GitHub:
+	// Prometheus rules file and skeleton edits, Grafana dashboards directory,
+	// and the Grafana dashboard provisioning file.
+	script.WriteString("# ===== Baking static Prometheus/Grafana content =====\n")
+	script.WriteString(c.buildPrometheusTemplateSkeleton())
+	script.WriteString("mkdir -p /var/lib/grafana/dashboards\n")
+	script.WriteString("(wget -q -O /etc/grafana/provisioning/dashboards/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml || { sleep 1; wget -q -O /etc/grafana/provisioning/dashboards/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml; })\n")
+	script.WriteString("echo 'Static Prometheus/Grafana content baked'\n\n")
+
+	// Enable systemd services (but don't start them - first start happens on instance creation)
+	script.WriteString("# ===== Enabling systemd services =====\n")
 	script.WriteString("systemctl enable loki\n")
 	script.WriteString("systemctl enable grafana-server\n")
 	script.WriteString("systemctl enable prometheus\n")
-	script.WriteString("echo 'Autostart scripts created'\n\n")
+	script.WriteString("echo 'Services enabled'\n\n")
 
-	script.WriteString("echo 'AMS installation complete!'\n")
+	script.WriteString("echo 'AMS template installation complete!'\n")
+	return script.Bytes(), nil
+}
+
+// buildAMSInstanceConfigScript builds the per-instance configuration script
+// run on top of a client instance booted from an AMS template. It only
+// configures Prometheus scrape targets; dashboards and service restart are
+// handled separately in installAMS.
+func (c *ClientCreateAMSCmd) buildAMSInstanceConfigScript(clusterNodes, clientNodes map[string][]string) (string, error) {
+	var script bytes.Buffer
+
+	script.WriteString("#!/bin/bash\n")
+	script.WriteString("set -e\n")
+	script.WriteString("echo 'Applying AMS per-instance configuration...'\n\n")
+
+	script.WriteString("# ===== Configuring Prometheus scrape targets =====\n")
+	script.WriteString(c.buildPrometheusTargetsConfig(clusterNodes, clientNodes))
+	script.WriteString("\necho 'Prometheus scrape targets configured'\n\n")
+
+	script.WriteString("echo 'AMS per-instance configuration complete!'\n")
 	return script.String(), nil
 }
 
-// buildPrometheusConfig generates Prometheus configuration commands
-func (c *ClientCreateAMSCmd) buildPrometheusConfig(clusterNodes, clientNodes map[string][]string) string {
+// buildPrometheusTemplateSkeleton generates the user-agnostic Prometheus
+// setup commands that are baked into the AMS template image: download of the
+// aerospike_rules.yaml file and the structural edits to prometheus.yml that
+// add the rule_files entry, rename the local node job, and seed the three
+// scrape-config stubs (#TODO_ASD_TARGETS / #TODO_ASDN_TARGETS /
+// #TODO_CLIENT_TARGETS) that per-instance configuration later fills in.
+func (c *ClientCreateAMSCmd) buildPrometheusTemplateSkeleton() string {
 	var script bytes.Buffer
 
 	// Download aerospike rules (with retry)
 	script.WriteString("(wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml || { sleep 1; wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml; })\n")
 	script.WriteString("sed -i.bak -E 's/^rule_files:/rule_files:\\n  - \"\\/etc\\/prometheus\\/aerospike_rules.yaml\"/g' /etc/prometheus/prometheus.yml\n")
 	script.WriteString("sed -i.bak -E 's/- job_name: node/- job_name: nodelocal/g' /etc/prometheus/prometheus.yml\n")
-
-	// Add scrape configs
 	script.WriteString("sed -i.bak -E 's/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n  - job_name: clients\\n    static_configs:\\n      - targets: [] #TODO_CLIENT_TARGETS\\n/g' /etc/prometheus/prometheus.yml\n")
 
-	// Configure targets
+	return script.String()
+}
+
+// buildPrometheusTargetsConfig generates the per-instance Prometheus scrape
+// target sed edits against the skeleton baked in by
+// buildPrometheusTemplateSkeleton. Targets are filled in for the
+// #TODO_ASD_TARGETS / #TODO_ASDN_TARGETS / #TODO_CLIENT_TARGETS placeholders.
+func (c *ClientCreateAMSCmd) buildPrometheusTargetsConfig(clusterNodes, clientNodes map[string][]string) string {
+	var script bytes.Buffer
+
 	if len(clusterNodes) > 0 {
 		asdTargets := []string{}
 		nodeTargets := []string{}
@@ -486,11 +560,11 @@ sed -i.bak 's/prometheus:9090/127.0.0.1:9090/g' /etc/grafana/provisioning/dataso
 `
 }
 
-// buildLokiInstall generates Loki installation commands
-func (c *ClientCreateAMSCmd) buildLokiInstall(client *backends.Instance) string {
-	arch := "amd64"
-	if client.Architecture == backends.ArchitectureARM64 {
-		arch = "arm64"
+// buildLokiInstallForArch generates Loki installation commands for the given
+// architecture string (either "amd64" or "arm64").
+func (c *ClientCreateAMSCmd) buildLokiInstallForArch(arch string) string {
+	if arch != "arm64" {
+		arch = "amd64"
 	}
 
 	return fmt.Sprintf(`# Install Loki
@@ -558,46 +632,48 @@ systemctl daemon-reload
 `, arch)
 }
 
-// installDashboards downloads and installs Grafana dashboards
+// installDashboards installs Grafana dashboards on a running AMS client
+// instance. The AMS template image already ships the default dashboards
+// and the dashboard provisioning file baked in, so this function only
+// handles the per-instance bits: honoring the `--dashboards` replace
+// semantics (remove baked-in defaults when the flag is set without the
+// `+` prefix) and installing any custom dashboards.
 func (c *ClientCreateAMSCmd) installDashboards(system *System, client *backends.Instance, customDashboards []CustomAMSDashboard, logger *logger.Logger) error {
-	// Create base directories in ONE call
-	dashboardSetupCmd := "wget -q -O /etc/grafana/provisioning/dashboards/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml && mkdir -p /var/lib/grafana/dashboards"
-	output := client.Exec(&backends.ExecInput{
-		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", dashboardSetupCmd},
-			SessionTimeout: 2 * time.Minute,
-		},
-		Username:       "root",
-		ConnectTimeout: 30 * time.Second,
-		MaxRetries:     c.MaxRetries,
-		RetrySleep:     c.RetrySleep,
-	})
-	if output.Output.Err != nil {
-		// Save script failure to local machine for debugging
-		failure := scriptlog.NewScriptFailureWithPath(
-			client.ClusterName,
-			client.NodeNo,
-			"inline:dashboard-setup",
-			[]byte(dashboardSetupCmd),
-			output.Output.Stdout,
-			output.Output.Stderr,
-			output.Output.Err,
-		)
-		logPath, saveErr := scriptlog.SaveFailure(failure)
-		if saveErr != nil {
-			return fmt.Errorf("failed to setup dashboard directories: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
-		}
-		return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
-	}
+	wantDefaults := c.Dashboards == "" || strings.HasPrefix(string(c.Dashboards), "+")
 
-	// Install default dashboards if not disabled
-	if c.Dashboards == "" || strings.HasPrefix(string(c.Dashboards), "+") {
+	if !wantDefaults {
+		// `--dashboards <path>` (no `+` prefix) means "replace defaults":
+		// wipe the dashboards that the template baked in so the custom set
+		// stands alone.
 		if c.DebugDashboards {
-			logger.Debug("Installing default dashboards from aerospike-monitoring GitHub")
+			logger.Debug("Removing baked-in default dashboards to honor --dashboards replace semantics")
 		}
-		err := c.installDefaultDashboards(client, logger)
-		if err != nil {
-			return err
+		rmCmd := "rm -f /var/lib/grafana/dashboards/*.json"
+		output := client.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        []string{"bash", "-c", rmCmd},
+				SessionTimeout: 30 * time.Second,
+			},
+			Username:       "root",
+			ConnectTimeout: 30 * time.Second,
+			MaxRetries:     c.MaxRetries,
+			RetrySleep:     c.RetrySleep,
+		})
+		if output.Output.Err != nil {
+			failure := scriptlog.NewScriptFailureWithPath(
+				client.ClusterName,
+				client.NodeNo,
+				"inline:dashboard-replace-cleanup",
+				[]byte(rmCmd),
+				output.Output.Stdout,
+				output.Output.Stderr,
+				output.Output.Err,
+			)
+			logPath, saveErr := scriptlog.SaveFailure(failure)
+			if saveErr != nil {
+				return fmt.Errorf("failed to remove baked-in default dashboards: %w (also failed to save logs: %v)", output.Output.Err, saveErr)
+			}
+			return fmt.Errorf("%s", scriptlog.FormatError(logPath, client.ClusterName, client.NodeNo, output.Output.Err))
 		}
 	}
 
@@ -615,8 +691,12 @@ func (c *ClientCreateAMSCmd) installDashboards(system *System, client *backends.
 	return nil
 }
 
-// installDefaultDashboards downloads default dashboards from GitHub
-func (c *ClientCreateAMSCmd) installDefaultDashboards(client *backends.Instance, logger *logger.Logger) error {
+// installAMSDefaultDashboards downloads the default aerospike-monitoring
+// dashboards from GitHub onto the given instance. It is called once per
+// AMS template image at template-build time to bake the dashboards into
+// the image; per-instance `client create ams` invocations reuse the
+// baked set.
+func (c *ClientCreateAMSCmd) installAMSDefaultDashboards(client *backends.Instance, logger *logger.Logger) error {
 	baseURL := "https://api.github.com/repos/aerospike/aerospike-monitoring/contents/"
 	currentPath := "config/grafana/dashboards"
 
@@ -858,4 +938,196 @@ func (c *ClientCreateAMSCmd) githubBuildDashboardList(baseURL, basePath, current
 	}
 
 	return mkdirs, dashboards, nil
+}
+
+// resolveAMSTemplate finds an AMS template image in the inventory and points
+// the base client creation at it. If no template is found for the target
+// architecture, one is auto-created via `client template ams create`.
+// If more than one template exists, the highest generation is used and a
+// warning is logged recommending `client template ams cleanup`.
+//
+// If the caller has explicitly pre-set c.AWS.ImageID / c.GCP.ImageName /
+// c.Docker.ImageName, no template resolution is performed (manual override).
+func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
+	backendType := system.Opts.Config.Backend.Type
+
+	// If an explicit image was specified by the user, don't override it.
+	switch backendType {
+	case "aws":
+		if c.AWS.ImageID != "" {
+			logger.Info("AWS image override already set (%s); skipping AMS template resolution", c.AWS.ImageID)
+			return nil
+		}
+	case "gcp":
+		if c.GCP.ImageName != "" {
+			logger.Info("GCP image override already set (%s); skipping AMS template resolution", c.GCP.ImageName)
+			return nil
+		}
+	case "docker":
+		if c.Docker.ImageName != "" {
+			logger.Info("Docker image override already set (%s); skipping AMS template resolution", c.Docker.ImageName)
+			return nil
+		}
+	}
+
+	arch, archStr, err := c.resolveAMSArch(system)
+	if err != nil {
+		return err
+	}
+
+	images := inventory.Images.WithTags(map[string]string{"aerolab.image.type": "ams"}).WithArchitecture(arch)
+	var templateName string
+	switch images.Count() {
+	case 0:
+		logger.Info("No AMS template found for %s; creating one...", archStr)
+		templateCreate := &ClientTemplateAMSCreateCmd{
+			GrafanaVersion:    c.GrafanaVersion,
+			PrometheusVersion: c.PrometheusVersion,
+			Distro:            "ubuntu",
+			DistroVersion:     "24.04",
+			Arch:              archStr,
+			Timeout:           30,
+			Owner:             c.Owner,
+			DisablePublicIP:   c.AWS.DisablePublicIP,
+			MaxRetries:        c.MaxRetries,
+			RetrySleep:        c.RetrySleep,
+		}
+		name, err := templateCreate.CreateTemplate(system, inventory, logger.WithPrefix("[template] "), args, false)
+		if err != nil {
+			return fmt.Errorf("failed to auto-create AMS template: %w", err)
+		}
+		// Refresh inventory so the newly created image is visible to downstream
+		// instance creation, then resolve the image's canonical inventory name.
+		// (The Docker backend stores images with a `:latest` tag suffix, which
+		// `CreateTemplate` does not include in the value it returns. Using the
+		// raw returned name would cause `WithName` exact-match lookups in
+		// `InstancesCreateCmd` to miss and fall through to a placeholder
+		// `Image{}` with a zero-value Architecture, which in turn makes Docker
+		// try to run the arm64 image as linux/amd64.)
+		system.Backend.ForceRefreshInventory()
+		templateName = resolveCanonicalAMSTemplateName(system.Backend.GetInventory(), arch, name)
+		if templateName == "" {
+			return fmt.Errorf("auto-created AMS template %q not visible in inventory after refresh", name)
+		}
+	case 1:
+		templateName = images.Describe()[0].Name
+		logger.Info("Using AMS template: %s", templateName)
+		logger.Info("Using existing AMS template. To refresh the template and get the latest dashboards, run: aerolab client template ams refresh")
+	default:
+		// More than one template: pick the highest generation.
+		best := images.Describe()[0]
+		bestGen, _ := strconv.Atoi(best.Tags["aerolab.ams.generation"])
+		for _, img := range images.Describe()[1:] {
+			gen, err := strconv.Atoi(img.Tags["aerolab.ams.generation"])
+			if err != nil {
+				continue
+			}
+			if gen > bestGen {
+				best = img
+				bestGen = gen
+			}
+		}
+		templateName = best.Name
+		names := []string{}
+		for _, img := range images.Describe() {
+			gen := img.Tags["aerolab.ams.generation"]
+			if gen == "" {
+				gen = "?"
+			}
+			names = append(names, img.Name+" (generation="+gen+")")
+		}
+		sort.Strings(names)
+		logger.Warn("Found %d AMS templates for %s: %s. Using the highest generation (%s, generation=%d). Run `aerolab client template ams cleanup` to remove the superseded ones.", images.Count(), archStr, strings.Join(names, ", "), templateName, bestGen)
+		logger.Info("Using existing AMS template. To refresh the template and get the latest dashboards, run: aerolab client template ams refresh")
+	}
+
+	// Point the base client creation at the resolved template image and
+	// propagate the resolved architecture so the base client create command
+	// creates a matching-platform instance (otherwise Docker, whose default
+	// platform is linux/amd64, would refuse to run an arm64 template image
+	// on an arm64 host).
+	switch backendType {
+	case "aws":
+		c.AWS.ImageID = templateName
+	case "gcp":
+		c.GCP.ImageName = templateName
+	case "docker":
+		c.Docker.ImageName = templateName
+	}
+	if c.Arch == "" {
+		c.Arch = archStr
+	}
+	return nil
+}
+
+// resolveCanonicalAMSTemplateName finds the canonical inventory name for an
+// AMS template image we just auto-created. It accepts the name that
+// `CreateTemplate` returned (e.g. `ams-tmpl-xxx`) and matches it against
+// inventory entries for the given architecture, tolerating backend-imposed
+// tag suffixes like Docker's `:latest`. Returns "" if no match was found.
+func resolveCanonicalAMSTemplateName(inventory *backends.Inventory, arch backends.Architecture, createdName string) string {
+	images := inventory.Images.
+		WithTags(map[string]string{"aerolab.image.type": "ams"}).
+		WithArchitecture(arch).
+		Describe()
+	for _, img := range images {
+		if img.Name == createdName || strings.HasPrefix(img.Name, createdName+":") {
+			return img.Name
+		}
+	}
+	return ""
+}
+
+// resolveAMSArch determines the target architecture for the AMS client,
+// mirroring the AGI create logic (backend-specific: AWS/GCP derive from
+// InstanceType when possible, Docker uses backend config or runtime, falling
+// back to amd64).
+func (c *ClientCreateAMSCmd) resolveAMSArch(system *System) (backends.Architecture, string, error) {
+	var arch backends.Architecture
+
+	// Explicit user override via --arch always wins.
+	if c.Arch != "" {
+		if err := arch.FromString(c.Arch); err != nil {
+			return arch, "", fmt.Errorf("invalid architecture %q: %w", c.Arch, err)
+		}
+		return arch, arch.String(), nil
+	}
+
+	switch system.Opts.Config.Backend.Type {
+	case "docker":
+		ar := system.Opts.Config.Backend.Arch
+		if ar == "" {
+			ar = runtime.GOARCH
+		}
+		arch.FromString(ar) //nolint:errcheck
+	case "aws":
+		if c.AWS.InstanceType != "" {
+			itypes, err := system.Backend.GetInstanceTypes(backends.BackendTypeAWS)
+			if err == nil {
+				for _, i := range itypes {
+					if i.Name == string(c.AWS.InstanceType) && len(i.Arch) > 0 {
+						arch.FromString(i.Arch[0].String()) //nolint:errcheck
+						break
+					}
+				}
+			}
+		}
+	case "gcp":
+		if c.GCP.InstanceType != "" {
+			itypes, err := system.Backend.GetInstanceTypes(backends.BackendTypeGCP)
+			if err == nil {
+				for _, i := range itypes {
+					if i.Name == string(c.GCP.InstanceType) && len(i.Arch) > 0 {
+						arch.FromString(i.Arch[0].String()) //nolint:errcheck
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if arch.String() == "" {
+		arch.FromString("amd64") //nolint:errcheck
+	}
+	return arch, arch.String(), nil
 }

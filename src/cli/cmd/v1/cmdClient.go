@@ -3,6 +3,7 @@ package cmd
 type ClientCmd struct {
 	Create          ClientCreateCmd             `command:"create" subcommands-optional:"true" description:"Create new client machines" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	Configure       ClientConfigureCmd          `command:"configure" subcommands-optional:"true" description:"(re)configure some clients, such as ams" webicon:"fas fa-gear"`
+	Template        ClientTemplateCmd           `command:"template" subcommands-optional:"true" description:"Client template management (pre-built images for faster client creation)" webicon:"fas fa-file-image"`
 	List            ClientListCmd               `command:"list" subcommands-optional:"true" description:"List client machine groups" webicon:"fas fa-list"`
 	Start           ClientStartCmd              `command:"start" subcommands-optional:"true" description:"Start a client machine group" webicon:"fas fa-play" invwebforce:"true"`
 	Stop            ClientStopCmd               `command:"stop" subcommands-optional:"true" description:"Stop a client machine group" webicon:"fas fa-stop" invwebforce:"true"`
