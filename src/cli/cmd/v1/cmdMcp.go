@@ -1,3 +1,5 @@
+//go:build !noaerolabmcp
+
 package cmd
 
 import (
