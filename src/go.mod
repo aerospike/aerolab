@@ -55,15 +55,15 @@ require (
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
 	github.com/rglonek/go-flags v1.6.3
 	github.com/rglonek/go-wget v0.0.2
-	github.com/rglonek/logger v0.3.0
+	github.com/rglonek/logger v0.3.1
 	github.com/rglonek/sbs v1.0.1
 	github.com/stretchr/testify v1.11.1
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	golang.org/x/crypto v0.48.0
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96
 	golang.org/x/oauth2 v0.35.0
-	golang.org/x/sys v0.41.0
-	golang.org/x/term v0.40.0
+	golang.org/x/sys v0.43.0
+	golang.org/x/term v0.42.0
 	golang.org/x/text v0.34.0
 	google.golang.org/api v0.264.0
 	google.golang.org/grpc v1.78.0
