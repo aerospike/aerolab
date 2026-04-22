@@ -30,12 +30,38 @@ type Registry struct {
 	// tools. A nil gate is treated as an always-allow admin gate.
 	Gate *ProfileGate
 
+	// SimpleModeGate enforces aerolab's simple-mode rules at the MCP
+	// layer so blocked commands and blocked parameters are rejected
+	// before the subprocess is forked. Nil disables simple-mode
+	// enforcement (the pre-filtered tree is still the agent's view, so
+	// blocked tools are invisible in the auto-registered schemas
+	// anyway). When non-nil, both auto tools and the generic
+	// execute_command tool consult it.
+	SimpleModeGate SimpleModeGate
+
 	// DisableForceJSONOutput, when true, turns off the MCP-side
 	// auto-injection of "--output=json" on read-style aerolab commands
 	// whose callers omit the flag. The default (false) means MCP callers
 	// get JSON output by default for easier machine parsing, while
 	// CLI users continue to see the human-friendly table format.
 	DisableForceJSONOutput bool
+}
+
+// SimpleModeGate rejects command paths and argument maps that would be
+// blocked by the aerolab simple-mode configuration. Implementations live
+// in the cmd package (they wrap SimpleModeConfig) so this package stays
+// independent of the CLI's reflection machinery.
+type SimpleModeGate interface {
+	// CheckCommand returns an error if the slash-separated command
+	// path is not allowed in simple mode. Must be safe to call on
+	// commands that are always allowed (returns nil).
+	CheckCommand(path string) error
+
+	// CheckArgs returns an error if any key in args maps to a parameter
+	// that is not allowed in simple mode. Only checks parameters that
+	// were explicitly supplied by the caller (absence is allowed; the
+	// point is the user cannot change them from their default).
+	CheckArgs(path string, args map[string]any) error
 }
 
 // Leaves returns every executable leaf (command node without children)

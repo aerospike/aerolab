@@ -33,6 +33,8 @@ type McpCmd struct {
 	SessionTimeout         string   `long:"session-timeout" description:"Idle timeout for HTTP streaming sessions (Go duration, e.g. 30m)" default:"30m"`
 	MCPEnv                 []string `long:"mcp-env" description:"Extra KEY=VAL env vars passed to every tool subprocess (repeatable)" hidden:"true"`
 	DisableForceJSONOutput bool     `long:"mcp-disable-force-json" description:"Disable the MCP-side default of --output=json for read-style commands. By default the MCP server advertises and injects json output so agents can parse results more reliably; use this flag to fall back to each command's native default (usually table)."`
+	ForceSimpleMode        bool     `long:"force-simple-mode" description:"Force simple mode: hide blocked tools/parameters from the advertised MCP schema and refuse blocked calls"`
+	SimpleModeConfig       string   `long:"simple-mode-config" description:"Path to a simple mode rules file (overrides AEROLAB_SIMPLE_MODE env var)"`
 	Help                   HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -55,7 +57,40 @@ func (c *McpCmd) Execute(args []string) error {
 		system.Logger.Info("Running %s", strings.Join(cmd, "."))
 	}
 
+	if err := c.applySimpleModeFlags(system); err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+
 	return Error(c.runServer(system), system, cmd, c, args)
+}
+
+// applySimpleModeFlags folds the --simple-mode-config and --force-simple-mode
+// CLI flags into the system's SimpleModeConfig. --simple-mode-config takes
+// precedence over AEROLAB_SIMPLE_MODE (its rules replace any env-loaded rules
+// on the active config); --force-simple-mode sets ForceEnabled and also
+// exports AEROLAB_FORCE_SIMPLE_MODE so every tool subprocess inherits the
+// same contract (same trick cmdWebUI uses).
+func (c *McpCmd) applySimpleModeFlags(system *System) error {
+	if c.SimpleModeConfig != "" {
+		rules, err := parseSimpleModeFile(c.SimpleModeConfig)
+		if err != nil {
+			return fmt.Errorf("failed to load simple mode config from %s: %w", c.SimpleModeConfig, err)
+		}
+		if system.SimpleModeConfig == nil {
+			system.SimpleModeConfig = &SimpleModeConfig{}
+		}
+		system.SimpleModeConfig.Rules = rules
+		os.Setenv("AEROLAB_SIMPLE_MODE", c.SimpleModeConfig)
+	}
+	if c.ForceSimpleMode {
+		if system.SimpleModeConfig == nil {
+			system.SimpleModeConfig = &SimpleModeConfig{ForceEnabled: true}
+		} else {
+			system.SimpleModeConfig.ForceEnabled = true
+		}
+		os.Setenv("AEROLAB_FORCE_SIMPLE_MODE", "true")
+	}
+	return nil
 }
 
 func (c *McpCmd) runServer(system *System) error {
@@ -91,12 +126,21 @@ func (c *McpCmd) runServer(system *System) error {
 	}
 
 	root := BuildCommandTree(&Commands{})
+	// Apply simple mode overrides so a --simple-mode-config file can flip
+	// SimpleMode flags on individual commands/parameters before we filter
+	// the tree and before the runtime gate evaluates incoming tool calls.
+	if system.SimpleModeConfig != nil {
+		system.SimpleModeConfig.ApplyToCommandTree(root)
+	}
 	// Dynamic choice resolution requires an initialized backend.
 	choiceSystem := system
 	if !c.InitBackend || system == nil || system.Backend == nil {
 		choiceSystem = nil
 	}
-	tree := convertTreeForMCP(root, choiceSystem, "", !c.DisableForceJSONOutput)
+	// When simple mode is forced, drop blocked commands and parameters from
+	// the tree we advertise over MCP so agents cannot even see them.
+	forceSimple := system.SimpleModeConfig != nil && system.SimpleModeConfig.ForceEnabled
+	tree := convertTreeForMCP(root, choiceSystem, "", !c.DisableForceJSONOutput, forceSimple)
 
 	registry := &aerolabmcp.Registry{
 		Root: []*aerolabmcp.Command{tree},
@@ -109,6 +153,12 @@ func (c *McpCmd) runServer(system *System) error {
 		},
 		Gate:                   aerolabmcp.NewGate(profile),
 		DisableForceJSONOutput: c.DisableForceJSONOutput,
+	}
+	// When simple mode is forced, reject blocked commands and blocked
+	// parameters at the MCP layer so agents get a clear error without
+	// paying for a subprocess fork (which would also ultimately reject).
+	if forceSimple {
+		registry.SimpleModeGate = newSimpleModeGate(system.SimpleModeConfig, root)
 	}
 
 	cfg := aerolabmcp.Config{
@@ -168,14 +218,23 @@ func mcpImplementation() *aerolabmcp.Implementation {
 // slash-separated path of the parent (or "" for the root). When
 // forceJSONOutput is true, read-style `--output` parameters advertise
 // "json" as their default in the schema description so agents see the
-// value the runner will ultimately inject for them.
-func convertTreeForMCP(c *CommandInfo, system *System, parentPath string, forceJSONOutput bool) *aerolabmcp.Command {
+// value the runner will ultimately inject for them. When forceSimpleMode
+// is true, nodes with SimpleMode=false are dropped from the resulting
+// tree (with the exception of paths whose top-level segment is in
+// simpleModeAlwaysAllowed, which are kept so users can always reach
+// `config`, `help`, `version`, etc.).
+func convertTreeForMCP(c *CommandInfo, system *System, parentPath string, forceJSONOutput bool, forceSimpleMode bool) *aerolabmcp.Command {
 	if c == nil {
 		return nil
 	}
 	path := c.Path
 	if path == "" && parentPath == "" {
 		path = c.Name
+	}
+	// Drop whole command subtrees blocked in forced simple mode, unless
+	// the command's top-level segment is in simpleModeAlwaysAllowed.
+	if forceSimpleMode && !c.SimpleMode && !simpleModeAllowsPath(path) {
+		return nil
 	}
 	out := &aerolabmcp.Command{
 		Name:        c.Name,
@@ -184,18 +243,33 @@ func convertTreeForMCP(c *CommandInfo, system *System, parentPath string, forceJ
 		Description: c.Description,
 		Hidden:      c.Hidden,
 		Destructive: c.InvWebForce,
-		Parameters:  convertParamsForMCP(c, system, forceJSONOutput),
+		Parameters:  convertParamsForMCP(c, system, forceJSONOutput, forceSimpleMode),
 	}
 	for _, child := range c.Children {
 		if child == nil {
 			continue
 		}
-		cc := convertTreeForMCP(child, system, path, forceJSONOutput)
+		cc := convertTreeForMCP(child, system, path, forceJSONOutput, forceSimpleMode)
 		if cc != nil {
 			out.Children = append(out.Children, cc)
 		}
 	}
 	return out
+}
+
+// simpleModeAllowsPath returns true when the top-level segment of a
+// slash-separated command path is in simpleModeAlwaysAllowed. Used during
+// tree conversion to preserve commands that must remain reachable even
+// when a blanket `-all` rule is in effect (e.g. `config`, `help`, `mcp`).
+func simpleModeAllowsPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	top := path
+	if idx := strings.Index(top, "/"); idx >= 0 {
+		top = top[:idx]
+	}
+	return simpleModeAlwaysAllowed[strings.ToLower(top)]
 }
 
 // safeResolveChoices wraps ResolveDynamicChoices with a panic recover so
@@ -230,13 +304,19 @@ func safeResolveChoices(system *System, cmdPath string, p ParameterInfo) (vals, 
 // untouched — the runtime injection in pkg/mcp relies on the original
 // default to decide whether to inject (so commands already defaulting
 // to json-indent are not silently downgraded to json).
-func convertParamsForMCP(c *CommandInfo, system *System, forceJSONOutput bool) []aerolabmcp.Param {
+func convertParamsForMCP(c *CommandInfo, system *System, forceJSONOutput bool, forceSimpleMode bool) []aerolabmcp.Param {
 	if c == nil {
 		return nil
 	}
 	out := make([]aerolabmcp.Param, 0, len(c.Parameters))
 	for _, p := range c.Parameters {
 		if p.Hidden || p.WebHidden {
+			continue
+		}
+		// In forced simple mode, drop parameters whose effective
+		// SimpleMode (struct tag default, overridden by any simple
+		// mode rule file via ApplyToCommandTree) is false.
+		if forceSimpleMode && !p.SimpleMode {
 			continue
 		}
 		param := aerolabmcp.Param{
@@ -274,4 +354,77 @@ func convertParamsForMCP(c *CommandInfo, system *System, forceJSONOutput bool) [
 		out = append(out, param)
 	}
 	return out
+}
+
+// mcpSimpleModeGate is the cmd-package adapter that lets pkg/mcp enforce
+// simple-mode rules without importing the CLI's reflection machinery. It
+// holds the (already-applied) CommandInfo tree so parameter lookups use
+// the effective SimpleMode bit (struct tag default, overridden by any
+// rule file loaded via ApplyToCommandTree).
+type mcpSimpleModeGate struct {
+	cfg  *SimpleModeConfig
+	root *CommandInfo
+}
+
+// newSimpleModeGate wires a SimpleModeGate bound to the given config and
+// command tree. The caller must have already invoked
+// cfg.ApplyToCommandTree(root) so per-parameter SimpleMode flags reflect
+// both struct tags and rule-file overrides.
+func newSimpleModeGate(cfg *SimpleModeConfig, root *CommandInfo) aerolabmcp.SimpleModeGate {
+	return &mcpSimpleModeGate{cfg: cfg, root: root}
+}
+
+// CheckCommand returns an error if the slash-separated path is blocked
+// by the active simple-mode rules. Paths whose top-level segment is in
+// simpleModeAlwaysAllowed bypass the check (e.g. `help`, `config`, `mcp`).
+func (g *mcpSimpleModeGate) CheckCommand(path string) error {
+	if g == nil || g.cfg == nil || !g.cfg.ForceEnabled {
+		return nil
+	}
+	return g.cfg.CheckCommandAllowed(SimpleModePathFromSlash(path))
+}
+
+// CheckArgs returns an error if any key in args refers to a parameter
+// blocked by simple mode for the given command. Keys that don't resolve
+// to a known parameter are left alone — the runner will reject them on
+// its own. Boolean false values are treated as "not set" (matches CLI
+// bool flag semantics: the flag is only emitted when true).
+func (g *mcpSimpleModeGate) CheckArgs(path string, args map[string]any) error {
+	if g == nil || g.cfg == nil || !g.cfg.ForceEnabled {
+		return nil
+	}
+	if len(args) == 0 || g.root == nil {
+		return nil
+	}
+	cmd := g.root.FindByPath(path)
+	if cmd == nil {
+		return nil
+	}
+	for key, val := range args {
+		if b, ok := val.(bool); ok && !b {
+			continue
+		}
+		p := findParamByLong(cmd.Parameters, key)
+		if p == nil {
+			continue
+		}
+		structTagAllowed := p.SimpleMode
+		if err := g.cfg.CheckParameterAllowed(SimpleModePathFromSlash(path), p.Long, structTagAllowed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// findParamByLong returns the ParameterInfo whose Long flag (preferred)
+// or Name matches the supplied key, case-insensitive. Returns nil when
+// no parameter matches — a likely signal the caller passed an unknown
+// flag or one of the extra control fields (confirm, timeout_sec, …).
+func findParamByLong(params []ParameterInfo, key string) *ParameterInfo {
+	for i := range params {
+		if strings.EqualFold(params[i].Long, key) || strings.EqualFold(params[i].Name, key) {
+			return &params[i]
+		}
+	}
+	return nil
 }

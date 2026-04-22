@@ -34,6 +34,7 @@ type SimpleModeConfig struct {
 var simpleModeAlwaysAllowed = map[string]bool{
 	"config":     true,
 	"webui":      true,
+	"mcp":        true,
 	"help":       true,
 	"version":    true,
 	"completion": true,

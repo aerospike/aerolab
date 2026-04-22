@@ -43,6 +43,12 @@ aerolab mcp [OPTIONS]
   --mcp-disable-force-json         Disable the MCP-side default of
                                    --output=json for read-style commands
                                    (see "JSON-first output" below).
+  --force-simple-mode              Force simple mode: hide blocked tools
+                                   and parameters from the advertised
+                                   schema and refuse blocked calls
+                                   (see "Simple mode" below).
+  --simple-mode-config=PATH        Path to a simple mode rules file
+                                   (overrides $AEROLAB_SIMPLE_MODE).
 ```
 
 ## Profiles
@@ -213,6 +219,35 @@ Every tool call returns two things:
   "output": "...\n"
 }
 ```
+
+## Simple mode
+
+Aerolab's [simple mode](reference/environment-variables.md#aerolab_simple_mode) lets you restrict which commands and parameters are visible. The MCP server honours the same contract as the WebUI so a single rules file locks both surfaces identically.
+
+Enable it via env vars:
+
+```bash
+export AEROLAB_SIMPLE_MODE=/etc/aerolab/simple-mode.conf
+export AEROLAB_FORCE_SIMPLE_MODE=true
+aerolab mcp --transport stdio
+```
+
+or via flags on the `mcp` command (flags win over env vars):
+
+```bash
+aerolab mcp --transport stdio \
+    --simple-mode-config /etc/aerolab/simple-mode.conf \
+    --force-simple-mode
+```
+
+When `--force-simple-mode` is active:
+
+- Blocked commands are **removed** from the auto-registered tool list, `aerolab_list_commands`, and `aerolab_describe_command` — the agent cannot see them.
+- Blocked parameters are **removed** from the JSON Schema of every affected tool, so the agent cannot set them.
+- `aerolab_execute_command` still validates every call against the rules and rejects blocked commands or blocked flags before the subprocess is forked.
+- The `mcp`, `config`, `webui`, `help`, `version`, `completion`, and `upgrade` commands remain reachable so a blanket `-all` rule cannot lock you out of the server itself.
+
+Soft simple mode (only `AEROLAB_SIMPLE_MODE` set, no force flag) does not filter the MCP tool list — the schema still advertises every command and parameter. This matches the WebUI behaviour, where soft mode is a UI hint rather than an enforcement.
 
 ## Safety model
 

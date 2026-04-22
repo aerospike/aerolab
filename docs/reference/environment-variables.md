@@ -280,7 +280,8 @@ When set to `true`, enforces simple mode restrictions at all levels:
 
 - **CLI**: Blocked commands return an error; blocked parameters cannot be changed from their defaults
 - **WebUI**: The simple mode toggle is locked on and cannot be disabled; blocked commands are rejected server-side
-- Commands `config`, `webui`, `help`, `version`, `completion`, and `upgrade` are always allowed to prevent lockout
+- **MCP server**: Blocked commands and blocked parameters are removed from the advertised tool list and input schemas, and any call that reaches them is rejected before the subprocess is forked
+- Commands `config`, `webui`, `mcp`, `help`, `version`, `completion`, and `upgrade` are always allowed to prevent lockout
 
 ### Example
 

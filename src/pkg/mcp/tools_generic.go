@@ -274,6 +274,14 @@ func executeCommandHandler(reg *Registry) sdkmcp.ToolHandler {
 		if cmd == nil {
 			return errorResult(fmt.Errorf("unknown command path %q", args.Path)), nil
 		}
+		if reg.SimpleModeGate != nil {
+			if err := reg.SimpleModeGate.CheckCommand(cmd.Path); err != nil {
+				return errorResult(err), nil
+			}
+			if err := reg.SimpleModeGate.CheckArgs(cmd.Path, args.Args); err != nil {
+				return errorResult(err), nil
+			}
+		}
 		if err := reg.Gate.Check(cmd, args.Confirm); err != nil {
 			return errorResult(err), nil
 		}

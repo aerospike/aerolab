@@ -212,6 +212,18 @@ func autoHandler(reg *Registry, cmd *Command, nameToFlag map[string]string) sdkm
 		// on the command line.
 		args := translateArgs(raw, nameToFlag)
 
+		// Simple-mode check happens after translation so we compare
+		// CLI long-flag names against the rule set (which stores
+		// parameter paths as "<cmd>.<long>").
+		if reg.SimpleModeGate != nil {
+			if err := reg.SimpleModeGate.CheckCommand(cmd.Path); err != nil {
+				return errorResult(err), nil
+			}
+			if err := reg.SimpleModeGate.CheckArgs(cmd.Path, args); err != nil {
+				return errorResult(err), nil
+			}
+		}
+
 		// Nudge read-style commands toward JSON so the LLM doesn't have
 		// to parse ANSI-decorated tables. Honours explicit caller values
 		// and the server-wide DisableForceJSONOutput switch.

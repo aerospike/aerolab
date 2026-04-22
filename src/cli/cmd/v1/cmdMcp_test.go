@@ -31,7 +31,7 @@ func TestConvertParamsForMCPPreservesInjectionSignal(t *testing.T) {
 		},
 	}
 
-	got := convertParamsForMCP(ci, nil, true)
+	got := convertParamsForMCP(ci, nil, true, false)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 param, got %d", len(got))
 	}
@@ -63,7 +63,7 @@ func TestConvertParamsForMCPDisabled(t *testing.T) {
 			},
 		},
 	}
-	got := convertParamsForMCP(ci, nil, false)
+	got := convertParamsForMCP(ci, nil, false, false)
 	if got[0].Description != ci.Parameters[0].Description {
 		t.Errorf("expected description untouched when forceJSONOutput=false; got %q", got[0].Description)
 	}
