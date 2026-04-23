@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"iter"
 	"time"
-
-	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -148,6 +146,7 @@ const (
 	ttUDF
 	ttBatchRead
 	ttBatchWrite
+	ttMaxCommandTypes // Automatically gets the count of command types via iota
 )
 
 var (
@@ -2669,20 +2668,36 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	operationCount := 0
 
-	// Operations (used in query execute) and bin names (used in scan/query) are mutually exclusive.
+	// Operations and bin names are mutually exclusive.
 	if len(operations) > 0 {
-		if !background {
-			return newError(types.PARAMETER_ERROR, "Operations not allowed in foreground query")
+		if statement.BinNames != nil {
+			logger.Logger.Warn("Operations and bin names are mutually exclusive")
 		}
 
-		for _, op := range operations {
-			if !op.opType.isWrite {
-				return newError(types.PARAMETER_ERROR, "Read operations not allowed in background query")
+		if background {
+			for _, op := range operations {
+				if !op.opType.isWrite {
+					return newError(types.PARAMETER_ERROR, "Background query operations must be write-only. Use query for read-only operations.")
+				}
+				if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
+					return err
+				}
 			}
-			if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
-				return err
+		} else {
+			hasQueryOpsProjectionExt := cmd.node != nil && cmd.node.SupportsQueryOpsProjectionExt()
+			for _, op := range operations {
+				if op.opType.isWrite {
+					return newError(types.PARAMETER_ERROR, "Query operations must be read-only. Use background query for write-only operations.")
+				}
+				if !hasQueryOpsProjectionExt && !op.opType.isBasicRead() {
+					return newError(types.PARAMETER_ERROR, "Only basic read operations are supported for query operations projection in server versions prior to 8.1.2.")
+				}
+				if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
+					return err
+				}
 			}
 		}
+
 		operationCount = len(operations)
 	} else if len(statement.BinNames) > 0 && (isNew || statement.Filter == nil) {
 		for _, binName := range statement.BinNames {
@@ -2944,7 +2959,7 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) Error {
 	return nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) Error {
+func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value any) Error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
 	sz, err := NewValue(value).EstimateSize()
 	if err != nil {
@@ -3277,9 +3292,9 @@ func (cmd *baseCommand) writeKey(key *Key) Error {
 }
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) Error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
-	if nameLength > 15 {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than 15 bytes.", bin.Name))
+	nameLength, valid := cmd.writeAndValidateBinName(bin.Name)
+	if !valid {
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", bin.Name, maxBinNameLength))
 	}
 
 	valueLength, err := bin.Value.EstimateSize()
@@ -3297,10 +3312,10 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	return err
 }
 
-func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interface{}, operation OperationType) Error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
-	if nameLength > 15 {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than 15 bytes.", name))
+func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val any, operation OperationType) Error {
+	nameLength, valid := cmd.writeAndValidateBinName(name)
+	if !valid {
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, maxBinNameLength))
 	}
 
 	v := NewValue(val)
@@ -3341,9 +3356,20 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
-	if nameLength > 15 {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than 15 bytes.", operation.binName))
+	nameLength, valid := cmd.writeAndValidateBinName(operation.binName)
+	switch operation.opType {
+	case _READ, _READ_HEADER, _TOUCH, _DELETE:
+		if nameLength > maxBinNameLength {
+			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", operation.binName, maxBinNameLength))
+		}
+	case _CDT_READ, _CDT_MODIFY:
+		if !valid {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", maxBinNameLength))
+		}
+	default:
+		if !valid {
+			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", operation.binName, maxBinNameLength))
+		}
 	}
 
 	if operation.encoder == nil {
@@ -3378,10 +3404,11 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) Error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
-	if nameLength > 15 {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than 15 bytes.", name))
+	nameLength, valid := cmd.writeAndValidateBinName(name)
+	if !valid {
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, maxBinNameLength))
 	}
+
 	cmd.WriteInt32(int32(nameLength + 4))
 	cmd.WriteByte((operation.op))
 	cmd.WriteByte(byte(0))
@@ -3708,25 +3735,29 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if notFirstIteration {
-			applyTransactionRetryMetrics(cmd.node)
+			if cmd.node != nil {
+				applyTransactionRetryMetrics(cmd.node)
+			}
 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
-					if alreadyRetried {
-						// Batch was retried in separate subcommands. Complete this command.
-						applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
-						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+					if cmd.node != nil {
+						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
+						if alreadyRetried {
+							// Batch was retried in separate subcommands. Complete this command.
+							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+							if err != nil {
+								return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+							}
+							return nil
 						}
-						return nil
-					}
 
-					// chain the errors and retry
-					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
-						continue
+						// chain the errors and retry
+						if err != nil {
+							errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+							continue
+						}
 					}
 				}
 			}
@@ -4087,23 +4118,10 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		ns := *single
-
-		inner := dm.Get(ns)
-		if inner == nil {
-			inner = amap.New[commandType, *commandMetric](0)
-			dm.Set(ns, inner)
-		}
-
-		cm := inner.Get(ct)
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			inner.Set(ct, cm)
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.Parsing.Add(end)
 		cm.BytesReceived.Add(uint64(dataReceived))
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
@@ -4111,16 +4129,8 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 			if ns == "" {
 				continue
 			}
-			inner := dm.Get(ns)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](0)
-				dm.Set(ns, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.Parsing.Add(end)
 			cm.BytesReceived.Add(uint64(dataReceived))
 		}
@@ -4131,39 +4141,18 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		inner := dm.Get(*single)
-		if inner == nil {
-			inner = amap.New[commandType, *commandMetric](0)
-			dm.Set(*single, inner)
-		}
-
-		cm := inner.Get(ct)
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			inner.Set(ct, cm)
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.ConnectionAq.Add(end)
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
 		for ns := range nsMap {
 			if ns == "" {
 				continue
 			}
-			inner := dm.Get(ns)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](0)
-				dm.Set(ns, inner)
-			}
-
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
-
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.ConnectionAq.Add(end)
 		}
 	}
@@ -4173,39 +4162,27 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
+
 	if singleNS := ifc.getNamespace(); singleNS != nil {
 		if *singleNS != "" {
-			inner := dm.Get(*singleNS)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](1)
-				dm.Set(*singleNS, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(*singleNS)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.BytesSent.Add(uint64(bytesSent))
 			cm.Latency.Add(end)
 		}
-	} else if nsIter := ifc.getNamespaces(); nsIter != nil { // allocation happens
+	} else if nsIter := ifc.getNamespaces(); nsIter != nil {
 		for ns := range nsIter {
 			if ns != "" {
-				//upsert(ns)
-				inner := dm.Get(ns)
-				if inner == nil {
-					inner = amap.New[commandType, *commandMetric](1)
-					dm.Set(ns, inner)
-				}
-				cm := inner.Get(ct)
-				if cm == nil {
-					cm = cmd.node.stats.newCommandMetric()
-					inner.Set(ct, cm)
-				}
+				arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+				cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 				cm.BytesSent.Add(uint64(bytesSent))
 				cm.Latency.Add(end)
 			}
 		}
 	}
+}
+
+func (cmd *baseCommand) writeAndValidateBinName(binName string) (int, bool) {
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], binName)
+	return nameLength, binName != "" && nameLength <= maxBinNameLength
 }

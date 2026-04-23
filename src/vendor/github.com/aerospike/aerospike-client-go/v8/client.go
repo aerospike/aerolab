@@ -944,7 +944,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, true)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandDelete(clnt, nil, policy, deletePolicy, keys, records, attr)
@@ -1011,7 +1011,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, attr.hasWrite)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandUDF(clnt, nil, policy, udfPolicy, keys, packageName, functionName, args, records, attr)
@@ -1697,6 +1697,24 @@ func (clnt *Client) CreateIndexWithExpression(
 	return clnt.createIndex(policy, namespace, setName, indexName, "", indexType, indexCollectionType, expression)
 }
 
+// CreateSetIndex creates a set index for the given namespace and set.
+// A set index is a secondary index specialized for record presence per set;
+// no bin, type, context, or expression parameters are used.
+// This asynchronous server call will return before the command is complete.
+// The user can optionally wait for command completion by using the returned
+// IndexTask instance.
+// Requires server version 8.1.2+.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) CreateSetIndex(
+	policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+) (*IndexTask, Error) {
+	policy = clnt.getUsableWritePolicy(policy)
+	return clnt.createIndex(policy, namespace, setName, indexName, "", "", ICT_SET, nil)
+}
+
 // createIndex is a helper function to create a secondary index used by other CreateIndex external methods.
 func (clnt *Client) createIndex(policy *WritePolicy,
 	namespace string,
@@ -1732,56 +1750,60 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	strCmd.WriteString(";indexname=")
 	strCmd.WriteString(indexName)
 
-	var bufEx *bufferEx
-	if len(ctx) > 0 {
-		sz, err := cdtContextList(ctx).packArray(nil)
-		if err != nil {
-			return nil, err
-		}
-
-		bufEx = newBuffer(sz)
-
-		_, err = cdtContextList(ctx).packArray(bufEx)
-		if err != nil {
-			return nil, err
-		}
-
-		strCmd.WriteString(";context=")
-		s := base64.StdEncoding.EncodeToString(bufEx.Bytes())
-		strCmd.WriteString(s)
-	}
-
-	if expression != nil {
-		if size, err := expression.size(); err == nil && size > 0 {
-			b64, err := expression.Base64()
+	if indexCollectionType == ICT_SET {
+		strCmd.WriteString(";indextype=set")
+	} else {
+		var bufEx *bufferEx
+		if len(ctx) > 0 {
+			sz, err := cdtContextList(ctx).packArray(nil)
 			if err != nil {
 				return nil, err
 			}
-			strCmd.WriteString(";exp=")
-			strCmd.WriteString(b64)
+
+			bufEx = newBuffer(sz)
+
+			_, err = cdtContextList(ctx).packArray(bufEx)
+			if err != nil {
+				return nil, err
+			}
+
+			strCmd.WriteString(";context=")
+			s := base64.StdEncoding.EncodeToString(bufEx.Bytes())
+			strCmd.WriteString(s)
 		}
-	}
 
-	if indexCollectionType != ICT_DEFAULT {
-		strCmd.WriteString(";indextype=")
-		strCmd.WriteString(ictToString(indexCollectionType))
-	}
+		if expression != nil {
+			if size, err := expression.size(); err == nil && size > 0 {
+				b64, err := expression.Base64()
+				if err != nil {
+					return nil, err
+				}
+				strCmd.WriteString(";exp=")
+				strCmd.WriteString(b64)
+			}
+		}
 
-	if binName != "" {
-		if serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1) {
-			strCmd.WriteString(";bin=")
-			strCmd.WriteString(binName)
-			strCmd.WriteString(";type=")
+		if indexCollectionType != ICT_DEFAULT {
+			strCmd.WriteString(";indextype=")
+			strCmd.WriteString(ictToString(indexCollectionType))
+		}
+
+		if binName != "" {
+			if serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1) {
+				strCmd.WriteString(";bin=")
+				strCmd.WriteString(binName)
+				strCmd.WriteString(";type=")
+			} else {
+				strCmd.WriteString(";indexdata=")
+				strCmd.WriteString(binName)
+				strCmd.WriteString(",")
+			}
 		} else {
-			strCmd.WriteString(";indexdata=")
-			strCmd.WriteString(binName)
-			strCmd.WriteString(",")
+			strCmd.WriteString(";type=")
 		}
-	} else {
-		strCmd.WriteString(";type=")
-	}
 
-	strCmd.WriteString(string(indexType))
+		strCmd.WriteString(string(indexType))
+	}
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
@@ -1791,7 +1813,8 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	response := responseMap[strCmd.String()]
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		return NewIndexTask(clnt.cluster, namespace, indexName), nil
+		timeout := policy.SocketTimeout
+		return newIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout), nil
 	}
 
 	return nil, parseInfoErrorCode(response)
@@ -1840,7 +1863,8 @@ func (clnt *Client) DropIndex(
 
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		timeout := policy.SocketTimeout
+		task := newDropIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout)
 		return <-task.OnComplete()
 	}
 

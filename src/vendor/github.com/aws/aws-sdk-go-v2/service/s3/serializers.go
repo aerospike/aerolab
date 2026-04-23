@@ -207,6 +207,11 @@ func awsRestxml_serializeOpHttpBindingsCompleteMultipartUploadInput(v *CompleteM
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
 	}
 
+	if v.ChecksumMD5 != nil {
+		locationName := "X-Amz-Checksum-Md5"
+		encoder.SetHeader(locationName).String(*v.ChecksumMD5)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -217,9 +222,29 @@ func awsRestxml_serializeOpHttpBindingsCompleteMultipartUploadInput(v *CompleteM
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA256)
 	}
 
+	if v.ChecksumSHA512 != nil {
+		locationName := "X-Amz-Checksum-Sha512"
+		encoder.SetHeader(locationName).String(*v.ChecksumSHA512)
+	}
+
 	if len(v.ChecksumType) > 0 {
 		locationName := "X-Amz-Checksum-Type"
 		encoder.SetHeader(locationName).String(string(v.ChecksumType))
+	}
+
+	if v.ChecksumXXHASH128 != nil {
+		locationName := "X-Amz-Checksum-Xxhash128"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH128)
+	}
+
+	if v.ChecksumXXHASH3 != nil {
+		locationName := "X-Amz-Checksum-Xxhash3"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH3)
+	}
+
+	if v.ChecksumXXHASH64 != nil {
+		locationName := "X-Amz-Checksum-Xxhash64"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH64)
 	}
 
 	if v.ExpectedBucketOwner != nil {
@@ -642,6 +667,11 @@ func awsRestxml_serializeOpHttpBindingsCreateBucketInput(v *CreateBucketInput, e
 	if len(v.ACL) > 0 {
 		locationName := "X-Amz-Acl"
 		encoder.SetHeader(locationName).String(string(v.ACL))
+	}
+
+	if len(v.BucketNamespace) > 0 {
+		locationName := "X-Amz-Bucket-Namespace"
+		encoder.SetHeader(locationName).String(string(v.BucketNamespace))
 	}
 
 	if v.GrantFullControl != nil {
@@ -8204,6 +8234,11 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
 	}
 
+	if v.ChecksumMD5 != nil {
+		locationName := "X-Amz-Checksum-Md5"
+		encoder.SetHeader(locationName).String(*v.ChecksumMD5)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -8212,6 +8247,26 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 	if v.ChecksumSHA256 != nil {
 		locationName := "X-Amz-Checksum-Sha256"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA256)
+	}
+
+	if v.ChecksumSHA512 != nil {
+		locationName := "X-Amz-Checksum-Sha512"
+		encoder.SetHeader(locationName).String(*v.ChecksumSHA512)
+	}
+
+	if v.ChecksumXXHASH128 != nil {
+		locationName := "X-Amz-Checksum-Xxhash128"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH128)
+	}
+
+	if v.ChecksumXXHASH3 != nil {
+		locationName := "X-Amz-Checksum-Xxhash3"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH3)
+	}
+
+	if v.ChecksumXXHASH64 != nil {
+		locationName := "X-Amz-Checksum-Xxhash64"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH64)
 	}
 
 	if v.ContentDisposition != nil {
@@ -9931,6 +9986,11 @@ func awsRestxml_serializeOpHttpBindingsUploadPartInput(v *UploadPartInput, encod
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
 	}
 
+	if v.ChecksumMD5 != nil {
+		locationName := "X-Amz-Checksum-Md5"
+		encoder.SetHeader(locationName).String(*v.ChecksumMD5)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -9939,6 +9999,26 @@ func awsRestxml_serializeOpHttpBindingsUploadPartInput(v *UploadPartInput, encod
 	if v.ChecksumSHA256 != nil {
 		locationName := "X-Amz-Checksum-Sha256"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA256)
+	}
+
+	if v.ChecksumSHA512 != nil {
+		locationName := "X-Amz-Checksum-Sha512"
+		encoder.SetHeader(locationName).String(*v.ChecksumSHA512)
+	}
+
+	if v.ChecksumXXHASH128 != nil {
+		locationName := "X-Amz-Checksum-Xxhash128"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH128)
+	}
+
+	if v.ChecksumXXHASH3 != nil {
+		locationName := "X-Amz-Checksum-Xxhash3"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH3)
+	}
+
+	if v.ChecksumXXHASH64 != nil {
+		locationName := "X-Amz-Checksum-Xxhash64"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH64)
 	}
 
 	if v.ContentLength != nil {
@@ -10251,6 +10331,11 @@ func awsRestxml_serializeOpHttpBindingsWriteGetObjectResponseInput(v *WriteGetOb
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
 	}
 
+	if v.ChecksumMD5 != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Md5"
+		encoder.SetHeader(locationName).String(*v.ChecksumMD5)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -10259,6 +10344,26 @@ func awsRestxml_serializeOpHttpBindingsWriteGetObjectResponseInput(v *WriteGetOb
 	if v.ChecksumSHA256 != nil {
 		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Sha256"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA256)
+	}
+
+	if v.ChecksumSHA512 != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Sha512"
+		encoder.SetHeader(locationName).String(*v.ChecksumSHA512)
+	}
+
+	if v.ChecksumXXHASH128 != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Xxhash128"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH128)
+	}
+
+	if v.ChecksumXXHASH3 != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Xxhash3"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH3)
+	}
+
+	if v.ChecksumXXHASH64 != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Xxhash64"
+		encoder.SetHeader(locationName).String(*v.ChecksumXXHASH64)
 	}
 
 	if v.ContentDisposition != nil {
@@ -10879,6 +10984,17 @@ func awsRestxml_serializeDocumentCompletedPart(v *types.CompletedPart, value smi
 		el := value.MemberElement(root)
 		el.String(*v.ChecksumCRC64NVME)
 	}
+	if v.ChecksumMD5 != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumMD5",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumMD5)
+	}
 	if v.ChecksumSHA1 != nil {
 		rootAttr := []smithyxml.Attr{}
 		root := smithyxml.StartElement{
@@ -10900,6 +11016,50 @@ func awsRestxml_serializeDocumentCompletedPart(v *types.CompletedPart, value smi
 		}
 		el := value.MemberElement(root)
 		el.String(*v.ChecksumSHA256)
+	}
+	if v.ChecksumSHA512 != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumSHA512",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumSHA512)
+	}
+	if v.ChecksumXXHASH128 != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumXXHASH128",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumXXHASH128)
+	}
+	if v.ChecksumXXHASH3 != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumXXHASH3",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumXXHASH3)
+	}
+	if v.ChecksumXXHASH64 != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumXXHASH64",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumXXHASH64)
 	}
 	if v.ETag != nil {
 		rootAttr := []smithyxml.Attr{}

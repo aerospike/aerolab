@@ -3062,6 +3062,50 @@
         }
       }
     },
+    "RegionCompositeHealthChecks": {
+      "clients": {
+        "rest": {
+          "libraryClient": "RegionCompositeHealthChecksClient",
+          "rpcs": {
+            "AggregatedList": {
+              "methods": [
+                "AggregatedList"
+              ]
+            },
+            "Delete": {
+              "methods": [
+                "Delete"
+              ]
+            },
+            "Get": {
+              "methods": [
+                "Get"
+              ]
+            },
+            "Insert": {
+              "methods": [
+                "Insert"
+              ]
+            },
+            "List": {
+              "methods": [
+                "List"
+              ]
+            },
+            "Patch": {
+              "methods": [
+                "Patch"
+              ]
+            },
+            "TestIamPermissions": {
+              "methods": [
+                "TestIamPermissions"
+              ]
+            }
+          }
+        }
+      }
+    },
     "RegionDiskTypes": {
       "clients": {
         "rest": {
@@ -3175,11 +3219,16 @@
         }
       }
     },
-    "RegionHealthCheckServices": {
+    "RegionHealthAggregationPolicies": {
       "clients": {
         "rest": {
-          "libraryClient": "RegionHealthCheckServicesClient",
+          "libraryClient": "RegionHealthAggregationPoliciesClient",
           "rpcs": {
+            "AggregatedList": {
+              "methods": [
+                "AggregatedList"
+              ]
+            },
             "Delete": {
               "methods": [
                 "Delete"
@@ -3203,6 +3252,55 @@
             "Patch": {
               "methods": [
                 "Patch"
+              ]
+            },
+            "TestIamPermissions": {
+              "methods": [
+                "TestIamPermissions"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "RegionHealthCheckServices": {
+      "clients": {
+        "rest": {
+          "libraryClient": "RegionHealthCheckServicesClient",
+          "rpcs": {
+            "AggregatedList": {
+              "methods": [
+                "AggregatedList"
+              ]
+            },
+            "Delete": {
+              "methods": [
+                "Delete"
+              ]
+            },
+            "Get": {
+              "methods": [
+                "Get"
+              ]
+            },
+            "Insert": {
+              "methods": [
+                "Insert"
+              ]
+            },
+            "List": {
+              "methods": [
+                "List"
+              ]
+            },
+            "Patch": {
+              "methods": [
+                "Patch"
+              ]
+            },
+            "TestIamPermissions": {
+              "methods": [
+                "TestIamPermissions"
               ]
             }
           }
@@ -3247,6 +3345,50 @@
             "Update": {
               "methods": [
                 "Update"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "RegionHealthSources": {
+      "clients": {
+        "rest": {
+          "libraryClient": "RegionHealthSourcesClient",
+          "rpcs": {
+            "AggregatedList": {
+              "methods": [
+                "AggregatedList"
+              ]
+            },
+            "Delete": {
+              "methods": [
+                "Delete"
+              ]
+            },
+            "Get": {
+              "methods": [
+                "Get"
+              ]
+            },
+            "Insert": {
+              "methods": [
+                "Insert"
+              ]
+            },
+            "List": {
+              "methods": [
+                "List"
+              ]
+            },
+            "Patch": {
+              "methods": [
+                "Patch"
+              ]
+            },
+            "TestIamPermissions": {
+              "methods": [
+                "TestIamPermissions"
               ]
             }
           }
@@ -3646,6 +3788,11 @@
         "rest": {
           "libraryClient": "RegionNotificationEndpointsClient",
           "rpcs": {
+            "AggregatedList": {
+              "methods": [
+                "AggregatedList"
+              ]
+            },
             "Delete": {
               "methods": [
                 "Delete"
@@ -4054,6 +4201,35 @@
         }
       }
     },
+    "ReservationSlots": {
+      "clients": {
+        "rest": {
+          "libraryClient": "ReservationSlotsClient",
+          "rpcs": {
+            "Get": {
+              "methods": [
+                "Get"
+              ]
+            },
+            "GetVersion": {
+              "methods": [
+                "GetVersion"
+              ]
+            },
+            "List": {
+              "methods": [
+                "List"
+              ]
+            },
+            "Update": {
+              "methods": [
+                "Update"
+              ]
+            }
+          }
+        }
+      }
+    },
     "ReservationSubBlocks": {
       "clients": {
         "rest": {
@@ -4067,6 +4243,11 @@
             "GetIamPolicy": {
               "methods": [
                 "GetIamPolicy"
+              ]
+            },
+            "GetVersion": {
+              "methods": [
+                "GetVersion"
               ]
             },
             "List": {

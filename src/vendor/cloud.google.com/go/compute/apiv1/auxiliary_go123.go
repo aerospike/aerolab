@@ -99,6 +99,18 @@ func (it *CommitmentsScopedListPairIterator) All() iter.Seq2[CommitmentsScopedLi
 
 // All returns an iterator. If an error is returned by the iterator, the
 // iterator will stop after that iteration.
+func (it *CompositeHealthCheckIterator) All() iter.Seq2[*computepb.CompositeHealthCheck, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
+func (it *CompositeHealthChecksScopedListPairIterator) All() iter.Seq2[CompositeHealthChecksScopedListPair, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
 func (it *CrossSiteNetworkIterator) All() iter.Seq2[*computepb.CrossSiteNetwork, error] {
 	return iterator.RangeAdapter(it.Next)
 }
@@ -183,6 +195,18 @@ func (it *FutureReservationsScopedListPairIterator) All() iter.Seq2[FutureReserv
 
 // All returns an iterator. If an error is returned by the iterator, the
 // iterator will stop after that iteration.
+func (it *HealthAggregationPoliciesScopedListPairIterator) All() iter.Seq2[HealthAggregationPoliciesScopedListPair, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
+func (it *HealthAggregationPolicyIterator) All() iter.Seq2[*computepb.HealthAggregationPolicy, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
 func (it *HealthCheckIterator) All() iter.Seq2[*computepb.HealthCheck, error] {
 	return iterator.RangeAdapter(it.Next)
 }
@@ -195,7 +219,25 @@ func (it *HealthCheckServiceIterator) All() iter.Seq2[*computepb.HealthCheckServ
 
 // All returns an iterator. If an error is returned by the iterator, the
 // iterator will stop after that iteration.
+func (it *HealthCheckServicesScopedListPairIterator) All() iter.Seq2[HealthCheckServicesScopedListPair, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
 func (it *HealthChecksScopedListPairIterator) All() iter.Seq2[HealthChecksScopedListPair, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
+func (it *HealthSourceIterator) All() iter.Seq2[*computepb.HealthSource, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
+func (it *HealthSourcesScopedListPairIterator) All() iter.Seq2[HealthSourcesScopedListPair, error] {
 	return iterator.RangeAdapter(it.Next)
 }
 
@@ -453,6 +495,12 @@ func (it *NotificationEndpointIterator) All() iter.Seq2[*computepb.NotificationE
 
 // All returns an iterator. If an error is returned by the iterator, the
 // iterator will stop after that iteration.
+func (it *NotificationEndpointsScopedListPairIterator) All() iter.Seq2[NotificationEndpointsScopedListPair, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
 func (it *OperationIterator) All() iter.Seq2[*computepb.Operation, error] {
 	return iterator.RangeAdapter(it.Next)
 }
@@ -532,6 +580,12 @@ func (it *ReservationBlockIterator) All() iter.Seq2[*computepb.ReservationBlock,
 // All returns an iterator. If an error is returned by the iterator, the
 // iterator will stop after that iteration.
 func (it *ReservationIterator) All() iter.Seq2[*computepb.Reservation, error] {
+	return iterator.RangeAdapter(it.Next)
+}
+
+// All returns an iterator. If an error is returned by the iterator, the
+// iterator will stop after that iteration.
+func (it *ReservationSlotIterator) All() iter.Seq2[*computepb.ReservationSlot, error] {
 	return iterator.RangeAdapter(it.Next)
 }
 
