@@ -969,7 +969,40 @@ func (c *AgiCreateCmd) resolveTemplate(system *System, inventory *backends.Inven
 		return "", false, fmt.Errorf("failed to create AGI template: %w", err)
 	}
 
-	return templateName, true, nil
+	// Refresh inventory so the newly created image is visible to downstream
+	// instance creation, then resolve the image's canonical inventory name.
+	// (The Docker backend stores images with a `:latest` tag suffix, which
+	// CreateTemplate does not include in the value it returns. Using the
+	// raw returned name would cause `WithName` exact-match lookups in
+	// InstancesCreateCmd to miss and fall through to a placeholder
+	// `Image{}` with a zero-value Architecture, which in turn makes Docker
+	// try to run the arm64 template as linux/amd64.)
+	if err := system.Backend.ForceRefreshInventory(); err != nil {
+		return "", false, fmt.Errorf("failed to refresh inventory after AGI template creation: %w", err)
+	}
+	canonicalName := resolveCanonicalAGITemplateName(system.Backend.GetInventory(), arch, templateName)
+	if canonicalName == "" {
+		return "", false, fmt.Errorf("auto-created AGI template %q not visible in inventory after refresh", templateName)
+	}
+	return canonicalName, true, nil
+}
+
+// resolveCanonicalAGITemplateName finds the canonical inventory name for an
+// AGI template image we just auto-created. It accepts the name that
+// CreateTemplate returned (e.g. `agi-tmpl-xxx`) and matches it against
+// inventory entries for the given architecture, tolerating backend-imposed
+// tag suffixes like Docker's `:latest`. Returns "" if no match was found.
+func resolveCanonicalAGITemplateName(inventory *backends.Inventory, arch backends.Architecture, createdName string) string {
+	images := inventory.Images.
+		WithTags(map[string]string{"aerolab.image.type": "agi"}).
+		WithArchitecture(arch).
+		Describe()
+	for _, img := range images {
+		if img.Name == createdName || strings.HasPrefix(img.Name, createdName+":") {
+			return img.Name
+		}
+	}
+	return ""
 }
 
 // createInstance creates the AGI instance from the template.
@@ -2385,6 +2418,34 @@ func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSiz
 		})
 		if err != nil {
 			return fmt.Errorf("failed to upload aerospike.conf: %w", err)
+		}
+	}
+
+	// Make sure /etc/aerospike/aerospike.conf points at our patched config.
+	// The Aerospike server package ships a default /etc/aerospike/aerospike.conf
+	// with only a `test` namespace. The AGI template installs a systemd drop-in
+	// that tells asd to read /opt/agi/aerospike.conf instead, but that override
+	// has proven unreliable across distros/versions (in practice asd ends up
+	// reading the stock config and the `agi` namespace is missing, which
+	// manifests as "namespace 'agi' not found on node" warnings in the server
+	// log). Replacing /etc/aerospike/aerospike.conf with a symlink to the AGI
+	// config guarantees asd picks up our config regardless of which code path
+	// systemd actually uses to launch it, and works with pre-existing templates
+	// without requiring a rebuild.
+	linkOutputs := instance.Exec(&backends.ExecInput{
+		ExecDetail: sshexec.ExecDetail{
+			Command:        []string{"bash", "-c", "mkdir -p /etc/aerospike && rm -f /etc/aerospike/aerospike.conf && ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf"},
+			SessionTimeout: time.Minute,
+		},
+		Username:        "root",
+		ConnectTimeout:  30 * time.Second,
+		ParallelThreads: 1,
+		MaxRetries:      c.MaxRetries,
+		RetrySleep:      c.RetrySleep,
+	})
+	for _, o := range linkOutputs {
+		if o.Output.Err != nil {
+			return fmt.Errorf("failed to link /etc/aerospike/aerospike.conf -> /opt/agi/aerospike.conf: %v (stderr: %s)", o.Output.Err, o.Output.Stderr)
 		}
 	}
 

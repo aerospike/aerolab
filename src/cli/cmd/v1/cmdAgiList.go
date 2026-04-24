@@ -311,7 +311,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			fmt.Fprintf(out, "Name: %s, Label: %s, State: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, Owner: %s, Backend: %s, Zone: %s, Instance: %s, Expires: %s, SSL: %t, Spot: %t, CreatedAt: %s\n", //nolint:errcheck
 				agi.Name, agi.Label, agi.State, agi.PublicIP, agi.PrivateIP, agi.AccessURL, agi.Owner, agi.Backend, agi.Zone, agi.Instance, agi.Expires, agi.SSL, agi.Spot, agi.CreatedAt)
 		}
-		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "")             //nolint:errcheck
 		fmt.Fprintln(out, "AGI VOLUMES:") //nolint:errcheck
 		for _, vol := range volumeData {
 			// Build source string
@@ -418,7 +418,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			}
 		}
 		fmt.Fprintln(out, t.RenderTable(new("AGI INSTANCES"), header, rows)) //nolint:errcheck
-		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "")                                                //nolint:errcheck
 
 		// Render volumes table (only for non-Docker backends since Docker volumes don't persist separately)
 		if system.Opts.Config.Backend.Type != "docker" && len(volumeData) > 0 {
@@ -490,7 +490,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 				})
 			}
 			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows)) //nolint:errcheck
-			fmt.Fprintln(out, "") //nolint:errcheck
+			fmt.Fprintln(out, "")                                                    //nolint:errcheck
 		}
 	}
 	return nil

@@ -707,17 +707,21 @@ func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, aerospikeInsta
 	script.WriteString("systemctl disable aerospike || true\n")
 	script.WriteString("\n")
 
-	// Create systemd override for Aerospike to use /opt/agi/aerospike.conf
-	// This allows the config to be persisted on EFS when mounted at /opt/agi
-	script.WriteString("echo '=== Creating Aerospike systemd override for AGI config path ==='\n")
+	// Point /etc/aerospike/aerospike.conf at /opt/agi/aerospike.conf so that
+	// the AGI-specific config (with the `agi` namespace) is picked up by asd
+	// via its default config path, and so the config remains persisted on EFS
+	// when /opt/agi is mounted from an external volume. A previous iteration
+	// used a systemd drop-in with `--config-file /opt/agi/aerospike.conf`, but
+	// that override proved unreliable across distros/systemd versions - asd
+	// would silently fall back to the stock config and come up with only the
+	// default `test` namespace, producing "namespace 'agi' not found on node"
+	// warnings at runtime. A symlink at the default config path works
+	// regardless of which ExecStart systemd ends up using.
+	script.WriteString("echo '=== Pointing /etc/aerospike/aerospike.conf at /opt/agi/aerospike.conf ==='\n")
 	script.WriteString(`
-mkdir -p /etc/systemd/system/aerospike.service.d
-cat > /etc/systemd/system/aerospike.service.d/override.conf << 'EOF'
-[Service]
-ExecStart=
-ExecStart=/usr/bin/asd $ASD_OPTIONS --config-file /opt/agi/aerospike.conf --fgdaemon
-EOF
-systemctl daemon-reload
+mkdir -p /etc/aerospike
+rm -f /etc/aerospike/aerospike.conf
+ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf
 `)
 	script.WriteString("\n")
 
