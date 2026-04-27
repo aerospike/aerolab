@@ -91,6 +91,7 @@ type AgiMonitorCmd struct {
 func (c *AgiMonitorCmd) Execute(args []string) error { return errNoAGI }
 
 type AgiExecCmd struct {
+	Service      AgiExecServiceCmd      `command:"service" subcommands-optional:"true" description:"Run merged ingest+plugin service"`
 	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend"`
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
 	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service"`
@@ -109,18 +110,24 @@ type AgiMonitorConfigCmd struct {
 	GCPDiskThresholdPct int `long:"gcp-disk-thres-pct" description:"Usage threshold pct at which the disk will be increased" default:"80"`
 	GCPDiskIncreaseGB   int `long:"gcp-disk-grow-gb" description:"When threshold is breached, grow by these many GB" default:"100"`
 
-	RAMThresUsedPct   int `long:"ram-thres-used-pct" description:"Max used PCT of RAM before instance gets sized" default:"95"`
-	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized" default:"8"`
+	RAMThresUsedPct   int `long:"ram-thres-used-pct" description:"Max used PCT of RAM (MemAvailable-based) before instance gets sized" default:"90"`
+	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized; doubles as 'headroom' in the pre-process sizing formula" default:"2"`
 
-	SizingNoDIMFirst bool `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes"`
-	DisableSizing    bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
-	SizingMaxRamGB   int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"130"`
-	SizingMaxDiskGB  int  `long:"sizing-max-disk-gb" description:"Will not size above these many GB" default:"400"`
+	RAMFloorGB     int `long:"ram-floor-gb" description:"Always-on baseline RAM (process+grafana+memtables+ingest buffers). Added on top of cache target and headroom" default:"3"`
+	CacheTargetPct int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
+	CacheMinGB     int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
+	CacheMaxGB     int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
+
+	DisableSizing   bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
+	SizingMaxRamGB  int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"48"`
+	SizingMaxDiskGB int  `long:"sizing-max-disk-gb" description:"Will not size above these many GB" default:"400"`
 
 	DisableCapacity bool `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand"`
 
-	DimMultiplier   float64 `long:"sizing-multiplier-dim" description:"Log size * multiplier = how much RAM is needed" default:"1.8"`
-	NoDimMultiplier float64 `long:"sizing-multiplier-nodim" description:"Log size * multiplier = how much RAM is needed" default:"0.4"`
+	// Deprecated DIM-era knobs; kept for YAML/CLI back-compat.
+	SizingNoDIMFirst bool    `long:"sizing-nodim" description:"DEPRECATED: DIM mode no longer exists post-Pebble migration; flag is ignored" hidden:"true"`
+	DimMultiplier    float64 `long:"sizing-multiplier-dim" description:"DEPRECATED: pre-Pebble DIM RAM multiplier; flag is ignored" hidden:"true"`
+	NoDimMultiplier  float64 `long:"sizing-multiplier-nodim" description:"DEPRECATED: pre-Pebble NoDIM RAM multiplier; flag is ignored" hidden:"true"`
 
 	DebugEvents bool `long:"debug-events" description:"Log all events for debugging purposes"`
 
@@ -190,6 +197,7 @@ type Reattach struct {
 	NoDIMOverride        *bool  `long:"nodim" description:"Override data-in-memory setting when reattaching" no-default:"true"`
 	SpotOverride         *bool  `long:"spot" description:"Override spot instance setting when reattaching" no-default:"true"`
 	OwnerOverride        string `long:"owner" description:"Override owner tag when reattaching"`
+	RefreshEngineConfigs bool   `long:"refresh-engine-configs" hidden:"true"`
 }
 
 type AgiStartCmdAws struct {
@@ -329,6 +337,12 @@ type AgiExecPluginCmd struct {
 }
 
 func (c *AgiExecPluginCmd) Execute(args []string) error { return errNoAGI }
+
+type AgiExecServiceCmd struct {
+	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *AgiExecServiceCmd) Execute(args []string) error { return errNoAGI }
 
 type AgiExecGrafanaFixCmd struct {
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`

@@ -124,7 +124,14 @@ type AgiCreateCmd struct {
 
 	// Configuration options
 	NoConfigOverride bool   `long:"no-config-override" description:"Don't override existing config when restarting with EFS"`
-	Owner            string `long:"owner" description:"Owner tag value"`
+	// RefreshEngineConfigs forces re-upload of engine-tuning configs
+	// (ingest.yaml, plugin.yaml) even when NoConfigOverride is set.
+	// Set by the monitor on sizing-driven reattach so that the new
+	// instance's larger memSize is reflected in Pebble's CacheBytes /
+	// MemTableSizeBytes and the plugin's concurrency knobs. Internal,
+	// not exposed on the CLI.
+	RefreshEngineConfigs bool   `json:"-"`
+	Owner                string `long:"owner" description:"Owner tag value"`
 
 	// Version options
 	AerospikeVersion string `short:"v" long:"aerospike-version" description:"Aerospike server version" default:"latest"`
@@ -164,7 +171,7 @@ type AgiCreateCmd struct {
 
 // AgiCreateCmdAws contains AWS-specific options for AGI instance creation.
 type AgiCreateCmdAws struct {
-	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 12GB RAM); empty=auto-select" webchoice:"method::List"`
+	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 8GB RAM); empty=auto-select (m7i.xlarge / m6i.xlarge / m7g.xlarge by region+arch)" webchoice:"method::List"`
 	Ebs                 string          `short:"E" long:"ebs" description:"EBS volume size in GB" default:"40"`
 	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"Security group IDs (comma-separated)"`
 	SubnetID            string          `short:"U" long:"subnet-id" description:"Subnet ID or availability zone"`
@@ -185,8 +192,14 @@ type AgiCreateCmdAws struct {
 }
 
 // AgiCreateCmdGcp contains GCP-specific options for AGI instance creation.
+//
+// Default instance: c2d-standard-4 (16 GiB) post-Pebble. The previous
+// default (c2d-highmem-4, 32 GiB) was sized for an in-memory primary
+// index that no longer exists; the new sizing model needs floor + 10%
+// of log size + headroom, which fits comfortably in 16 GiB for log
+// bundles up to ~80 GiB. Larger workloads ladder up via the monitor.
 type AgiCreateCmdGcp struct {
-	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-highmem-4" webchoice:"method::List"`
+	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-standard-4" webchoice:"method::List"`
 	Disks               []string        `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
 	Zone                guiZone         `long:"zone" description:"GCP zone" webchoice:"method::List"`
 	Tags                []string        `long:"tag" description:"Network tags"`
@@ -1237,15 +1250,22 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 	case "aws":
 		awsInstanceType = string(c.AWS.InstanceType)
 		if awsInstanceType == "" {
+			// Post-Pebble defaults: drop from the r-family
+			// (memory-optimized, 32 GiB at xlarge) to the m-family
+			// (general-purpose, 16 GiB at xlarge). The new sizing
+			// model needs ~10% of log size + a small floor; 16 GiB
+			// fits log bundles up to ~80 GiB without scaling.
+			// Larger workloads ladder up via the monitor's
+			// pre-process completion callback.
 			if arch.String() == "arm64" {
-				awsInstanceType = "r7g.xlarge"
+				awsInstanceType = "m7g.xlarge"
 			} else {
 				switch system.Opts.Config.Backend.Region {
 				case "af-south-1", "ap-east-1", "ca-west-1", "cn-north-1", "cn-northwest-1", "eu-central-2", "il-central-1", "me-south-1", "me-central-1":
-					// change the default instance family for regions that don't support the r7 yet
-					awsInstanceType = "r6i.xlarge"
+					// change the default instance family for regions that don't support the m7 yet
+					awsInstanceType = "m6i.xlarge"
 				default:
-					awsInstanceType = "r7i.xlarge"
+					awsInstanceType = "m7i.xlarge"
 				}
 			}
 		}
@@ -1665,15 +1685,25 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendType string) (map[string][]byte, error) {
 	configs := make(map[string][]byte)
 
+	// Compute Pebble DB tuning from the instance's available memory
+	// budget (post-reservation). Both ingest and plugin embed the same
+	// db handle in the merged service, so they MUST agree on these
+	// numbers; we generate them once here and inject them into both
+	// YAMLs. The caller (configureAerospike etc.) gets the same
+	// memSize, so Aerospike (legacy) and Pebble (current) configs
+	// stay coherent on the same host.
+	dbCacheBytes := computePebbleCacheBytes(memSize)
+	dbMemTableBytes := computePebbleMemTableBytes(memSize)
+
 	// Generate ingest.yaml
-	ingestConfig, err := c.generateIngestConfig(backendType)
+	ingestConfig, err := c.generateIngestConfig(backendType, dbCacheBytes, dbMemTableBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate ingest config: %w", err)
 	}
 	configs["/opt/agi/ingest.yaml"] = ingestConfig
 
 	// Generate plugin.yaml
-	pluginConfig := c.generatePluginConfig(backendType)
+	pluginConfig := c.generatePluginConfig(backendType, dbCacheBytes, dbMemTableBytes)
 	configs["/opt/agi/plugin.yaml"] = pluginConfig
 
 	// Generate grafanafix.yaml
@@ -1708,19 +1738,58 @@ func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendTyp
 	return configs, nil
 }
 
+// computePebbleCacheBytes returns the recommended Pebble block cache size
+// given the post-reservation memory budget. Roughly half the budget goes to
+// the explicit block cache; the other half is left to the OS page cache,
+// which serves Pebble L1+ sstable reads transparently. The value is
+// floored at 256 MiB and capped at 16 GiB — beyond that, marginal value
+// drops sharply because the page cache is just as effective for cold
+// reads and cheaper to evict during compaction.
+func computePebbleCacheBytes(memSize int64) int64 {
+	cache := memSize / 2
+	const floor = int64(256) << 20
+	const cap = int64(16) << 30
+	if cache < floor {
+		cache = floor
+	}
+	if cache > cap {
+		cache = cap
+	}
+	return cache
+}
+
+// computePebbleMemTableBytes returns the recommended Pebble memtable
+// (write buffer) size. We keep the package default of 256 MiB on
+// hosts with at least 6 GiB of post-reservation budget; otherwise drop
+// to 64 MiB so the four-way memtable cap (default
+// MemTableStopWritesThreshold = 4) does not eat the entire heap.
+func computePebbleMemTableBytes(memSize int64) uint64 {
+	if memSize >= int64(6)<<30 {
+		return uint64(256) << 20
+	}
+	return uint64(64) << 20
+}
+
 // generateIngestConfig generates the ingest.yaml configuration.
-func (c *AgiCreateCmd) generateIngestConfig(backendType string) ([]byte, error) {
+func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64) ([]byte, error) {
 	config, err := ingest.MakeConfigReader(true, nil, false)
 	if err != nil {
 		return nil, err
 	}
 
+	// Pebble DB tuning. The merged service (cmdAgiExecService) opens
+	// one Pebble handle and shares it between ingest and plugin; both
+	// YAML files must therefore declare the same cache/memtable sizes
+	// or the operator-set value from one would silently lose to the
+	// other depending on which call site builds the options first.
+	config.DB.CacheBytes = dbCacheBytes
+	config.DB.MemTableSizeBytes = dbMemTableBytes
+
 	// Configure based on backend
-	config.Aerospike.MaxPutThreads = 128
+	config.MaxPutThreads = 128
 	if backendType == "docker" {
-		config.Aerospike.MaxPutThreads = 64
+		config.MaxPutThreads = 64
 	}
-	config.Aerospike.WaitForSindexes = true
 
 	// Pre-processor settings
 	config.PreProcess.FileThreads = 6
@@ -1834,10 +1903,23 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string) ([]byte, error) 
 }
 
 // generatePluginConfig generates the plugin.yaml configuration.
-func (c *AgiCreateCmd) generatePluginConfig(backendType string) []byte {
+func (c *AgiCreateCmd) generatePluginConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64) []byte {
 	maxDp := 34560000
 	if backendType == "docker" {
 		maxDp = maxDp / 2
+	}
+
+	// Plugin concurrency: the post-Pebble plugin path is snapshot-
+	// isolated, so multiple in-flight queries no longer compete for an
+	// in-memory primary index. Bump the default fan-out so a Grafana
+	// dashboard refresh with several panels is not serialized by the
+	// 4-deep semaphore. On Docker the box is typically tiny — keep
+	// the upstream defaults there.
+	maxRequests := 16
+	maxJobs := 8
+	if backendType == "docker" {
+		maxRequests = 4
+		maxJobs = 4
 	}
 
 	cpuProfiling := ""
@@ -1846,6 +1928,8 @@ func (c *AgiCreateCmd) generatePluginConfig(backendType string) []byte {
 	}
 
 	config := fmt.Sprintf(`maxDataPointsReceived: %d
+maxConcurrentRequests: %d
+maxConcurrentJobs: %d
 logLevel: %d
 addNoneToLabels:
   - Histogram
@@ -1853,7 +1937,10 @@ addNoneToLabels:
   - HistogramUs
   - HistogramSize
   - HistogramCount
-%s`, maxDp, c.PluginLogLevel, cpuProfiling)
+db:
+  cacheBytes: %d
+  memTableSizeBytes: %d
+%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel, dbCacheBytes, dbMemTableBytes, cpuProfiling)
 
 	return []byte(config)
 }
@@ -2037,13 +2124,30 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 			_ = cli.RawClient().MkdirAll(dir)
 		}
 
+		// engineTuningConfigs are configs whose contents depend on the
+		// instance's available memory (memSize) and on memSize-derived
+		// concurrency defaults. When the monitor reattaches the volume
+		// to a different instance type for sizing, these MUST be
+		// refreshed even though NoConfigOverride is set, otherwise the
+		// new (larger) instance keeps running with the old (smaller)
+		// instance's Pebble cache size and plugin concurrency limits,
+		// leaving the extra RAM unused.
+		engineTuningConfigs := map[string]bool{
+			"/opt/agi/ingest.yaml": true,
+			"/opt/agi/plugin.yaml": true,
+		}
+
 		// Upload each config file
 		for path, content := range configs {
 			// Check if we should skip due to NoConfigOverride
 			if c.NoConfigOverride {
 				if cli.IsExists(path) {
-					logger.Debug("Skipping existing config: %s", path)
-					continue
+					if c.RefreshEngineConfigs && engineTuningConfigs[path] {
+						logger.Info("Refreshing memSize-derived config: %s", path)
+					} else {
+						logger.Debug("Skipping existing config: %s", path)
+						continue
+					}
 				}
 			}
 

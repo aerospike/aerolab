@@ -430,10 +430,17 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 		}
 	}
 
-	// Remove steps.json and restart ingest
+	// Reset ingest progress and restart the merged agi service. The
+	// ingest pipeline now runs inside agi-plugin.service (see
+	// cmdAgiTemplateCreate.go); restarting that unit re-runs the
+	// pipeline from an empty steps.json. `try-restart` is used so
+	// that if the unit is stopped for some reason we still bring it
+	// up; `restart` would also be correct but would unnecessarily
+	// bounce the plugin HTTP endpoint if it is already running and
+	// steps.json removal alone was intended.
 	outputs = backends.InstanceList{inst}.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "rm -f /opt/agi/ingest/steps.json; systemctl start agi-ingest"},
+			Command:        []string{"bash", "-c", "rm -f /opt/agi/ingest/steps.json; systemctl restart agi-plugin.service"},
 			SessionTimeout: 2 * time.Minute,
 		},
 		Username:        "root",

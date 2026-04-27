@@ -49,6 +49,14 @@ type Reattach struct {
 	NoDIMOverride        *bool  `long:"nodim" description:"Override data-in-memory setting when reattaching" no-default:"true"`
 	SpotOverride         *bool  `long:"spot" description:"Override spot instance setting when reattaching" no-default:"true"`
 	OwnerOverride        string `long:"owner" description:"Override owner tag when reattaching"`
+	// RefreshEngineConfigs forces ingest.yaml/plugin.yaml to be
+	// re-rendered from the new instance's memSize on reattach. Set by
+	// the AGI monitor when it rotates to a different instance type so
+	// that Pebble's block cache and the plugin's concurrency limits
+	// scale with the new RAM footprint. Without this the YAMLs from
+	// the original (smaller) instance persist on EFS and the bigger
+	// instance runs with stale tuning. Not exposed on the CLI.
+	RefreshEngineConfigs bool `long:"refresh-engine-configs" hidden:"true"`
 }
 
 // AgiStartCmdAws contains AWS-specific options for AGI start/reattach.
@@ -416,19 +424,20 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 
 	// Build AgiCreateCmd with settings from volume tags
 	createCmd := &AgiCreateCmd{
-		ClusterName:       TypeAgiClusterName(c.Name.String()),
-		AGILabel:          agiLabel,
-		AerospikeVersion:  aerospikeVersion,
-		NoDIM:             noDIM,
-		NoConfigOverride:  true, // Skip source validation and config upload - configs exist on EFS
-		Force:             true, // Allow creating even though EFS exists
-		ProxyDisableSSL:   sslDisable,
-		MonitorUrl:        monitorURL,
-		MonitorCertIgnore: monitorCertIgnore,
-		PreferredTemplate: templateName,
-		Distro:            "ubuntu", // Default, used if template needs to be created
-		DistroVersion:     "latest", // Default, used if template needs to be created
-		Owner:             owner,
+		ClusterName:          TypeAgiClusterName(c.Name.String()),
+		AGILabel:             agiLabel,
+		AerospikeVersion:     aerospikeVersion,
+		NoDIM:                noDIM,
+		NoConfigOverride:     true, // Skip source validation and config upload - configs exist on EFS
+		RefreshEngineConfigs: c.Reattach.RefreshEngineConfigs,
+		Force:                true, // Allow creating even though EFS exists
+		ProxyDisableSSL:      sslDisable,
+		MonitorUrl:           monitorURL,
+		MonitorCertIgnore:    monitorCertIgnore,
+		PreferredTemplate:    templateName,
+		Distro:               "ubuntu", // Default, used if template needs to be created
+		DistroVersion:        "latest", // Default, used if template needs to be created
+		Owner:                owner,
 		AWS: AgiCreateCmdAws{
 			InstanceType:        guiInstanceType(instanceType),
 			Ebs:                 ebs,
@@ -604,19 +613,20 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 
 	// Build AgiCreateCmd with settings from volume tags
 	createCmd := &AgiCreateCmd{
-		ClusterName:       TypeAgiClusterName(c.Name.String()),
-		AGILabel:          agiLabel,
-		AerospikeVersion:  aerospikeVersion,
-		NoDIM:             noDIM,
-		NoConfigOverride:  true, // Skip source validation and config upload - configs exist on volume
-		Force:             true, // Allow creating even though volume exists
-		ProxyDisableSSL:   sslDisable,
-		MonitorUrl:        monitorURL,
-		MonitorCertIgnore: monitorCertIgnore,
-		PreferredTemplate: templateName,
-		Distro:            "ubuntu", // Default, used if template needs to be created
-		DistroVersion:     "latest", // Default, used if template needs to be created
-		Owner:             owner,
+		ClusterName:          TypeAgiClusterName(c.Name.String()),
+		AGILabel:             agiLabel,
+		AerospikeVersion:     aerospikeVersion,
+		NoDIM:                noDIM,
+		NoConfigOverride:     true, // Skip source validation and config upload - configs exist on volume
+		RefreshEngineConfigs: c.Reattach.RefreshEngineConfigs,
+		Force:                true, // Allow creating even though volume exists
+		ProxyDisableSSL:      sslDisable,
+		MonitorUrl:           monitorURL,
+		MonitorCertIgnore:    monitorCertIgnore,
+		PreferredTemplate:    templateName,
+		Distro:               "ubuntu", // Default, used if template needs to be created
+		DistroVersion:        "latest", // Default, used if template needs to be created
+		Owner:                owner,
 		GCP: AgiCreateCmdGcp{
 			InstanceType:        guiInstanceType(instanceType),
 			Disks:               disks,

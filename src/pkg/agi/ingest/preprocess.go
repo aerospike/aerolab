@@ -129,7 +129,7 @@ func (i *Ingest) PreProcess() error {
 			}
 			continue
 		}
-		// deal with text files (could be aerospike log files)
+		// deal with text files (Aerospike server logs, mostly)
 		log.Printf("DETAIL: pre-process %s is a text file, processing", fn)
 		wg.Add(1)
 		threads <- true

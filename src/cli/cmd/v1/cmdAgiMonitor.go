@@ -16,6 +16,19 @@ import (
 // listen) and when the monitor is embedded inside the WebUI (webui
 // --agi-monitor-enable). Server/listener fields (address, TLS, autocert) live
 // in AgiMonitorListenCmd instead.
+//
+// Sizing model (post-Pebble migration):
+//
+//	required_RAM_GB = RAMFloorGB
+//	                 + CacheTargetPct/100 * logSize_GB    // page-cache target
+//	                 + RAMThresMinFreeGB                  // operator-visible headroom
+//
+// The old DIM/NoDIM split is gone — there is no in-memory primary index
+// anymore; everything serves out of the Pebble LSM with a configurable block
+// cache plus the OS page cache. The DIM-specific flags below
+// (DimMultiplier, NoDimMultiplier, SizingNoDIMFirst) are accepted for
+// backward compatibility with old monitor YAML / CLI invocations but are
+// no longer consulted by the sizing logic.
 type AgiMonitorConfigCmd struct {
 	// TLS verification for callbacks to AGI instances
 	StrictAGITLS bool `long:"strict-agi-tls" description:"If set, AGI-Monitor will expect AGI instances to have a valid TLS certificate"`
@@ -24,22 +37,33 @@ type AgiMonitorConfigCmd struct {
 	GCPDiskThresholdPct int `long:"gcp-disk-thres-pct" description:"Usage threshold pct at which the disk will be increased" default:"80"`
 	GCPDiskIncreaseGB   int `long:"gcp-disk-grow-gb" description:"When threshold is breached, grow by these many GB" default:"100"`
 
-	// RAM sizing thresholds
-	RAMThresUsedPct   int `long:"ram-thres-used-pct" description:"Max used PCT of RAM before instance gets sized" default:"95"`
-	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized" default:"8"`
+	// RAM sizing thresholds (live monitoring; threshold-driven sizing).
+	// Threshold-driven sizing is rare in the Pebble model because the steady
+	// state is heavily disk-resident; the bigger trigger is the
+	// pre-process completion event, which uses the formula above directly.
+	RAMThresUsedPct   int `long:"ram-thres-used-pct" description:"Max used PCT of RAM (MemAvailable-based) before instance gets sized" default:"90"`
+	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized; doubles as 'headroom' in the pre-process sizing formula" default:"2"`
+
+	// New sizing model knobs (Pebble).
+	RAMFloorGB     int `long:"ram-floor-gb" description:"Always-on baseline RAM (process+grafana+memtables+ingest buffers). Added on top of cache target and headroom" default:"3"`
+	CacheTargetPct int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
+	CacheMinGB     int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
+	CacheMaxGB     int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
 
 	// Sizing options
-	SizingNoDIMFirst bool `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes"`
-	DisableSizing    bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
-	SizingMaxRamGB   int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"130"`
-	SizingMaxDiskGB  int  `long:"sizing-max-disk-gb" description:"Will not size above these many GB" default:"400"`
+	DisableSizing   bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
+	SizingMaxRamGB  int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"48"`
+	SizingMaxDiskGB int  `long:"sizing-max-disk-gb" description:"Will not size above these many GB" default:"400"`
 
 	// Spot capacity rotation
 	DisableCapacity bool `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand"`
 
-	// RAM multipliers for sizing calculations
-	DimMultiplier   float64 `long:"sizing-multiplier-dim" description:"Log size * multiplier = how much RAM is needed" default:"1.8"`
-	NoDimMultiplier float64 `long:"sizing-multiplier-nodim" description:"Log size * multiplier = how much RAM is needed" default:"0.4"`
+	// Deprecated: DIM mode is gone in the Pebble backend. Kept on the
+	// struct for backward compatibility with existing YAML/CLI; the
+	// fields are no longer read by the sizing logic.
+	SizingNoDIMFirst bool    `long:"sizing-nodim" description:"DEPRECATED: DIM mode no longer exists post-Pebble migration; flag is ignored" hidden:"true"`
+	DimMultiplier    float64 `long:"sizing-multiplier-dim" description:"DEPRECATED: pre-Pebble DIM RAM multiplier; flag is ignored" hidden:"true"`
+	NoDimMultiplier  float64 `long:"sizing-multiplier-nodim" description:"DEPRECATED: pre-Pebble NoDIM RAM multiplier; flag is ignored" hidden:"true"`
 
 	// Debugging
 	DebugEvents bool `long:"debug-events" description:"Log all events for debugging purposes"`

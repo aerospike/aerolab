@@ -8,12 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
 	"github.com/aerospike/aerolab/pkg/agi/notifier"
 	"gopkg.in/yaml.v3"
@@ -29,7 +32,12 @@ type AgiExecIngestCmd struct {
 	notify     notifier.HTTPSNotify `no-default:"true"`
 	notifyJSON bool
 	deployJson string
-	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	// sharedDB, if non-nil, is used instead of opening a new Pebble
+	// handle. It is set by cmdAgiExecService when the ingest pipeline
+	// runs in the same process as the plugin; the db is then owned by
+	// the service command and ingest's Close does not close it.
+	sharedDB *db.DB
+	Help     HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute runs the complete log ingestion pipeline.
@@ -211,10 +219,64 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	if !steps.Init {
 		steps.InitStartTime = time.Now().UTC()
 	}
-	i, err := ingest.Init(config)
+	var i *ingest.Ingest
+	if c.sharedDB != nil {
+		i, err = ingest.InitWithDB(config, c.sharedDB)
+	} else {
+		i, err = ingest.Init(config)
+		// v1→v2 upgrade hop: the agi-db storage layout moved
+		// indexed-row payloads from D/ to I/ keys and bumped the
+		// version record. db.Open refuses to mount a v1 dir as
+		// v2, so on first boot after upgrade we wipe and re-
+		// ingest from scratch. See cmdAgiExecService for the
+		// shared-process flavour of this same handler.
+		if err != nil && errors.Is(err, db.ErrStorageVersionMismatch) {
+			system.Logger.Warn("agi-db storage version mismatch at %s; wiping and re-ingesting", config.DB.Path)
+			if werr := agiWipeOnVersionMismatch(config.DB.Path, config.ProgressFile.OutputFilePath); werr != nil {
+				return fmt.Errorf("agi wipe-on-mismatch: %s", werr)
+			}
+			// steps.json was removed by the wipe helper; reset
+			// the in-memory copy so subsequent step writes
+			// don't resurrect the old (pre-wipe) flags.
+			steps = new(ingest.IngestSteps)
+			steps.InitStartTime = time.Now().UTC()
+			i, err = ingest.Init(config)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("Init: %s", err)
 	}
+	// Belt-and-braces: every early return below must flush the db's
+	// memtable (if WAL is off, anything not flushed is lost). Close
+	// is idempotent, and i.ownsDB controls whether it actually closes
+	// the underlying db handle — so this defer is safe whether we
+	// own the db (standalone ingest command) or share it (merged
+	// service command).
+	defer i.Close()
+
+	// SIGTERM / SIGINT handler: flush ingest progress and db writes
+	// before the process is killed. Without this a `systemctl stop`
+	// mid-pipeline would lose everything still in the memtable. The
+	// goroutine exits once the pipeline returns (sigCh is closed
+	// below).
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer func() {
+		signal.Stop(sigCh)
+		close(sigCh)
+	}()
+	go func() {
+		sig, ok := <-sigCh
+		if !ok {
+			return
+		}
+		system.Logger.Info("Ingest: received %s, flushing and exiting", sig)
+		i.Close()
+		// Exit hard; the pipeline's in-flight goroutines cannot be
+		// cancelled cleanly (no ctx plumbed), but the flushing done
+		// by Close above is the important invariant.
+		os.Exit(1)
+	}()
 	steps.Init = true
 	steps.InitEndTime = time.Now().UTC()
 	if !steps.Download {
@@ -470,7 +532,10 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	if !processCollectInfoEndTime.IsZero() {
 		steps.ProcessCollectInfoEndTime = processCollectInfoEndTime
 	}
-	i.Close()
+	// Close happens via defer i.Close() earlier; do not re-close
+	// here. When we're running under cmdAgiExecService the db handle
+	// belongs to the service, not to i, and the defer correctly
+	// leaves the shared handle alone.
 
 	// Update steps after processing
 	if !steps.ProcessLogs || !steps.ProcessCollectInfo {

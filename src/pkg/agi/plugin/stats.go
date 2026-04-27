@@ -22,7 +22,11 @@ func (p *Plugin) stats() {
 			oldjobs = jobs
 			p.printStats()
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-p.done:
+			return
+		case <-time.After(time.Second):
+		}
 	}
 }
 

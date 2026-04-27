@@ -4,17 +4,26 @@ package cmd
 
 import (
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/plugin"
 )
 
 // AgiExecPluginCmd runs the Grafana plugin backend service.
 // This is a hidden command that runs inside AGI instances, not called by users directly.
-// The plugin provides a JSON datasource for Grafana that queries data from Aerospike.
+// The plugin provides a JSON datasource for Grafana that queries data from the
+// embedded DB (pkg/agi/db).
 type AgiExecPluginCmd struct {
-	YamlFile string  `short:"y" long:"yaml" description:"Path to YAML config file" default:"/opt/agi/plugin.yaml"`
+	YamlFile string `short:"y" long:"yaml" description:"Path to YAML config file" default:"/opt/agi/plugin.yaml"`
+	// sharedDB, if non-nil, is used instead of opening a new Pebble
+	// handle. It is set by cmdAgiExecService when the plugin runs in
+	// the same process as the ingest pipeline; the db is then owned
+	// by the service command and plugin's Close does not close it.
+	sharedDB *db.DB
 	Help     HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -23,7 +32,7 @@ type AgiExecPluginCmd struct {
 // initializes the plugin, writes a PID file for process management,
 // and starts the HTTP server for Grafana to connect to.
 //
-// The plugin listens on the configured address (default: 0.0.0.0:8850) and serves:
+// The plugin listens on the configured address (default: 127.0.0.1:8851) and serves:
 //   - /metrics - Available metrics for Grafana queries
 //   - /metric-payload-options - Metric configuration options
 //   - /query - Main query endpoint for Grafana panels
@@ -62,16 +71,42 @@ func (c *AgiExecPluginCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	// Initialize plugin with database connection
-	p, err := plugin.Init(conf)
+	// Initialize plugin with database connection.
+	var p *plugin.Plugin
+	if c.sharedDB != nil {
+		p, err = plugin.InitWithDB(conf, c.sharedDB)
+	} else {
+		p, err = plugin.Init(conf)
+	}
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+
+	// Install a signal handler so SIGTERM/SIGINT flush the HTTP
+	// server's in-flight work before the process is killed. Without
+	// this a systemd `stop` would kill the process while a query is
+	// still writing its response, and — when WAL is off — any still
+	// buffered db writes from the plugin's label refresher would be
+	// lost. Delivery is idempotent; once per signal is enough.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig, ok := <-sigCh
+		if !ok {
+			return
+		}
+		system.Logger.Info("Plugin: received %s, draining HTTP server", sig)
+		p.Shutdown()
+	}()
 
 	system.Logger.Info("Starting plugin HTTP server on %s:%d", conf.Service.ListenAddress, conf.Service.ListenPort)
 
 	// Start HTTP server (blocks until shutdown)
 	err = p.Listen()
+
+	// Stop forwarding signals once the server has returned.
+	signal.Stop(sigCh)
+	close(sigCh)
 
 	// Cleanup
 	p.Close()

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -19,11 +19,32 @@ type Ingest struct {
 	cpuProfile   *os.File
 	pprofRunning bool
 	progress     *Progress
-	db           *aerospike.Client
-	wp           *aerospike.WritePolicy
-	end          bool
-	endLock      *sync.Mutex
-	binList      *binList
+	db           *db.DB
+	// ownsDB is true when this Ingest opened the db handle itself via
+	// Init(); Close() is then responsible for db.Close. When ownsDB is
+	// false (handle was injected via InitWithDB from a caller that
+	// co-owns the db with the plugin), Close() does NOT close the db —
+	// the caller does.
+	ownsDB  bool
+	end     bool
+	endLock *sync.Mutex
+	binList *binList
+	// bg tracks saveProgressInterval and printProgressInterval so
+	// Close() can Wait for them. They don't touch the db themselves
+	// (they write the progress file) but leaving them alive past
+	// Close() leaks goroutines in tests that spawn many Ingests and
+	// masks lifecycle bugs in longer-running deployments.
+	bg        sync.WaitGroup
+	closeOnce sync.Once
+
+	// putBatcher accumulates per-set metric rows on the
+	// ProcessLogs hot path and flushes them in db.PutBatch chunks
+	// with AssumeNew=true. Initialised in finalizeInit (so both
+	// Init and InitWithDB get one) and closed by Ingest.Close
+	// after the per-row workers have drained. nil only between
+	// newIngest and finalizeInit; the hot path always sees a
+	// non-nil batcher.
+	putBatcher *putBatcher
 }
 
 type binList struct {
@@ -86,41 +107,52 @@ func (l *lineErrors) UnmarshalJSON(v []byte) error {
 }
 
 type Config struct {
-	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
-	Aerospike struct {
-		WaitForSindexes     bool   `yaml:"waitForSindexes" default:"true"`
-		Host                string `yaml:"host" default:"127.0.0.1"`
-		Port                int    `yaml:"port" default:"3000"`
-		Namespace           string `yaml:"namespace" default:"agi"`
-		DefaultSetName      string `yaml:"defaultSetName" default:"default"`
-		LogFileRagesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
-		TimestampBinName    string `yaml:"timestampBinName" default:"timestamp"`
-		TimestampIndexName  string `yaml:"timestampIndexName" default:"timestamp_idx"`
-		Timeouts            struct {
-			Connect time.Duration `yaml:"connect" default:"10s"`
-			Idle    time.Duration `yaml:"idle" default:"0"`
-			Socket  time.Duration `yaml:"socket" default:"10s"`
-			Total   time.Duration `yaml:"timeout" default:"30s"`
-		} `yaml:"timeouts"`
-		Retries struct {
-			Connect      int           `yaml:"connect" default:"-1"` // set to -1 to retry forever
-			ConnectSleep time.Duration `yaml:"connectSleep" default:"1s"`
-			Read         int           `yaml:"read" default:"50"`
-			Write        int           `yaml:"write" default:"50"`
-		} `yaml:"retries"`
-		MaxPutThreads int `yaml:"maxPutThreads" default:"128"`
-		Security      struct {
-			Username         string `yaml:"username" envconfig:"LOGINGEST_AEROSPIKE_USER"`
-			Password         string `yaml:"password" envconfig:"LOGINGEST_AEROSPIKE_PASSWORD"`
-			AuthModeExternal bool   `yaml:"authModeExternal"`
-		} `yaml:"security"`
-		TLS struct {
-			CaFile     string `yaml:"caFile"`
-			CertFile   string `yaml:"certFile"`
-			KeyFile    string `yaml:"keyFile"`
-			ServerName string `yaml:"serverName"`
-		} `yaml:"tls"`
-	} `yaml:"aerospike"`
+	LogLevel int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
+	// DB holds embedded-db tuning knobs only. Pipeline knobs that used
+	// to live here (DefaultSetName, LogFileRangesSetName,
+	// TimestampColumnName, MaxPutThreads) were moved to top-level
+	// fields below — they are not properties of the storage engine.
+	DB struct {
+		// Path is the on-disk directory Pebble writes to. The default
+		// is db.DefaultPath; keep ingest and plugin in lockstep or
+		// they will open separate stores and never see each other's
+		// data.
+		Path                        string `yaml:"path" default:"/opt/agi/db" envconfig:"LOGINGEST_DB_PATH"`
+		CacheBytes                  int64  `yaml:"cacheBytes" default:"0"`                  // 0 -> db default
+		MemTableSizeBytes           uint64 `yaml:"memTableSizeBytes" default:"0"`           // 0 -> db default
+		MemTableStopWritesThreshold int    `yaml:"memTableStopWritesThreshold" default:"0"` // 0 -> db default
+		MaxConcurrentCompactions    int    `yaml:"maxConcurrentCompactions" default:"0"`    // 0 -> db default
+		MaxOpenFiles                int    `yaml:"maxOpenFiles" default:"0"`
+		EnableWAL                   bool   `yaml:"enableWAL" default:"false"`
+		SyncWrites                  bool   `yaml:"syncWrites" default:"false"`
+	} `yaml:"db"`
+	// Pipeline tuning. These were under `db:` in earlier versions; they
+	// are not engine-level knobs and were moved here for clarity. AGI
+	// instances are short-lived and not migrated, so the rename is safe.
+	DefaultSetName       string `yaml:"defaultSetName" default:"default"`
+	LogFileRangesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
+	TimestampColumnName  string `yaml:"timestampColumnName" default:"timestamp"`
+	MaxPutThreads        int    `yaml:"maxPutThreads" default:"128"`
+	// PutBatchSize is the number of metric rows accumulated per set
+	// before the ingest hot path flushes via db.PutBatch. Larger
+	// batches amortise the Pebble.Batch commit overhead and the
+	// schema-resolution fast-path's lock churn at the cost of
+	// holding more rows in memory between flushes (each row is a
+	// few hundred bytes) and a longer worst-case end-to-end
+	// latency before a row is queryable. The default of 256 was
+	// picked from the AGI workload sweep: at 256 the per-batch
+	// overhead is amortised below the per-row cost, going larger
+	// shows diminishing returns.
+	PutBatchSize int `yaml:"putBatchSize" default:"256"`
+	// PutBatchFlushMs is the maximum age of an in-flight batch
+	// before the flusher commits it even if it is below
+	// PutBatchSize. Bounds the staleness window between log-line
+	// arrival and queryability; 50ms keeps the staleness lower
+	// than a typical Grafana refresh interval. Set to 0 to use the
+	// 50ms default; very small values (<5ms) defeat the batching
+	// benefit because the flusher trips before any meaningful
+	// number of rows accumulate.
+	PutBatchFlushMs int `yaml:"putBatchFlushMs" default:"50"`
 	Dedup struct {
 		Enabled   bool `yaml:"enabled" default:"true"`
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
@@ -401,6 +433,15 @@ type IngestStatusStruct struct {
 		Errors                   []string
 		ErrorCount               int
 	}
+	// AerospikeRunning is a legacy field name preserved for wire
+	// compatibility with monitor listeners and the web UI. Its
+	// post-migration meaning is "the AGI storage backend is up".
+	// The embedded db now lives inside the merged service process
+	// (cmdAgiExecService) or the legacy ingest/plugin processes;
+	// the writer in cmdAgiExecGetStatus_unix.go sets this true
+	// when any of those pids is alive. Renaming would break
+	// existing JSON consumers, so the rename is deferred until a
+	// coordinated wire-format bump.
 	AerospikeRunning     bool
 	PluginRunning        bool
 	GrafanaHelperRunning bool

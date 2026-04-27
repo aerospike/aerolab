@@ -64,9 +64,10 @@ func (c *AgiMonitorCmd) Execute(args []string) error {
 // AgiExecCmd is the hidden AGI exec subsystem command structure
 // These commands are run inside AGI instances, not by users directly
 type AgiExecCmd struct {
-	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend"`
+	Service      AgiExecServiceCmd      `command:"service" subcommands-optional:"true" description:"Run merged ingest+plugin service (recommended: uses one Pebble lock)"`
+	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend (legacy; conflicts with standalone ingest on shared DB)"`
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
-	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service"`
+	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service (legacy; conflicts with standalone plugin on shared DB)"`
 	Proxy        AgiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Run web proxy"`
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`

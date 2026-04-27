@@ -832,20 +832,33 @@ fi
 	// Create systemd service files
 	script.WriteString("echo '=== Creating systemd service files ==='\n")
 
-	// agi-plugin service
+	// agi-plugin service: runs the merged ingest+plugin service.
+	// The unit file name is kept as agi-plugin.service for
+	// backward compatibility with existing tooling (systemctl
+	// start/stop/status scripts, log readers, etc.) but the ExecStart
+	// now launches the unified "agi exec service" which shares a
+	// single Pebble DB handle between the ingest pipeline and the
+	// plugin HTTP server. Running them as separate processes caused
+	// the second process to fail to acquire Pebble's exclusive file
+	// lock on the shared data directory — hence this consolidation.
 	script.WriteString(`
 cat > /etc/systemd/system/agi-plugin.service << 'EOF'
 [Unit]
-Description=AGI Grafana Plugin Backend
+Description=AGI Service (merged ingest + Grafana plugin backend)
 After=network.target aerospike.service
 
 [Service]
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/local/bin/aerolab agi exec plugin
+ExecStart=/usr/local/bin/aerolab agi exec service
 Restart=always
 RestartSec=5
+# Give the service time to drain in-flight ingest work and flush
+# the Pebble memtable on shutdown. Default of 90s is not enough
+# for large log volumes; match the plugin's shutdownTimeout (60s)
+# plus a safety margin.
+TimeoutStopSec=120
 StandardOutput=append:/var/log/agi-plugin.log
 StandardError=append:/var/log/agi-plugin.log
 
@@ -854,20 +867,26 @@ WantedBy=multi-user.target
 EOF
 `)
 
-	// agi-ingest service
+	// agi-ingest service: intentionally a no-op stub. The ingest
+	// pipeline now runs inside agi-plugin.service (see above). This
+	// unit exists only so legacy scripts (cmdAgiCreate.go's enable
+	// loop, cmdAgiStatus.go's service list) that reference
+	// agi-ingest.service don't fail; starting it prints a
+	// deprecation notice and exits. Re-triggering an ingest is done
+	// by resetting /opt/agi/ingest/steps.json and restarting
+	// agi-plugin.service (see cmdAgiRetrigger.go).
 	script.WriteString(`
 cat > /etc/systemd/system/agi-ingest.service << 'EOF'
 [Unit]
-Description=AGI Log Ingest Service
-After=network.target aerospike.service
+Description=AGI Log Ingest Service (deprecated stub; see agi-plugin.service)
+After=network.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=root
 Group=root
-ExecStart=/usr/local/bin/aerolab agi exec ingest
-Restart=on-failure
-RestartSec=30
+ExecStart=/bin/sh -c 'echo "agi-ingest.service is deprecated; ingest runs inside agi-plugin.service. To re-run ingest: rm /opt/agi/ingest/steps.json && systemctl restart agi-plugin.service" | tee -a /var/log/agi-ingest.log'
+RemainAfterExit=yes
 StandardOutput=append:/var/log/agi-ingest.log
 StandardError=append:/var/log/agi-ingest.log
 

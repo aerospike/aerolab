@@ -32,7 +32,7 @@ import (
 
 // Run executes the complete log ingestion pipeline using configuration from a YAML file.
 // This is the main entry point for the log ingestion system that handles the entire workflow
-// from downloading logs to processing and storing them in the Aerospike database.
+// from downloading logs to processing and storing them in the embedded agi/db store.
 //
 // The function performs the following steps:
 // 1. Load configuration from YAML file and environment variables
@@ -41,7 +41,7 @@ import (
 // 4. Unpack and decompress log files
 // 5. Preprocess logs to identify clusters and nodes
 // 6. Process logs and collectinfo files concurrently
-// 7. Store processed data in Aerospike database
+// 7. Store processed data in the embedded agi/db store
 //
 // Parameters:
 //   - yamlFile: Path to the YAML configuration file. If empty, uses environment variables only.
@@ -79,7 +79,7 @@ func Run(yamlFile string) error {
 // Usage:
 //
 //	config := &ingest.Config{
-//	    Aerospike: aerospikeConfig,
+//	    DB: dbConfig,
 //	    Downloader: downloaderConfig,
 //	    // ... other settings
 //	}
@@ -104,29 +104,41 @@ func RunWithConfig(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("PreProcess: %s", err)
 	}
-	nerr := []error{}
+	// ProcessLogs and ProcessCollectInfo run concurrently and can each
+	// produce up to two errors (prep + run for ProcessLogs, run for
+	// ProcessCollectInfo). A buffered channel large enough to hold all
+	// possible errors lets every goroutine deposit its result without
+	// blocking and without sharing a slice header between goroutines —
+	// avoiding the data race that the prior `append(nerr, ...)` pattern
+	// from two goroutines would have triggered.
+	errCh := make(chan error, 3)
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		foundLogs, meta, err := i.ProcessLogsPrep()
 		if err != nil {
-			nerr = append(nerr, fmt.Errorf("ProcessLogsPrep: %s", err))
+			errCh <- fmt.Errorf("ProcessLogsPrep: %s", err)
 			return
 		}
 		err = i.ProcessLogs(foundLogs, meta)
 		if err != nil {
-			nerr = append(nerr, fmt.Errorf("ProcessLogs: %s", err))
+			errCh <- fmt.Errorf("ProcessLogs: %s", err)
 		}
 	}()
 	go func() {
 		defer wg.Done()
 		err := i.ProcessCollectInfo()
 		if err != nil {
-			nerr = append(nerr, fmt.Errorf("ProcessCollectInfo: %s", err))
+			errCh <- fmt.Errorf("ProcessCollectInfo: %s", err)
 		}
 	}()
 	wg.Wait()
+	close(errCh)
+	nerr := make([]error, 0, len(errCh))
+	for e := range errCh {
+		nerr = append(nerr, e)
+	}
 	i.Close()
 	if len(nerr) > 0 {
 		errstr := ""

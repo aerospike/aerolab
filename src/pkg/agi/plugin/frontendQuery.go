@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"log"
 
-	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/rglonek/sbs"
 )
 
@@ -21,26 +19,6 @@ func isSocketTimeout(ctx context.Context) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func (p *Plugin) timedCheckSocketTimeout(ctx context.Context, resultSet *aerospike.Recordset, isCancelled chan bool, end chan bool) {
-	for {
-		if len(end) > 0 {
-			<-end
-			return
-		}
-		if isSocketTimeout(ctx) {
-			isCancelled <- true
-			if resultSet.IsActive() {
-				resultSet.Close()
-			}
-			for _, node := range p.db.GetNodes() {
-				node.RequestInfo(p.ip, fmt.Sprintf("jobs:module=query;cmd=kill-job;trid=%d", resultSet.TaskId())) //nolint:errcheck
-			}
-			return
-		}
-		time.Sleep(time.Second)
 	}
 }
 
@@ -141,7 +119,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 				responses = append(responses, ri)
 			}
 		case "table":
-			resp, err := p.handleQueryTable(req, i, r.RemoteAddr)
+			resp, err := p.handleQueryTable(r.Context(), req, i, r.RemoteAddr)
 			if err != nil {
 				responseError(w, http.StatusBadRequest, "Request target table %d (%s:%s) (remote:%s) (error:%s)", i, req.Targets[i].RefId, req.Targets[i].Target, r.RemoteAddr, err)
 				return

@@ -23,7 +23,7 @@ import (
 
 	"log"
 
-	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -94,18 +94,14 @@ func (i *Ingest) ProcessCollectInfo() error {
 	// preload meta entries for collectinfo files
 	log.Printf("DEBUG: ProcessCollectInfo: db.Get existing CF filename metadata")
 	cfNames := []string{}
-	key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
-	if aerr != nil {
-		log.Printf("ERROR: CF Processor: could not create key for metadata fetch: %s", aerr)
-	} else {
-		rec, err := i.db.Get(nil, key)
-		if err != nil {
-			log.Printf("ERROR: CF Processor: could not get CF filename metadata: %s", err)
-		} else {
+	row, err := i.db.Get(i.patterns.LabelsSetName, "cfName", labelsValueCol)
+	if err != nil {
+		log.Printf("ERROR: CF Processor: could not get CF filename metadata: %s", err)
+	} else if row != nil {
+		if s, ok := row[labelsValueCol].AsString(); ok {
 			metaItem := &metaEntries{}
-			err := json.Unmarshal([]byte(rec.Bins["cfName"].(string)), &metaItem)
-			if err != nil {
-				log.Printf("WARN: CF Processor: failed to unmarshal existing cf filename data: %s", err)
+			if uerr := json.Unmarshal([]byte(s), metaItem); uerr != nil {
+				log.Printf("WARN: CF Processor: failed to unmarshal existing cf filename data: %s", uerr)
 			}
 			cfNames = append(cfNames, metaItem.Entries...)
 		}
@@ -136,7 +132,13 @@ func (i *Ingest) ProcessCollectInfo() error {
 		}
 		if newName != "" && newName != filePath {
 			i.progress.Lock()
+			// Move the persisted progress entry to the new key. The
+			// previous code only deleted from the local foundFiles
+			// map and left i.progress.CollectinfoProcessor.Files
+			// holding both the old and new keys, growing
+			// progress.json across every ingest run.
 			i.progress.CollectinfoProcessor.Files[newName] = i.progress.CollectinfoProcessor.Files[filePath]
+			delete(i.progress.CollectinfoProcessor.Files, filePath)
 			delete(foundFiles, filePath)
 			i.progress.Unlock()
 		}
@@ -148,17 +150,8 @@ func (i *Ingest) ProcessCollectInfo() error {
 	metajson, err := json.Marshal(meta)
 	if err != nil {
 		log.Printf("ERROR: CF Processor: could not jsonify for metadata: %s", err)
-	} else {
-		key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
-		if aerr != nil {
-			log.Printf("ERROR: CF Processor: could not create key for metadata: %s", aerr)
-		} else {
-			bin := aerospike.NewBin("cfName", string(metajson))
-			aerr = i.db.PutBins(i.wp, key, bin)
-			if aerr != nil {
-				log.Printf("ERROR: CF Processor: could not store metadata: %s", aerr)
-			}
-		}
+	} else if perr := i.db.Put(i.patterns.LabelsSetName, "cfName", db.Row{labelsValueCol: db.Str(string(metajson))}); perr != nil {
+		log.Printf("ERROR: CF Processor: could not store metadata: %s", perr)
 	}
 	i.progress.Lock()
 	i.progress.CollectinfoProcessor.changed = true
@@ -326,47 +319,45 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 
 	log.Printf("DETAIL: processCollectInfoFile: creating DB entry for %s", resolvedPath)
 	_, fname := path.Split(resolvedPath)
-	key, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, resolvedPath)
-	if err != nil {
-		return newName, fmt.Errorf("aerospike.NewKey: %s", err)
+	cfRow := db.Row{
+		"sysinfo":  db.Str(string(ct.sysinfo)),
+		"conffile": db.Str(string(ct.confFile)),
+		"health":   db.Str(ct.health),
+		"summary":  db.Str(ct.summary),
+		"cfName":   db.Str(fname),
 	}
-	totalLen := len(string(ct.sysinfo)) + len(string(ct.confFile)) + len(ct.health) + len(ct.summary) + len(fname)
-	if totalLen >= 8387584 { // 8M-1K
-		ct.health = "<removed, record too big>"
-		totalLen = len(string(ct.sysinfo)) + len(string(ct.confFile)) + len(ct.health) + len(ct.summary) + len(fname)
-		if totalLen >= 8387584 { // 8M-1K
-			ct.sysinfo = []byte("<removed, record too big>")
-		}
+	// Pebble has no hard upper bound on row size like Aerospike's 8 MiB
+	// limit, but very large blobs still hurt: they bloat the memtable,
+	// blow up WAL replays, and stall flushes. Warn so an operator
+	// chasing slow ingest has a single grep to find the cause.
+	const cfSoftWarnBytes = 16 << 20
+	cfTotalBytes := len(ct.sysinfo) + len(ct.confFile) + len(ct.health) + len(ct.summary) + len(fname)
+	if cfTotalBytes > cfSoftWarnBytes {
+		log.Printf("WARN: ProcessCollectInfo: collectinfo record for %s is %d bytes (> %d soft cap); ingest will continue but flushes may be slow", resolvedPath, cfTotalBytes, cfSoftWarnBytes)
 	}
-	binSysinfo := aerospike.NewBin("sysinfo", string(ct.sysinfo))
-	binConfFile := aerospike.NewBin("conffile", string(ct.confFile))
-	binHealth := aerospike.NewBin("health", ct.health)
-	binSummary := aerospike.NewBin("summary", ct.summary)
-	binFname := aerospike.NewBin("cfName", fname)
-	err = i.db.PutBins(i.wp, key, binSysinfo, binConfFile, binHealth, binSummary, binFname)
-	if err != nil {
+	if err := i.db.Put(i.config.CollectInfoSetName, resolvedPath, cfRow); err != nil {
 		log.Printf("DETAIL: ProcessCollectInfo: could not insert record for %s: %s", resolvedPath, err)
-		return newName, fmt.Errorf("aerospike.PutBins: %s", err)
+		return newName, fmt.Errorf("db.Put: %s", err)
 	}
 	if ct.infoNetJson != nil && len(ct.infoNetJson.Groups) > 0 {
 		for _, record := range ct.infoNetJson.Groups[0].Records {
-			bins := make(map[string]any)
-			bins["cfName"] = fname
-			bins["build"] = record.Build.Converted
-			bins["clientConns"] = record.ClientConns.Converted
-			bins["ip"] = record.IP.Converted
-			bins["migrations"] = record.Migrations.Converted
-			bins["nodeId"] = strings.Trim(record.NodeID.Converted, "*")
-			bins["uptime"] = record.Uptime.Converted
-			bins["integrity"] = record.Cluster.Integrity.Converted
-			bins["clusterKey"] = record.Cluster.Key.Converted
-			bins["principal"] = record.Cluster.Principal.Converted
-			bins["clusterSize"] = record.Cluster.Size.Converted
-			bins["clusterName"] = record.ClusterName
-			pk, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, fmt.Sprintf("%s::%s::%s", resolvedPath, record.IP.Converted, record.NodeID.Converted))
-			aerr := i.db.Put(i.wp, pk, bins)
-			if aerr != nil {
-				log.Printf("WARN: Failed to store item in aerospike: %s", aerr.Error())
+			infoRow := db.Row{
+				"cfName":      db.Str(fname),
+				"build":       db.Str(record.Build.Converted),
+				"clientConns": db.Str(record.ClientConns.Converted),
+				"ip":          db.Str(record.IP.Converted),
+				"migrations":  db.Str(record.Migrations.Converted),
+				"nodeId":      db.Str(strings.Trim(record.NodeID.Converted, "*")),
+				"uptime":      db.Str(record.Uptime.Converted),
+				"integrity":   db.Str(record.Cluster.Integrity.Converted),
+				"clusterKey":  db.Str(record.Cluster.Key.Converted),
+				"principal":   db.Str(record.Cluster.Principal.Converted),
+				"clusterSize": db.Str(record.Cluster.Size.Converted),
+				"clusterName": db.Str(record.ClusterName),
+			}
+			pk := fmt.Sprintf("%s::%s::%s", resolvedPath, record.IP.Converted, record.NodeID.Converted)
+			if perr := i.db.Put(i.config.CollectInfoSetName, pk, infoRow); perr != nil {
+				log.Printf("WARN: Failed to store item in db: %s", perr.Error())
 			}
 		}
 	}

@@ -3,11 +3,18 @@
 Source: `src/pkg/agi/plugin/`
 
 This document describes how the AGI Grafana datasource plugin builds and
-executes queries against Aerospike, and—more importantly—the post-processing
-algorithms that turn raw record streams into renderable series. It focuses on
-behaviour that is not obvious from the code alone: the downsampling window,
-null-gap injection, delta handling, singular-series extension, and all of the
-per-bin options that influence the final output.
+executes queries against the embedded `pkg/agi/db` (Pebble-backed) store,
+and—more importantly—the post-processing algorithms that turn raw record
+streams into renderable series. It focuses on behaviour that is not obvious
+from the code alone: the downsampling window, null-gap injection, delta
+handling, singular-series extension, and all of the per-bin options that
+influence the final output.
+
+The historical Aerospike-backed version of this package is preserved at
+`pkg/agi/plugin-aerospike/` for reference; the path-level differences
+(RequestInfo for set/bin enumeration, `aerospike.Expression` trees, socket
+timeout supervisor, per-node `kill-job` on cancel) are covered inline below
+with the corresponding embedded-db equivalent.
 
 The plugin is a JSON-over-HTTP datasource (Grafana SimpleJson-style). The
 relevant HTTP endpoints live in `frontend.go`:
@@ -26,20 +33,28 @@ All query handlers share a few pieces of infrastructure:
 
 - A background cache refresher (`queryAndCache` in `backendQueryAndCache.go`)
   that every `CacheRefreshInterval` (default `30s`) reloads:
-  - the namespace's set names (via `sets/<ns>` info call);
-  - the bin list (first via `bins/<ns>` info, then a fallback to a
-    `BINLIST` record stored in the `labels` set);
-  - per-label metadata records from the `labels` set (`metaEntries` struct with
-    `Entries`, `ByCluster`, `StaticEntriesIdx`).
+  - the known set names via `p.db.Sets()`;
+  - the bin list from a `BINLIST` record stored in the `labels` set
+    (`p.db.Get(LabelsSetName, "BINLIST", "json")`, JSON-unmarshalled into
+    `[]string`). There is no longer a separate fallback path — the embedded
+    db has no notion of `bins/<ns>`.
+  - per-label metadata records by scanning the `labels` set with
+    `p.db.Scan(LabelsSetName, "json")`; the primary key is the label name
+    (`ClusterName`, `NodeIdent`, `sources`, `timerange`, etc.), the `json`
+    column holds the serialised `metaEntries` struct (`Entries`,
+    `ByCluster`, `StaticEntriesIdx`). The `BINLIST` key is skipped during
+    this scan.
 - Two bounded concurrency gates (`requests` and `jobs` buffered channels)
   sized by `MaxConcurrentRequests` and `MaxConcurrentJobs`. `/query` and
   `/histogram` acquire a request slot immediately and a job slot just before
   doing database work.
-- A `timedCheckSocketTimeout` goroutine that polls the HTTP request context
-  once per second while the Aerospike recordset is being drained. If the
-  client disconnects it closes the recordset and issues
-  `jobs:module=query;cmd=kill-job;trid=<taskId>` to every node so the scan
-  stops server-side.
+- Client-disconnect propagation. The embedded db iterator honours the
+  `context.Context` it was started with: each handler calls `Run(r.Context())`
+  (or `ScanContext(r.Context(), ...)`) so if Grafana drops the socket, the
+  next `Next()` returns false and `Err()` surfaces `ctx.Err()`. There is no
+  separate supervisor goroutine and no equivalent of the Aerospike
+  `jobs:module=query;cmd=kill-job` side-call — iteration simply unwinds via
+  the deferred `it.Close()`.
 
 ---
 
@@ -114,50 +129,59 @@ The plugin assembles the **bins to fetch** by unioning:
 - every `FilterVariable` bin,
 - every `GroupBy` bin.
 
-A `Statement` is created over `namespace=<Aerospike.Namespace>, set=<Target>`
-with a **range secondary-index filter** on the timestamp bin:
+A `db.Query` is started against `set=<Target>` with a **range index scan**
+on the timestamp column (the embedded db maintains a primary range index
+on the set's single indexed column, declared via `RegisterSet` with
+`Indexed: true`):
 
 ```go
-stmt.SetFilter(aerospike.NewRangeFilter(
-    TimestampBinName,
-    req.Range.From.UnixMilli(),
-    req.Range.To.UnixMilli(),
-))
+q := p.db.Query(target.Target).
+    Between(p.config.TimestampBinName,
+        db.Int(req.Range.From.UnixMilli()),
+        db.Int(req.Range.To.UnixMilli())).
+    Project(binListA...)
 ```
 
-This is the only scan narrowing provided by the server. Everything else
-(filters, group-by, required bins) is implemented as a filter expression on
-the query policy — i.e. predicate pushdown evaluated per-record by the
-Aerospike node.
+This is the only scan narrowing the db applies directly at the iterator
+layer. Everything else (filters, group-by, required bins) is evaluated
+per-record by the pushdown filter passed to `Where(...)` (see below).
+`Project(...)` limits the decoded columns to what the handler actually
+needs, which matters because the row payload is sparse-column TLV.
 
 ### 3.2 Filter expression
 
 The filter expression is built from three groups of clauses, all combined
-with `ExpAnd`:
+with `db.And(...)` and passed to `q.Where(...)`:
 
-1. **Filter variables.** For each named filter the plugin collects one
-   `ExpEq(ExpIntBin(name), ExpIntVal(dictIdx))` per selected value, OR's them
-   together, and then:
-   - if `MustExist=true` → `AND(ExpBinExists(name), OR-of-equalities)`;
-   - otherwise → `OR(NOT(ExpBinExists(name)), OR-of-equalities)`.
-     This means absence of the bin is treated as "does not match" only when
-     `MustExist` is set; the looser form is what lets AGI render partial
-     series while ingestion is still running.
-   - A client-selected value of `"NONE"` short-circuits the entire query with
-     an empty response. This is used by dashboard dropdowns that include a
-     `NONE` sentinel (controlled by `Config.AddNoneToLabels`).
+1. **Filter variables.** For each named filter the plugin collects the
+   selected dictionary indices into a `[]db.Value`, wraps them in a single
+   `db.In(name, vals...)` (equivalent to `Or`-of-`Eq` but clearer on the
+   wire), and then:
+   - if `MustExist=true` → `db.And(db.Exists(name), db.In(...))`;
+   - otherwise → `db.Or(db.Not(db.Exists(name)), db.In(...))`.
+     This means absence of the column is treated as "does not match" only
+     when `MustExist` is set; the looser form is what lets AGI render
+     partial series while ingestion is still running.
+   - A client-selected value of `"NONE"` short-circuits the entire query
+     with an empty response. This is used by dashboard dropdowns that
+     include a `NONE` sentinel (controlled by `Config.AddNoneToLabels`).
 
 2. **Required bins.** For every data bin with `Required=true` a
-   `ExpBinExists(bin.Name)` is AND'ed into the expression. Additionally, the
-   plugin pre-flights the bin name against the cached bin list; if a
-   `Required` bin is not currently present anywhere in the set the handler
-   fails fast with `"statistic bin <name> (<display>) not found"` rather
-   than returning an empty graph.
+   `db.Exists(bin.Name)` clause is appended. Additionally, the plugin
+   pre-flights the bin name against the cached bin list; if a `Required`
+   bin is not currently present anywhere in the set the handler fails
+   fast with `"statistic bin <name> (<display>) not found"` rather than
+   returning an empty graph.
 
-3. **Required group-by bins.** Same `ExpBinExists` trick, AND'ed in.
+3. **Required group-by bins.** Same `db.Exists` trick, appended to the
+   expression list.
 
-Query-policy timeouts are taken from `Aerospike.Timeouts.QuerySocket` /
-`QueryTotal`.
+Cancellation is driven by the HTTP request context: `q.Run(r.Context())`
+propagates client disconnects into the iterator, so there is no separate
+query-socket / query-total timeout configurable (the historical
+`Aerospike.Timeouts.Query*` settings are gone). A graceful shutdown window
+is still respected: `/shutdown` uses `Config.DB.ShutdownTimeout` (default
+`60s`) for `http.Server.Shutdown`.
 
 ### 3.3 Safety gates
 
