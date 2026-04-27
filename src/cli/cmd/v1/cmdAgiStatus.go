@@ -263,7 +263,7 @@ echo "INGEST_END"
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {
 		// Return defaults if script failed
-		services := []string{"aerospike", "grafana-server", "agi-plugin", "agi-grafanafix", "agi-proxy"}
+		services := []string{"grafana-server", "agi-plugin", "agi-grafanafix", "agi-proxy"}
 		for _, svc := range services {
 			result.Services = append(result.Services, AgiServiceStatus{Name: svc, Status: "unknown", Active: false})
 		}

@@ -64,7 +64,7 @@ type AgiExecProxyCmd struct {
 	EntryDir             string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser" yaml:"entryDir"`
 	MaxInactivity        time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable" yaml:"maxInactivity"`
 	MaxUptime            time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable" yaml:"maxUptime"`
-	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/usr/bin/systemctl stop aerospike; /usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached" yaml:"shutdownCommand"`
+	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached" yaml:"shutdownCommand"`
 	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token" yaml:"authType"`
 	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username" yaml:"basicAuthUser"`
 	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password" yaml:"basicAuthPass"`
@@ -216,22 +216,6 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 
 	// Build access details for Slack notifications
 	c.slackAccessDetails = fmt.Sprintf("Attach:\n  `aerolab agi attach -n %s`\nGet Web URL:\n  `aerolab agi list`\nGet Detailed Status:\n  `aerolab agi status -n %s`\nGet auth token:\n  `aerolab agi add-auth-token -n %s`\nChange Label:\n  `aerolab agi change-label -n %s -l \"new label\"`\nDestroy:\n  `aerolab agi destroy -f -n %s`\nDestroy and remove volume (AWS EFS only):\n  `aerolab agi delete -f -n %s`", c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName)
-
-	// Check if aerospike is running, start if not
-	plist, err := ps.Processes()
-	asdRunning := false
-	if err == nil {
-		for _, p := range plist {
-			if strings.HasSuffix(p.Executable(), "asd") {
-				asdRunning = true
-				break
-			}
-		}
-	}
-	if !asdRunning {
-		//nolint:errcheck
-		exec.Command("service", "aerospike", "start").CombinedOutput()
-	}
 
 	// Initialize internal state
 	c.shuttingDownMutex = new(sync.Mutex)

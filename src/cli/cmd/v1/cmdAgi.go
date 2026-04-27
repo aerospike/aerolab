@@ -4,7 +4,7 @@ package cmd
 
 // AgiCmd is the main AGI (Aerospike Grafana Integration) command structure.
 // AGI provides a template-based approach where templates have all software pre-installed
-// (aerospike, grafana, plugin, proxy, ingest tools), enabling fast instance creation.
+// (grafana, the merged plugin+ingest service, and the web proxy), enabling fast instance creation.
 type AgiCmd struct {
 	Template  AgiTemplateCmd  `command:"template" subcommands-optional:"true" description:"AGI template management" webicon:"fas fa-file-image"`
 	Create    AgiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-plus" invwebforce:"true"`
