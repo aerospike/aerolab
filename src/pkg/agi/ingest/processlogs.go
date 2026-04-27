@@ -279,11 +279,9 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 
 	// Final flush of the bin list, in case the last Put inside the
 	// worker-goroutine loop saw changed=false but a later goroutine
-	// re-set it. No retry loop: the old 5-second sleep-and-retry was
-	// a leftover from the Aerospike DEVICE_OVERLOAD handling; the
-	// embedded db has no equivalent transient failure. If this
-	// fails the next ingest cycle's storeBinList will retry, so we
-	// log and continue rather than aborting the whole pipeline.
+	// re-set it. If this fails the next ingest cycle's storeBinList
+	// will retry, so we log and continue rather than aborting the
+	// whole pipeline.
 	if serr := i.storeBinList(); serr != nil {
 		log.Printf("ERROR: Log Processor: could not store bin list: %s", serr)
 	}

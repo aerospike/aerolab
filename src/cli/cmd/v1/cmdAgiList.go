@@ -64,21 +64,20 @@ type AgiListOutput struct {
 
 // AgiVolumeOutput represents the output structure for AGI volumes.
 type AgiVolumeOutput struct {
-	Name             string `json:"name"`
-	Label            string `json:"label,omitempty"`
-	Type             string `json:"type"`
-	SizeGiB          int64  `json:"sizeGiB"`
-	Zone             string `json:"zone,omitempty"`
-	State            string `json:"state"`
-	AttachedTo       string `json:"attachedTo,omitempty"`
-	Owner            string `json:"owner"`
-	Backend          string `json:"backend"`
-	Expires          string `json:"expires,omitempty"`
-	SourceLocal      string `json:"sourceLocal,omitempty"`
-	SourceSftp       string `json:"sourceSftp,omitempty"`
-	SourceS3         string `json:"sourceS3,omitempty"`
-	AerospikeVersion string `json:"aerospikeVersion,omitempty"`
-	CreatedAt        string `json:"createdAt"`
+	Name        string `json:"name"`
+	Label       string `json:"label,omitempty"`
+	Type        string `json:"type"`
+	SizeGiB     int64  `json:"sizeGiB"`
+	Zone        string `json:"zone,omitempty"`
+	State       string `json:"state"`
+	AttachedTo  string `json:"attachedTo,omitempty"`
+	Owner       string `json:"owner"`
+	Backend     string `json:"backend"`
+	Expires     string `json:"expires,omitempty"`
+	SourceLocal string `json:"sourceLocal,omitempty"`
+	SourceSftp  string `json:"sourceSftp,omitempty"`
+	SourceS3    string `json:"sourceS3,omitempty"`
+	CreatedAt   string `json:"createdAt"`
 	// Details contains the full volume information from the backend inventory.
 	Details *backends.Volume `json:"details,omitempty"`
 }
@@ -146,10 +145,10 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 		instances = instances.WithClusterName(c.Name).Describe()
 	}
 
-	// Filter for AGI volumes (volumes with aerolab7agiav tag and DeleteOnTermination=false)
+	// Filter for AGI volumes (volumes with aerolab.agi.volume tag and DeleteOnTermination=false)
 	// These are persistent AGI volumes that survive instance termination
 	agiVolumes := inventory.Volumes.WithTags(map[string]string{
-		"aerolab7agiav": "",
+		"aerolab.agi.volume": "true",
 	}).WithDeleteOnTermination(false).Describe()
 
 	// Apply additional filters for volumes
@@ -237,21 +236,20 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 	volumeData := make([]AgiVolumeOutput, 0, len(agiVolumes))
 	for _, vol := range agiVolumes {
 		output := AgiVolumeOutput{
-			Name:             vol.Name,
-			Label:            decodeBase64Tag(vol.Tags["agiLabel"]),
-			Type:             vol.VolumeType.String(),
-			SizeGiB:          int64(vol.Size / backends.StorageGiB),
-			Zone:             vol.ZoneName,
-			State:            vol.State.String(),
-			AttachedTo:       strings.Join(vol.AttachedTo, ", "),
-			Owner:            vol.Owner,
-			Backend:          string(vol.BackendType),
-			SourceLocal:      decodeBase64Tag(vol.Tags["agiSrcLocal"]),
-			SourceSftp:       decodeBase64Tag(vol.Tags["agiSrcSftp"]),
-			SourceS3:         decodeBase64Tag(vol.Tags["agiSrcS3"]),
-			AerospikeVersion: vol.Tags["aerolab7agiav"],
-			CreatedAt:        vol.CreationTime.Format(time.RFC3339),
-			Details:          vol,
+			Name:        vol.Name,
+			Label:       decodeBase64Tag(vol.Tags["agiLabel"]),
+			Type:        vol.VolumeType.String(),
+			SizeGiB:     int64(vol.Size / backends.StorageGiB),
+			Zone:        vol.ZoneName,
+			State:       vol.State.String(),
+			AttachedTo:  strings.Join(vol.AttachedTo, ", "),
+			Owner:       vol.Owner,
+			Backend:     string(vol.BackendType),
+			SourceLocal: decodeBase64Tag(vol.Tags["agiSrcLocal"]),
+			SourceSftp:  decodeBase64Tag(vol.Tags["agiSrcSftp"]),
+			SourceS3:    decodeBase64Tag(vol.Tags["agiSrcS3"]),
+			CreatedAt:   vol.CreationTime.Format(time.RFC3339),
+			Details:     vol,
 		}
 
 		// Handle expiry
@@ -323,8 +321,8 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			} else if vol.SourceS3 != "" {
 				source = "s3:" + vol.SourceS3
 			}
-			fmt.Fprintf(out, "Name: %s, Label: %s, Type: %s, SizeGiB: %d, Zone: %s, State: %s, AttachedTo: %s, Owner: %s, Backend: %s, Expires: %s, Source: %s, AerospikeVersion: %s, CreatedAt: %s\n", //nolint:errcheck
-				vol.Name, vol.Label, vol.Type, vol.SizeGiB, vol.Zone, vol.State, vol.AttachedTo, vol.Owner, vol.Backend, vol.Expires, source, vol.AerospikeVersion, vol.CreatedAt)
+			fmt.Fprintf(out, "Name: %s, Label: %s, Type: %s, SizeGiB: %d, Zone: %s, State: %s, AttachedTo: %s, Owner: %s, Backend: %s, Expires: %s, Source: %s, CreatedAt: %s\n", //nolint:errcheck
+				vol.Name, vol.Label, vol.Type, vol.SizeGiB, vol.Zone, vol.State, vol.AttachedTo, vol.Owner, vol.Backend, vol.Expires, source, vol.CreatedAt)
 		}
 		fmt.Fprintln(out, "") //nolint:errcheck
 	default:
@@ -422,7 +420,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 
 		// Render volumes table (only for non-Docker backends since Docker volumes don't persist separately)
 		if system.Opts.Config.Backend.Type != "docker" && len(volumeData) > 0 {
-			volHeader := table.Row{"Name", "Label", "Type", "SizeGiB", "Zone", "State", "AttachedTo", "Owner", "Backend", "Expires", "Source", "AerospikeVersion", "CreatedAt"}
+			volHeader := table.Row{"Name", "Label", "Type", "SizeGiB", "Zone", "State", "AttachedTo", "Owner", "Backend", "Expires", "Source", "CreatedAt"}
 			volRows := []table.Row{}
 			t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 			if err != nil {
@@ -473,21 +471,20 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 					}
 				}
 
-				volRows = append(volRows, table.Row{
-					vol.Name,
-					vol.Label,
-					vol.Type,
-					vol.SizeGiB,
-					vol.Zone,
-					state,
-					vol.AttachedTo,
-					vol.Owner,
-					vol.Backend,
-					expires,
-					source,
-					vol.AerospikeVersion,
-					vol.CreatedAt,
-				})
+			volRows = append(volRows, table.Row{
+				vol.Name,
+				vol.Label,
+				vol.Type,
+				vol.SizeGiB,
+				vol.Zone,
+				state,
+				vol.AttachedTo,
+				vol.Owner,
+				vol.Backend,
+				expires,
+				source,
+				vol.CreatedAt,
+			})
 			}
 			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows)) //nolint:errcheck
 			fmt.Fprintln(out, "")                                                    //nolint:errcheck

@@ -17,7 +17,7 @@ import (
 
 // AgiTemplateCmd is the AGI template management command structure.
 // AGI templates are pre-built images containing all required software
-// (aerospike, grafana, plugin, ingest, ttyd, filebrowser) for fast AGI instance creation.
+// (grafana, plugin, ingest, ttyd, filebrowser) for fast AGI instance creation.
 type AgiTemplateCmd struct {
 	Create  AgiTemplateCreateCmd  `command:"create" subcommands-optional:"true" description:"Create AGI template" webicon:"fas fa-plus" invwebforce:"true"`
 	List    AgiTemplateListCmd    `command:"list" subcommands-optional:"true" description:"List AGI templates" webicon:"fas fa-list"`
@@ -104,13 +104,12 @@ func (c *AgiTemplateListCmd) ListAgiTemplates(system *System, inventory *backend
 //	aerolab agi template destroy -a amd64
 //	aerolab agi template destroy --agi-version 7
 type AgiTemplateDestroyCmd struct {
-	Arch             string  `short:"a" long:"arch" description:"Architecture to destroy the template for (amd64, arm64)"`
-	AgiVersion       int     `short:"i" long:"agi-version" description:"AGI version number to destroy"`
-	AerospikeVersion string  `short:"v" long:"aerospike-version" description:"Aerospike version to destroy the template for"`
-	GrafanaVersion   string  `short:"g" long:"grafana-version" description:"Grafana version to destroy the template for"`
-	Force            bool    `short:"f" long:"force" description:"Force the destruction of the template - do not ask for confirmation"`
-	DryRun           bool    `short:"n" long:"dry-run" description:"Do not actually destroy the template, just run the basic checks"`
-	Help             HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Arch           string  `short:"a" long:"arch" description:"Architecture to destroy the template for (amd64, arm64)"`
+	AgiVersion     int     `short:"i" long:"agi-version" description:"AGI version number to destroy"`
+	GrafanaVersion string  `short:"g" long:"grafana-version" description:"Grafana version to destroy the template for"`
+	Force          bool    `short:"f" long:"force" description:"Force the destruction of the template - do not ask for confirmation"`
+	DryRun         bool    `short:"n" long:"dry-run" description:"Do not actually destroy the template, just run the basic checks"`
+	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi template destroy.
@@ -165,11 +164,6 @@ func (c *AgiTemplateDestroyCmd) DestroyAgiTemplate(system *System, inventory *ba
 		images = images.WithTags(map[string]string{"aerolab.agi.version": strconv.Itoa(c.AgiVersion)})
 	}
 
-	// Filter by Aerospike version
-	if c.AerospikeVersion != "" {
-		images = images.WithTags(map[string]string{"aerolab.agi.aerospike": c.AerospikeVersion})
-	}
-
 	// Filter by Grafana version
 	if c.GrafanaVersion != "" {
 		images = images.WithTags(map[string]string{"aerolab.agi.grafana": c.GrafanaVersion})
@@ -188,11 +182,10 @@ func (c *AgiTemplateDestroyCmd) DestroyAgiTemplate(system *System, inventory *ba
 	if c.DryRun {
 		logger.Info("Dry run, would destroy the following AGI templates:")
 		for _, image := range images.Describe() {
-			logger.Info("  name=%s, arch=%s, agi-version=%s, aerospike=%s, grafana=%s",
+			logger.Info("  name=%s, arch=%s, agi-version=%s, grafana=%s",
 				image.Name,
 				image.Architecture,
 				image.Tags["aerolab.agi.version"],
-				image.Tags["aerolab.agi.aerospike"],
 				image.Tags["aerolab.agi.grafana"])
 		}
 		return nil

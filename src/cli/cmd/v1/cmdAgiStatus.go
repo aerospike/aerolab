@@ -203,7 +203,7 @@ func (c *AgiStatusCmd) collectAllStatus(instances backends.InstanceList) agiColl
 set -e
 
 # Collect service status
-services="aerospike grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest"
+services="grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest"
 echo "SERVICES_START"
 for svc in $services; do
     # Try systemctl is-active first (works on AWS/GCP)

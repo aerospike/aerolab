@@ -220,7 +220,7 @@ func (c *AgiStartCmd) StartAGI(system *System, inventory *backends.Inventory, lo
 	// Start AGI services
 	logger.Info("Starting AGI services")
 	script := `ERRORS=""
-for service in aerospike grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
+for service in grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
     if ! systemctl start "$service"; then
         ERRORS="$ERRORS $service"
     fi
@@ -303,7 +303,6 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	noDIM := vol.Tags["aginodim"] == "true"
 	terminateOnPoweroff := vol.Tags["termonpow"] == "true"
 	spotInstance := vol.Tags["isspot"] == "true"
-	aerospikeVersion := vol.Tags["aerolab7agiav"]
 	efsFips := vol.Tags["agifips"] == "true"
 	subnetID := vol.Tags["agisubnet"]
 	securityGroupID := vol.Tags["agisecgroup"]
@@ -343,9 +342,6 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	// Validate we have essential settings
 	if instanceType == "" {
 		return nil, fmt.Errorf("EFS volume %s is missing 'agiinstance' tag - cannot determine instance type for reattach", volumeName)
-	}
-	if aerospikeVersion == "" {
-		aerospikeVersion = "latest"
 	}
 
 	// Use EFS availability zone if subnet not stored in tags
@@ -399,7 +395,6 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 
 	logger.Info("Reattach settings from EFS tags:")
 	logger.Info("  Instance Type: %s", instanceType)
-	logger.Info("  Aerospike Version: %s", aerospikeVersion)
 	logger.Info("  Architecture: %s", archStr)
 	if templateName != "" {
 		logger.Info("  Preferred Template: %s", templateName)
@@ -426,7 +421,6 @@ func (c *AgiStartCmd) reattachFromEFS(system *System, inventory *backends.Invent
 	createCmd := &AgiCreateCmd{
 		ClusterName:          TypeAgiClusterName(c.Name.String()),
 		AGILabel:             agiLabel,
-		AerospikeVersion:     aerospikeVersion,
 		NoDIM:                noDIM,
 		NoConfigOverride:     true, // Skip source validation and config upload - configs exist on EFS
 		RefreshEngineConfigs: c.Reattach.RefreshEngineConfigs,
@@ -505,7 +499,6 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	noDIM := vol.Tags["aginodim"] == "true"
 	terminateOnPoweroff := vol.Tags["termonpow"] == "true"
 	spotInstance := vol.Tags["isspot"] == "true"
-	aerospikeVersion := vol.Tags["aerolab7agiav"]
 	volFips := vol.Tags["agifips"] == "true"
 	zone := vol.Tags["agizone"]
 	agiLabel := vol.Tags["agilabel"]
@@ -539,9 +532,6 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	// Validate we have essential settings
 	if instanceType == "" {
 		return nil, fmt.Errorf("GCP volume %s is missing 'agiinstance' tag - cannot determine instance type for reattach", volumeName)
-	}
-	if aerospikeVersion == "" {
-		aerospikeVersion = "latest"
 	}
 
 	// Use volume's zone if not stored in tags
@@ -594,7 +584,6 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 
 	logger.Info("Reattach settings from GCP volume tags:")
 	logger.Info("  Instance Type: %s", instanceType)
-	logger.Info("  Aerospike Version: %s", aerospikeVersion)
 	logger.Info("  Architecture: %s", archStr)
 	if templateName != "" {
 		logger.Info("  Preferred Template: %s", templateName)
@@ -615,7 +604,6 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	createCmd := &AgiCreateCmd{
 		ClusterName:          TypeAgiClusterName(c.Name.String()),
 		AGILabel:             agiLabel,
-		AerospikeVersion:     aerospikeVersion,
 		NoDIM:                noDIM,
 		NoConfigOverride:     true, // Skip source validation and config upload - configs exist on volume
 		RefreshEngineConfigs: c.Reattach.RefreshEngineConfigs,

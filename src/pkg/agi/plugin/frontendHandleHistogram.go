@@ -125,17 +125,16 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	// TODO: group by node identifier
 	for it.Next() {
 		_, row := it.Record()
-		// `key` is declared per-column on purpose. The original
-		// Aerospike-era code hoisted `key` outside this loop, and
-		// when the switch fell through (unknown bucket name) it
-		// silently re-used the previous iteration's `key`,
-		// double-counting one bucket and dropping another. Because
-		// Go map iteration is randomized, the corruption was
-		// non-deterministic and never surfaced consistently in
-		// tests. This rewrite scopes `key` per-iteration AND adds
-		// the explicit `default: continue` below, which together
-		// fix the bug. Do not move `var key int64` outside the
-		// inner loop.
+		// `key` is declared per-column on purpose. An earlier
+		// version hoisted `key` outside this loop, and when the
+		// switch fell through (unknown bucket name) it silently
+		// re-used the previous iteration's `key`, double-counting
+		// one bucket and dropping another. Because Go map iteration
+		// is randomized, the corruption was non-deterministic and
+		// never surfaced consistently in tests. This rewrite scopes
+		// `key` per-iteration AND adds the explicit `default:
+		// continue` below, which together fix the bug. Do not move
+		// `var key int64` outside the inner loop.
 		for k, v := range row {
 			var key int64
 			switch k {

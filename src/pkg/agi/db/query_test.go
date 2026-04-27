@@ -469,8 +469,8 @@ func TestIndexedScanIsSingleIterator(t *testing.T) {
 // the orphan-guard auto-flip we removed: an AGI-style ingest workload
 // uses AssumeNew=true on every Put, but with IndexCanHaveOrphans=false
 // (the default) the read path MUST remain at zero per-row Pebble Gets.
-// Before this fix the same scan issued one Get per row, costing a
-// 4-5× slowdown vs Aerospike on the user's 2.27 M-row histogram set.
+// Before this fix the same scan issued one Get per row, regressing
+// the histogram workload by ~4-5× on a 2.27 M-row set.
 func TestIndexedScanZeroGetsAfterAssumeNew(t *testing.T) {
 	d := openTestDB(t)
 	if d.opts.IndexCanHaveOrphans {

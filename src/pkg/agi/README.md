@@ -1,17 +1,17 @@
 # AGI Package
 
-The AGI (Aerospike Grafana Integration) package provides comprehensive log ingestion, processing, and visualization capabilities for Aerospike clusters. It consists of three main subpackages that work together to collect, process, and visualize Aerospike logs and metrics.
+The AGI (Aerospike Grafana Integration) package provides comprehensive log ingestion, processing, and visualization capabilities for Aerospike server logs. It consists of several subpackages that work together to collect, process, and visualize Aerospike logs and metrics, backed by an embedded `pkg/agi/db` (Pebble-based) store.
 
 ## Subpackages
 
 ### ingest
-Handles log ingestion from various sources (S3, SFTP, local files) and processes them for storage in Aerospike databases.
+Handles log ingestion from various sources (S3, SFTP, local files) and processes them for storage in the embedded `pkg/agi/db` store.
 
 **Key Features:**
 - Multi-source log downloading (S3, SFTP, local)
 - Automatic log unpacking and decompression
 - Log preprocessing and pattern matching
-- Aerospike database integration
+- Embedded Pebble-backed storage via `pkg/agi/db`
 - Progress tracking and monitoring
 
 **Main Functions:**
@@ -20,7 +20,7 @@ Handles log ingestion from various sources (S3, SFTP, local files) and processes
 - `MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error)` - Create configuration
 
 ### plugin
-Provides a Grafana plugin backend for querying processed log data from Aerospike databases.
+Provides a Grafana plugin backend for querying processed log data from the embedded `pkg/agi/db` store.
 
 **Key Features:**
 - Grafana datasource plugin backend
@@ -33,7 +33,7 @@ Provides a Grafana plugin backend for querying processed log data from Aerospike
 - `MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error)` - Create configuration
 
 ### grafanafix
-Handles Grafana setup, dashboard management, and configuration fixes for optimal Aerospike log visualization.
+Handles Grafana setup, dashboard management, and configuration fixes for optimal Aerospike server log visualization.
 
 **Key Features:**
 - Automatic dashboard importing
@@ -59,7 +59,7 @@ Provides notification capabilities for AGI monitoring and alerting.
 
 ## Usage
 
-The AGI package is typically used as part of the Aerolab ecosystem to provide comprehensive log analysis and visualization for Aerospike clusters. Each subpackage can be used independently or together for a complete monitoring solution.
+The AGI package is typically used as part of the Aerolab ecosystem to provide comprehensive log analysis and visualization for Aerospike server logs. Each subpackage can be used independently or together for a complete monitoring solution.
 
 ### Example: Basic Log Ingestion
 ```go

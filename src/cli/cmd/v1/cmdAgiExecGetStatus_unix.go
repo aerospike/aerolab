@@ -109,25 +109,26 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 	}
 
-	// IngestStatusStruct.AerospikeRunning is a legacy field name —
-	// after the embedded-db migration there is no `asd` process to
-	// look for, but the wire format is preserved for backward
-	// compatibility with monitor listeners and the web UI. Its
-	// post-migration meaning is "the storage backend is up": the
-	// merged service (cmdAgiExecService) writes
-	// /opt/agi/service.pid, and either of the legacy two-process
-	// pids is also a valid signal that the embedded db is open
-	// somewhere. Setting AerospikeRunning in any of those cases
-	// keeps !AerospikeRunning's "stack is stopped" semantics
-	// intact for consumers that haven't been updated.
-	if pidAlive("/opt/agi/service.pid") || pidAlive("/opt/agi/ingest.pid") || pidAlive("/opt/agi/plugin.pid") {
-		status.AerospikeRunning = true
-	}
-
-	if pidAlive("/opt/agi/ingest.pid") || pidAlive("/opt/agi/service.pid") {
+	// Ingest.Running tracks the ingest *pipeline*, not the host
+	// process. In the merged service (cmdAgiExecService) the ingest
+	// pipeline is a goroutine inside the long-lived plugin process;
+	// AgiExecIngestCmd.run writes /opt/agi/ingest.pid on entry and
+	// removes it via defer when the pipeline finishes (success or
+	// fail), so the file's presence is the canonical "ingest is
+	// currently doing work" signal in BOTH the legacy two-process
+	// and the merged-service worlds. Falling back to service.pid
+	// would pin Ingest.Running=true forever once ingest completes —
+	// breaking the "Ingest Finished" indicator in the UI/monitor
+	// listeners that distinguish finished vs still-running by this
+	// flag flipping false alongside all CompleteSteps being true.
+	if pidAlive("/opt/agi/ingest.pid") {
 		status.Ingest.Running = true
 	}
 
+	// PluginRunning, in contrast, tracks "is the Grafana plugin
+	// HTTP server up to answer queries". Under the merged service
+	// the plugin lives inside service.pid, so either pid file
+	// presence is a valid signal.
 	if pidAlive("/opt/agi/plugin.pid") || pidAlive("/opt/agi/service.pid") {
 		status.PluginRunning = true
 	}

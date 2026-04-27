@@ -1049,12 +1049,13 @@ func (m *agiMonitor) checkRAMSizing(w http.ResponseWriter, r *http.Request, uuid
 
 	switch event.Event {
 	case agi.AgiEventServiceDown:
-		// AerospikeRunning is a legacy field name; in the Pebble world
-		// it means "the storage backend / merged service is up" — see
-		// cmdAgiExecGetStatus_unix.go. If the storage backend is up
-		// AND the plugin is up, the only possible offender is ingest
-		// or grafana-helper, neither of which is RAM-bound. Skip.
-		if event.IngestStatus.AerospikeRunning && event.IngestStatus.PluginRunning {
+		// Under the merged service (plugin + storage in the same
+		// process), PluginRunning=true implies the storage stack
+		// is healthy. Any service-down event in that state must
+		// therefore be a non-RAM-bound component (grafana-helper
+		// or a finished/failed ingest goroutine), so RAM resizing
+		// would not help — skip it.
+		if event.IngestStatus.PluginRunning {
 			return false
 		}
 		instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)

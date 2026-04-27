@@ -1,10 +1,8 @@
 # `agi/db` — embedded fast DB for AGI
 
 This package is a single-node, embedded, throwaway-fast database tailored to
-the AGI ingest + plugin workload. It is designed as a possible replacement
-for the Aerospike backend used by `pkg/agi/ingest` and `pkg/agi/plugin`; the
-ingest / plugin code is NOT wired to it yet — this package is published in
-isolation so it can be benchmarked and tested against real workloads first.
+the AGI ingest + plugin workload. It is the storage backend used by
+`pkg/agi/ingest` and `pkg/agi/plugin`.
 
 ## Design goals
 
@@ -179,8 +177,6 @@ stop retains all successful writes.
 - No TTL / per-row expiry.
 - No compound secondary indexes; only a single numeric range index per
   set, on one column.
-- No Aerospike wire-format compatibility. The adapter that wires this
-  into the ingest / plugin code comes later.
 
 ## Benchmarks (Apple M3 Max, debug build, tmp disk, 200ms bench time)
 

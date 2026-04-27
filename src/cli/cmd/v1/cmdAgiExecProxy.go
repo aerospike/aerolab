@@ -590,7 +590,6 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type logs struct {
-		AerospikeLogs  string
 		ProxyLogs      string
 		IngestLogs     string
 		PluginLogs     string
@@ -601,15 +600,13 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Check if running in Docker (uses /var/log/services/) or cloud (uses /var/log/agi-*.log with systemd)
 	if _, err := os.Stat("/var/log/services"); err == nil {
-		// Docker mode - read from /var/log/services/ (except aerospike which uses same path as cloud)
-		l.AerospikeLogs = c.getLogFile("/var/log/agi-aerospike.log")
+		// Docker mode - read from /var/log/services/
 		l.ProxyLogs = c.getLogFile("/var/log/services/agi-proxy.log")
 		l.IngestLogs = c.getLogFile("/var/log/services/agi-ingest.log")
 		l.GrafanaFixLogs = c.getLogFile("/var/log/services/agi-grafanafix.log")
 		l.PluginLogs = c.getLogFile("/var/log/services/agi-plugin.log")
 	} else {
 		// Cloud mode (AWS/GCP) - use systemd with journalctl fallback
-		l.AerospikeLogs = c.getLog("/var/log/agi-aerospike.log", "")
 		l.ProxyLogs = c.getLog("/var/log/agi-proxy.log", "agi-proxy")
 		l.IngestLogs = c.getLog("/var/log/agi-ingest.log", "agi-ingest")
 		l.GrafanaFixLogs = c.getLog("/var/log/agi-grafanafix.log", "agi-grafanafix")
@@ -1152,7 +1149,7 @@ func (c *AgiExecProxyCmd) spotMonitorAws() {
 
 // serviceMonitor monitors AGI service health and sends notifications
 func (c *AgiExecProxyCmd) serviceMonitor() {
-	servicesRunning := []bool{true, true, true, true}
+	servicesRunning := []bool{true, true, true}
 	for {
 		time.Sleep(time.Minute)
 		c.shuttingDownMutex.Lock()
@@ -1168,7 +1165,7 @@ func (c *AgiExecProxyCmd) serviceMonitor() {
 		}
 		notifyDown := false
 		notifyUp := false
-		for i, isStopped := range []bool{!stat.AerospikeRunning, !stat.GrafanaHelperRunning, !stat.PluginRunning, !stat.Ingest.Running && (!stat.Ingest.CompleteSteps.ProcessLogs || !stat.Ingest.CompleteSteps.ProcessCollectInfo)} {
+		for i, isStopped := range []bool{!stat.GrafanaHelperRunning, !stat.PluginRunning, !stat.Ingest.Running && (!stat.Ingest.CompleteSteps.ProcessLogs || !stat.Ingest.CompleteSteps.ProcessCollectInfo)} {
 			if isStopped && servicesRunning[i] {
 				notifyDown = true
 			} else if !isStopped && !servicesRunning[i] {

@@ -10,12 +10,6 @@ from the code alone: the downsampling window, null-gap injection, delta
 handling, singular-series extension, and all of the per-bin options that
 influence the final output.
 
-The historical Aerospike-backed version of this package is preserved at
-`pkg/agi/plugin-aerospike/` for reference; the path-level differences
-(RequestInfo for set/bin enumeration, `aerospike.Expression` trees, socket
-timeout supervisor, per-node `kill-job` on cancel) are covered inline below
-with the corresponding embedded-db equivalent.
-
 The plugin is a JSON-over-HTTP datasource (Grafana SimpleJson-style). The
 relevant HTTP endpoints live in `frontend.go`:
 
@@ -51,10 +45,8 @@ All query handlers share a few pieces of infrastructure:
 - Client-disconnect propagation. The embedded db iterator honours the
   `context.Context` it was started with: each handler calls `Run(r.Context())`
   (or `ScanContext(r.Context(), ...)`) so if Grafana drops the socket, the
-  next `Next()` returns false and `Err()` surfaces `ctx.Err()`. There is no
-  separate supervisor goroutine and no equivalent of the Aerospike
-  `jobs:module=query;cmd=kill-job` side-call — iteration simply unwinds via
-  the deferred `it.Close()`.
+  next `Next()` returns false and `Err()` surfaces `ctx.Err()`. Iteration
+  simply unwinds via the deferred `it.Close()`.
 
 ---
 
@@ -178,8 +170,7 @@ with `db.And(...)` and passed to `q.Where(...)`:
 
 Cancellation is driven by the HTTP request context: `q.Run(r.Context())`
 propagates client disconnects into the iterator, so there is no separate
-query-socket / query-total timeout configurable (the historical
-`Aerospike.Timeouts.Query*` settings are gone). A graceful shutdown window
+query-socket / query-total timeout configurable. A graceful shutdown window
 is still respected: `/shutdown` uses `Config.DB.ShutdownTimeout` (default
 `60s`) for `http.Server.Shutdown`.
 
@@ -226,7 +217,7 @@ type datapoint struct {
   dropped.
 - Group entries are then sorted to the canonical order listed in
   `Payload.GroupBy` so that two records with the same group values always
-  produce the same hash regardless of Aerospike's bin-map iteration order.
+  produce the same hash regardless of map iteration order.
 
 ### 3.5 Series bucketing by group hash
 
@@ -352,7 +343,7 @@ dropped. A `DETAIL` log line is emitted.
 
 #### 3.6.4 Delta and per-second conversion (`ProduceDelta`, `DeltaToPerSecond`)
 
-Many Aerospike statistics are monotonically increasing counters. When
+Many ingested statistics are monotonically increasing counters. When
 `ProduceDelta` is true:
 
 - The first sample of the series is consumed to seed `lastValue = rawValue`
@@ -384,7 +375,7 @@ panel.
 
 Floor/ceil clamping with one twist: if `ReplaceWithOriginal=true`, a value
 that violates the limit is replaced with **the pre-processing raw value**
-(`point.point[0]` straight from the Aerospike record). This is used when a
+(`point.point[0]` straight from the source record). This is used when a
 delta transform would otherwise produce a nonsensical negative (e.g., a
 counter reset) — in that case we fall back to displaying the raw counter,
 which is less misleading than clipping to zero.
@@ -719,7 +710,7 @@ metadata (node counts, ingestion progress, etc.) into table panels.
 A specialised endpoint for HDR-style bucket aggregation. The request
 supplies a `Cluster`, a `Metric.Target` (the dictionary column, e.g.
 `HistogramName`), a `Metric.Name` (the specific histogram), and a `Metric.Set`
-(which Aerospike set to scan).
+(which db set to scan).
 
 Query construction:
 
@@ -791,7 +782,7 @@ author uses to shape a series. Quick reference:
 
 | Field                | Applies to  | Effect                                                                 |
 | -------------------- | ----------- | ---------------------------------------------------------------------- |
-| `Name`               | all         | Aerospike bin to read.                                                 |
+| `Name`               | all         | DB column to read.                                                     |
 | `DisplayName`        | all         | Overrides `Name` in the legend / table header.                         |
 | `Type`               | table       | `time`, `string`, or `number`; drives Grafana column typing.           |
 | `Required`           | all         | Adds `ExpBinExists`. For timeseries, also fails the query up-front if the bin is missing from the cached bin list. |

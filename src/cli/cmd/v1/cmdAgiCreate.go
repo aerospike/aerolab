@@ -134,10 +134,9 @@ type AgiCreateCmd struct {
 	Owner                string `long:"owner" description:"Owner tag value"`
 
 	// Version options
-	AerospikeVersion string `short:"v" long:"aerospike-version" description:"Aerospike server version" default:"latest"`
-	GrafanaVersion   string `long:"grafana-version" description:"Grafana version" default:"11.2.6"`
-	Distro           string `short:"d" long:"distro" description:"Linux distribution" default:"ubuntu"`
-	DistroVersion    string `long:"distro-version" description:"Distribution version" default:"latest"`
+	GrafanaVersion string `long:"grafana-version" description:"Grafana version" default:"11.2.6"`
+	Distro         string `short:"d" long:"distro" description:"Linux distribution" default:"ubuntu"`
+	DistroVersion  string `long:"distro-version" description:"Distribution version" default:"latest"`
 
 	// Timeout
 	Timeout  int  `short:"t" long:"timeout" description:"Creation timeout in minutes" default:"30"`
@@ -538,7 +537,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Available memory for Aerospike: %d GB", memSize/1024/1024/1024)
+	logger.Info("Available memory: %d GB", memSize/1024/1024/1024)
 
 	// Generate configuration files
 	logger.Info("Generating AGI configuration files")
@@ -568,12 +567,6 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		if err := c.uploadAerolabBinary(instance, logger); err != nil {
 			return nil, fmt.Errorf("failed to upload aerolab binary: %w", err)
 		}
-	}
-
-	// Generate and upload aerospike.conf
-	logger.Info("Configuring Aerospike")
-	if err := c.configureAerospike(instance, memSize, backendType, logger); err != nil {
-		return nil, fmt.Errorf("failed to configure Aerospike: %w", err)
 	}
 
 	// Start AGI services
@@ -896,12 +889,6 @@ func (c *AgiCreateCmd) checkAndRestoreVolumeSettings(system *System, inventory *
 	logger.Info("Found existing volume %s, restoring settings", volumeName)
 
 	// Restore settings from volume tags (only for direct agi create, not reattach)
-	// Check for empty or default "latest" - if user specified a specific version, keep it
-	if c.AerospikeVersion == "" || c.AerospikeVersion == "latest" {
-		if v, ok := vol.Tags["aerolab7agiav"]; ok && v != "" {
-			c.AerospikeVersion = v
-		}
-	}
 	if backendType == "aws" && c.AWS.InstanceType == "" {
 		if v, ok := vol.Tags["agiinstance"]; ok && v != "" {
 			c.AWS.InstanceType = guiInstanceType(v)
@@ -964,17 +951,16 @@ func (c *AgiCreateCmd) resolveTemplate(system *System, inventory *backends.Inven
 	withEFS := system.Opts.Config.Backend.Type == "aws"
 
 	templateCreate := &AgiTemplateCreateCmd{
-		AerospikeVersion: c.AerospikeVersion,
-		GrafanaVersion:   c.GrafanaVersion,
-		Distro:           c.Distro,
-		DistroVersion:    c.DistroVersion,
-		Arch:             arch.String(),
-		Timeout:          c.Timeout,
-		NoVacuum:         c.NoVacuum,
-		Owner:            c.Owner,
-		DisablePublicIP:  c.AWS.DisablePublicIP,
-		AerolabBinary:    c.AerolabBinary,
-		WithEFS:          withEFS,
+		GrafanaVersion:  c.GrafanaVersion,
+		Distro:          c.Distro,
+		DistroVersion:   c.DistroVersion,
+		Arch:            arch.String(),
+		Timeout:         c.Timeout,
+		NoVacuum:        c.NoVacuum,
+		Owner:           c.Owner,
+		DisablePublicIP: c.AWS.DisablePublicIP,
+		AerolabBinary:   c.AerolabBinary,
+		WithEFS:         withEFS,
 	}
 
 	templateName, err := templateCreate.CreateTemplate(system, inventory, logger.WithPrefix("[template] "), args)
@@ -1080,8 +1066,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.AWS.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.AWS.SpotInstance),
-				fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
-				fmt.Sprintf("agifips=%t", c.AWS.EFSFips),
+			"aerolab.agi.volume=true",
+			fmt.Sprintf("agifips=%t", c.AWS.EFSFips),
 				fmt.Sprintf("agisubnet=%s", c.AWS.SubnetID),
 				fmt.Sprintf("agisecgroup=%s", c.AWS.SecurityGroupID),
 				fmt.Sprintf("agiefsexpire=%s", c.AWS.EFSExpires.String()),
@@ -1141,8 +1127,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
 				"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
 				"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
+			"aerolab.agi.volume": "true",
+			"agifips":            fmt.Sprintf("%t", c.AWS.EFSFips),
 				"agisubnet":     c.AWS.SubnetID,
 				"agisecgroup":   c.AWS.SecurityGroupID,
 				"agiefsexpire":  c.AWS.EFSExpires.String(),
@@ -1169,8 +1155,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.GCP.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.GCP.SpotInstance),
-				fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
-				fmt.Sprintf("agifips=%t", c.GCP.VolFips),
+			"aerolab.agi.volume=true",
+			fmt.Sprintf("agifips=%t", c.GCP.VolFips),
 				fmt.Sprintf("agizone=%s", c.GCP.Zone),
 				fmt.Sprintf("agivolexpire=%s", c.GCP.VolExpires.String()),
 				fmt.Sprintf("agiLabel=%s", agiLabelB64),
@@ -1227,8 +1213,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
 				"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
 				"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
+			"aerolab.agi.volume": "true",
+			"agifips":            fmt.Sprintf("%t", c.GCP.VolFips),
 				"agizone":       string(c.GCP.Zone),
 				"agivolexpire":  c.GCP.VolExpires.String(),
 				"agiLabel":      agiLabelB64,
@@ -1294,7 +1280,6 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		fmt.Sprintf("agiSrcLocal=%s", sourceStringLocalB64),
 		fmt.Sprintf("agiSrcSftp=%s", sourceStringSftpB64),
 		fmt.Sprintf("agiSrcS3=%s", sourceStringS3B64),
-		fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
 	}
 	// Add Route53 tags if configured
 	if c.AWS.Route53ZoneId != "" && c.AWS.Route53DomainName != "" {
@@ -1331,7 +1316,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		TerminateOnStop:    terminateOnStop,
 		ParallelSSHThreads: 1,
 		ImageType:          "agi",
-		ImageVersion:       fmt.Sprintf("agi-%s-%s-%d", c.AerospikeVersion, "latest", agi.AGIVersion),
+		ImageVersion:       fmt.Sprintf("agi-%d", agi.AGIVersion),
 		Arch:               arch.String(),
 		AWS: InstancesCreateCmdAws{
 			ImageID:          templateName,
@@ -1539,8 +1524,8 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 	// Build comprehensive tag set with all values needed for reattach
 	tags := map[string]string{
 		// Core instance settings (now with resolved values)
-		"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-		"aerolab7agiav": c.AerospikeVersion,
+		"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+		"aerolab.agi.volume": "true",
 
 		// Template and architecture for consistent reattach
 		"agitemplate": templateName,
@@ -1689,9 +1674,7 @@ func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendTyp
 	// budget (post-reservation). Both ingest and plugin embed the same
 	// db handle in the merged service, so they MUST agree on these
 	// numbers; we generate them once here and inject them into both
-	// YAMLs. The caller (configureAerospike etc.) gets the same
-	// memSize, so Aerospike (legacy) and Pebble (current) configs
-	// stay coherent on the same host.
+	// YAMLs.
 	dbCacheBytes := computePebbleCacheBytes(memSize)
 	dbMemTableBytes := computePebbleMemTableBytes(memSize)
 
@@ -1985,7 +1968,7 @@ func (c *AgiCreateCmd) generateProxyConfig(backendType string) []byte {
 	https := true
 	certFile := "/opt/agi/proxy.cert"
 	keyFile := "/opt/agi/proxy.key"
-	shutdownCmd := "/usr/bin/systemctl stop aerospike; /usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff"
+	shutdownCmd := "/usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff"
 
 	if c.ProxyDisableSSL {
 		listenPort = 80
@@ -1996,7 +1979,7 @@ func (c *AgiCreateCmd) generateProxyConfig(backendType string) []byte {
 
 	if backendType == "docker" {
 		// Docker doesn't need poweroff
-		shutdownCmd = "/usr/bin/systemctl stop aerospike; /usr/bin/sync"
+		shutdownCmd = "/usr/bin/sync"
 	}
 
 	proxyConfig := map[string]any{
@@ -2106,7 +2089,7 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 		}
 		defer cli.Close()
 
-		// Create directories - including aerospike data/smd which are needed when EFS/volume is mounted
+		// Create AGI working directories (created here so they exist when EFS/volume is mounted)
 		dirs := []string{
 			"/opt/agi/files/input",
 			"/opt/agi/files/input/s3source",
@@ -2117,8 +2100,6 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 			"/opt/agi/files/no-stat",
 			"/opt/agi/ingest",
 			"/opt/agi/tokens",
-			"/opt/agi/aerospike/data",
-			"/opt/agi/aerospike/smd",
 		}
 		for _, dir := range dirs {
 			_ = cli.RawClient().MkdirAll(dir)
@@ -2326,242 +2307,12 @@ func (c *AgiCreateCmd) uploadLocalSource(instance backends.InstanceList, logger 
 	return nil
 }
 
-// configureAerospike generates and uploads the aerospike.conf file.
-func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSize int64, backendType string, logger *logger.Logger) error {
-	// Calculate storage parameters
-	memSizeGB := memSize / (1024 * 1024 * 1024)
-	var memSizeStr, storEngine, dataSizeStr, rpcStr, wbs, maxWriteCache string
-	var fileSizeInt int64
-
-	// Parse Aerospike version to determine config format
-	// Default to version 8 (latest) since "latest" resolves to newest version
-	// and newer versions don't support memory-size
-	majorVersion := 8
-	versionParts := strings.Split(c.AerospikeVersion, ".")
-	if len(versionParts) > 0 {
-		if v, err := strconv.Atoi(versionParts[0]); err == nil {
-			majorVersion = v
-		}
-	}
-	logger.Info("Aerospike version: %s (major: %d)", c.AerospikeVersion, majorVersion)
-
-	if c.NoDIM {
-		// No data-in-memory mode - use storage-engine device
-		storEngine = "device"
-		if c.NoDIMFileSize != 0 {
-			fileSizeInt = int64(c.NoDIMFileSize)
-		} else {
-			fileSizeInt = 2000
-		}
-		rpcStr = "read-page-cache true"
-		if majorVersion < 7 || (majorVersion == 7 && len(versionParts) > 1 && versionParts[1] == "0") {
-			wbs = "write-block-size 8M"
-		}
-	} else {
-		// Data-in-memory mode
-		if majorVersion >= 7 {
-			// Aerospike 7+: use storage-engine memory with NO memory-size or data-size
-			// Memory is managed automatically
-			storEngine = "memory"
-			fileSizeInt = int64(float64(memSizeGB) / 1.25)
-		} else {
-			// Aerospike < 7: use storage-engine device with memory-size and data-in-memory
-			storEngine = "device"
-			memSizeStr = fmt.Sprintf("memory-size %dG", memSizeGB)
-			dataSizeStr = fmt.Sprintf("data-in-memory %t", true)
-			fileSizeInt = memSizeGB
-			wbs = "write-block-size 8M"
-		}
-	}
-
-	if backendType != "docker" {
-		maxWriteCache = "max-write-cache 1024M"
-	}
-
-	// Get SFTP config first - we need to check for features file before building the config
-	confs, err := instance.GetSftpConfig("root")
-	if err != nil {
-		return fmt.Errorf("could not get SFTP config: %w", err)
-	}
-
-	for _, conf := range confs {
-		conf.MaxRetries = c.MaxRetries
-		conf.RetrySleep = c.RetrySleep
-		cli, err := sshexec.NewSftp(conf)
-		if err != nil {
-			return fmt.Errorf("could not create SFTP client: %w", err)
-		}
-		defer cli.Close()
-
-		// Ensure features file exists before building config
-		// This handles the case where EFS/volume mount overwrites template content
-		hasFeatureFile := false
-
-		// Ensure /opt/agi/aerospike/ directory exists
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike")
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike/data")
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike/smd")
-
-		// If user provided a features file, upload it
-		if c.FeaturesFilePath != "" {
-			featuresContent, err := os.ReadFile(string(c.FeaturesFilePath))
-			if err != nil {
-				return fmt.Errorf("could not read features file %s: %w", c.FeaturesFilePath, err)
-			}
-			err = cli.WriteFile(true, &sshexec.FileWriter{
-				DestPath:    "/opt/agi/aerospike/features.conf",
-				Source:      bytes.NewReader(featuresContent),
-				Permissions: 0644,
-			})
-			if err != nil {
-				return fmt.Errorf("could not upload features file: %w", err)
-			}
-			hasFeatureFile = true
-			logger.Info("Uploaded custom features file from %s", c.FeaturesFilePath)
-		} else if cli.IsExists("/opt/agi/aerospike/features.conf") {
-			// Check if features.conf already exists in /opt/agi/aerospike/
-			hasFeatureFile = true
-		} else {
-			// Try to copy from /etc/aerospike/
-			outputs := instance.Exec(&backends.ExecInput{
-				ExecDetail: sshexec.ExecDetail{
-					Command:        []string{"cp", "-n", "/etc/aerospike/features.conf", "/opt/agi/aerospike/features.conf"},
-					SessionTimeout: time.Minute,
-				},
-				Username:        "root",
-				ConnectTimeout:  30 * time.Second,
-				ParallelThreads: 1,
-				MaxRetries:      c.MaxRetries,
-				RetrySleep:      c.RetrySleep,
-			})
-
-			// Check if copy succeeded
-			copyFailed := false
-			if len(outputs) > 0 && outputs[0].Output.Err != nil {
-				copyFailed = true
-			}
-
-			// Re-check if file exists now
-			if !copyFailed && cli.IsExists("/opt/agi/aerospike/features.conf") {
-				hasFeatureFile = true
-			} else {
-				logger.Warn("No features file found at /opt/agi/aerospike/features.conf or /etc/aerospike/features.conf")
-				logger.Warn("Aerospike will start without a feature-key-file directive.")
-				logger.Warn("  - Aerospike Community Edition 6.1+ works without a features file")
-				logger.Warn("  - Aerospike Enterprise requires a valid features file to start")
-			}
-		}
-
-		// Build aerospike.conf with conditional feature-key-file directive
-		var aerospikeConf bytes.Buffer
-		aerospikeConf.WriteString("service {\n")
-		aerospikeConf.WriteString("    proto-fd-max 15000\n")
-		aerospikeConf.WriteString("    work-directory /opt/agi/aerospike\n")
-		aerospikeConf.WriteString("    cluster-name agi\n")
-		if hasFeatureFile {
-			aerospikeConf.WriteString("    feature-key-file /opt/agi/aerospike/features.conf\n")
-		}
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("logging {\n")
-		aerospikeConf.WriteString("    file /var/log/agi-aerospike.log {\n")
-		aerospikeConf.WriteString("        context any info\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("network {\n")
-		aerospikeConf.WriteString("    service {\n")
-		aerospikeConf.WriteString("        address any\n")
-		aerospikeConf.WriteString("        port 3000\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    heartbeat {\n")
-		aerospikeConf.WriteString("        interval 150\n")
-		aerospikeConf.WriteString("        mode mesh\n")
-		aerospikeConf.WriteString("        port 3002\n")
-		aerospikeConf.WriteString("        timeout 10\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    fabric {\n")
-		aerospikeConf.WriteString("        port 3001\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    info {\n")
-		aerospikeConf.WriteString("        port 3003\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("namespace agi {\n")
-		aerospikeConf.WriteString("    default-ttl 0\n")
-		if memSizeStr != "" {
-			// Aerospike < 7: memory-size at namespace level
-			fmt.Fprintf(&aerospikeConf, "    %s\n", memSizeStr) //nolint:errcheck
-		}
-		aerospikeConf.WriteString("    replication-factor 2\n")
-		fmt.Fprintf(&aerospikeConf, "    storage-engine %s {\n", storEngine) //nolint:errcheck
-		aerospikeConf.WriteString("        file /opt/agi/aerospike/data/agi.dat\n")
-		fmt.Fprintf(&aerospikeConf, "        filesize %dG\n", fileSizeInt) //nolint:errcheck
-		if dataSizeStr != "" {
-			// Aerospike < 7: data-in-memory inside storage-engine device
-			fmt.Fprintf(&aerospikeConf, "        %s\n", dataSizeStr) //nolint:errcheck
-		}
-		if rpcStr != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", rpcStr) //nolint:errcheck
-		}
-		if wbs != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", wbs) //nolint:errcheck
-		}
-		if maxWriteCache != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", maxWriteCache) //nolint:errcheck
-		}
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n")
-
-		// Upload aerospike.conf to /opt/agi so it can be persisted on EFS
-		err = cli.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/opt/agi/aerospike.conf",
-			Source:      bytes.NewReader(aerospikeConf.Bytes()),
-			Permissions: 0644,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to upload aerospike.conf: %w", err)
-		}
-	}
-
-	// Make sure /etc/aerospike/aerospike.conf points at our patched config.
-	// The Aerospike server package ships a default /etc/aerospike/aerospike.conf
-	// with only a `test` namespace. The AGI template installs a systemd drop-in
-	// that tells asd to read /opt/agi/aerospike.conf instead, but that override
-	// has proven unreliable across distros/versions (in practice asd ends up
-	// reading the stock config and the `agi` namespace is missing, which
-	// manifests as "namespace 'agi' not found on node" warnings in the server
-	// log). Replacing /etc/aerospike/aerospike.conf with a symlink to the AGI
-	// config guarantees asd picks up our config regardless of which code path
-	// systemd actually uses to launch it, and works with pre-existing templates
-	// without requiring a rebuild.
-	linkOutputs := instance.Exec(&backends.ExecInput{
-		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "mkdir -p /etc/aerospike && rm -f /etc/aerospike/aerospike.conf && ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf"},
-			SessionTimeout: time.Minute,
-		},
-		Username:        "root",
-		ConnectTimeout:  30 * time.Second,
-		ParallelThreads: 1,
-		MaxRetries:      c.MaxRetries,
-		RetrySleep:      c.RetrySleep,
-	})
-	for _, o := range linkOutputs {
-		if o.Output.Err != nil {
-			return fmt.Errorf("failed to link /etc/aerospike/aerospike.conf -> /opt/agi/aerospike.conf: %v (stderr: %s)", o.Output.Err, o.Output.Stderr)
-		}
-	}
-
-	return nil
-}
-
 // startServices starts all AGI services.
 func (c *AgiCreateCmd) startServices(instance backends.InstanceList, logger *logger.Logger) error {
 	logger.Debug("Enabling and starting all AGI services")
 
 	script := `ERRORS=""
-for service in aerospike grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
+for service in grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
     if ! systemctl start "$service"; then
         ERRORS="$ERRORS $service"
     fi

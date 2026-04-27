@@ -433,16 +433,6 @@ type IngestStatusStruct struct {
 		Errors                   []string
 		ErrorCount               int
 	}
-	// AerospikeRunning is a legacy field name preserved for wire
-	// compatibility with monitor listeners and the web UI. Its
-	// post-migration meaning is "the AGI storage backend is up".
-	// The embedded db now lives inside the merged service process
-	// (cmdAgiExecService) or the legacy ingest/plugin processes;
-	// the writer in cmdAgiExecGetStatus_unix.go sets this true
-	// when any of those pids is alive. Renaming would break
-	// existing JSON consumers, so the rename is deferred until a
-	// coordinated wire-format bump.
-	AerospikeRunning     bool
 	PluginRunning        bool
 	GrafanaHelperRunning bool
 	System               struct {

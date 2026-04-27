@@ -18,8 +18,8 @@ var agiVersionStr string
 // directory structure changes, service configuration changes, etc.), increment this value
 // using scripts/new-agi-version.sh.
 //
-// Note: Changes to aerospike version, grafana version, or aerolab version do NOT
-// trigger automatic template recreation. Only changes to this AGIVersion will.
+// Note: Changes to grafana version or aerolab version do NOT trigger automatic
+// template recreation. Only changes to this AGIVersion will.
 //
 // Version History:
 //   - 1: Initial AGI template implementation with template-based approach

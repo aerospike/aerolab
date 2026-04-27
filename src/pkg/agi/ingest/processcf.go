@@ -326,10 +326,10 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		"summary":  db.Str(ct.summary),
 		"cfName":   db.Str(fname),
 	}
-	// Pebble has no hard upper bound on row size like Aerospike's 8 MiB
-	// limit, but very large blobs still hurt: they bloat the memtable,
-	// blow up WAL replays, and stall flushes. Warn so an operator
-	// chasing slow ingest has a single grep to find the cause.
+	// Pebble has no hard upper bound on row size, but very large blobs
+	// still hurt: they bloat the memtable, blow up WAL replays, and
+	// stall flushes. Warn so an operator chasing slow ingest has a
+	// single grep to find the cause.
 	const cfSoftWarnBytes = 16 << 20
 	cfTotalBytes := len(ct.sysinfo) + len(ct.confFile) + len(ct.health) + len(ct.summary) + len(fname)
 	if cfTotalBytes > cfSoftWarnBytes {
