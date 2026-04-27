@@ -102,10 +102,10 @@ aerolab instances destroy -n <instance-name> --force
 aerolab agi status -n myagi
 
 # Attach and check logs
-aerolab agi attach -n myagi -- tail -100 /var/log/agi-ingest.log
+aerolab agi attach -n myagi -- tail -100 /var/log/agi-plugin.log
 
-# Restart ingest service
-aerolab agi attach -n myagi -- systemctl restart agi-ingest
+# Re-run ingest (resets steps and restarts the merged plugin service)
+aerolab agi attach -n myagi -- bash -c 'rm -f /opt/agi/ingest/steps.json && systemctl restart agi-plugin'
 ```
 
 ### "SFTP Connection Failed"
@@ -166,7 +166,7 @@ aerolab agi create \
 aerolab agi attach -n myagi -- ls -la /opt/agi/files/input/
 
 # Check for recognized log formats
-aerolab agi attach -n myagi -- cat /var/log/agi-ingest.log | grep -i "file"
+aerolab agi attach -n myagi -- cat /var/log/agi-plugin.log | grep -i "file"
 
 # Disable time range filter
 aerolab agi run-ingest -n myagi --source-local /path/to/logs
@@ -558,7 +558,6 @@ aerolab agi details -n myagi
 aerolab agi attach -n myagi -- journalctl -n 200
 
 # Specific service logs
-aerolab agi attach -n myagi -- tail -200 /var/log/agi-ingest.log
 aerolab agi attach -n myagi -- tail -200 /var/log/agi-proxy.log
 aerolab agi attach -n myagi -- tail -200 /var/log/agi-plugin.log
 

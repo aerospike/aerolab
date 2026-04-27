@@ -48,7 +48,7 @@ func (c *AgiAttachCmdHelp) Execute(args []string) error {
 For example:
 
   aerolab agi attach --name=myagi -- ls -l /opt
-  aerolab agi attach --name=myagi -- cat /var/log/agi-ingest.log
+  aerolab agi attach --name=myagi -- cat /var/log/agi-plugin.log
   aerolab agi attach --name=myagi -- systemctl status aerospike
 `)
 	return nil

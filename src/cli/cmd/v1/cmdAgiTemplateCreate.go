@@ -796,34 +796,6 @@ WantedBy=multi-user.target
 EOF
 `)
 
-	// agi-ingest service: intentionally a no-op stub. The ingest
-	// pipeline now runs inside agi-plugin.service (see above). This
-	// unit exists only so legacy scripts (cmdAgiCreate.go's enable
-	// loop, cmdAgiStatus.go's service list) that reference
-	// agi-ingest.service don't fail; starting it prints a
-	// deprecation notice and exits. Re-triggering an ingest is done
-	// by resetting /opt/agi/ingest/steps.json and restarting
-	// agi-plugin.service (see cmdAgiRetrigger.go).
-	script.WriteString(`
-cat > /etc/systemd/system/agi-ingest.service << 'EOF'
-[Unit]
-Description=AGI Log Ingest Service (deprecated stub; see agi-plugin.service)
-After=network.target
-
-[Service]
-Type=oneshot
-User=root
-Group=root
-ExecStart=/bin/sh -c 'echo "agi-ingest.service is deprecated; ingest runs inside agi-plugin.service. To re-run ingest: rm /opt/agi/ingest/steps.json && systemctl restart agi-plugin.service" | tee -a /var/log/agi-ingest.log'
-RemainAfterExit=yes
-StandardOutput=append:/var/log/agi-ingest.log
-StandardError=append:/var/log/agi-ingest.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-`)
-
 	// agi-proxy service
 	script.WriteString(`
 cat > /etc/systemd/system/agi-proxy.service << 'EOF'

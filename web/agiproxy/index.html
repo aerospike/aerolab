@@ -209,7 +209,6 @@
                                     <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">Instance</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsproxy">Proxy Logs</a></li>
-                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsingest">Ingest Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsplugin">Plugin Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsgfix">Grafanafix Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#dmesg">Dmesg</a></li>
@@ -329,9 +328,6 @@
                             </div>
                             <div class="tab-pane" id="logsproxy">
                                 <p class=" card-text" id="logsproxyp"><i class="fa-solid fa-spinner fa-spin"></i></p>
-                            </div>
-                            <div class="tab-pane" id="logsingest">
-                                <p class=" card-text" id="logsingestp"><i class="fa-solid fa-spinner fa-spin"></i></p>
                             </div>
                             <div class="tab-pane" id="logsplugin">
                                 <p class=" card-text" id="logspluginp"><i class="fa-solid fa-spinner fa-spin"></i></p>
@@ -944,7 +940,6 @@
             function getAgiLogs() {
                 $.getJSON("/agi/api/logs", function(data){
                     $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
-                    $("#logsingestp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["IngestLogs"])));
                     $("#logspluginp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["PluginLogs"])));
                     $("#logsgfixp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["GrafanaFixLogs"])));
                     $("#dmesgp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["Dmesg"])));
@@ -956,7 +951,6 @@
                     }
                     body = data.statusText+": "+body;
                     $("#logsproxyp").css("text-align","left").text("ERROR: "+body);
-                    $("#logsingestp").css("text-align","left").text("ERROR: "+body);
                     $("#logspluginp").css("text-align","left").text("ERROR: "+body);
                     $("#logsgfixp").css("text-align","left").text("ERROR: "+body);
                     $("#dmesgp").css("text-align","left").text("ERROR: "+body);

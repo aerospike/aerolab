@@ -573,7 +573,7 @@ aerolab agi attach -n myagi
 aerolab agi attach -n myagi -- ls /opt/agi
 
 # Check logs
-aerolab agi attach -n myagi -- tail -f /var/log/agi-ingest.log
+aerolab agi attach -n myagi -- tail -f /var/log/agi-plugin.log
 ```
 
 ---

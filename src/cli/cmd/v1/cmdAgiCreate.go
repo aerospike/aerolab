@@ -2312,7 +2312,7 @@ func (c *AgiCreateCmd) startServices(instance backends.InstanceList, logger *log
 	logger.Debug("Enabling and starting all AGI services")
 
 	script := `ERRORS=""
-for service in grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
+for service in grafana-server agi-plugin agi-grafanafix agi-proxy; do
     if ! systemctl start "$service"; then
         ERRORS="$ERRORS $service"
     fi

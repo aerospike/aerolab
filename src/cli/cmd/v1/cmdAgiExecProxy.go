@@ -591,7 +591,6 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	type logs struct {
 		ProxyLogs      string
-		IngestLogs     string
 		PluginLogs     string
 		GrafanaFixLogs string
 		Dmesg          string
@@ -602,13 +601,11 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat("/var/log/services"); err == nil {
 		// Docker mode - read from /var/log/services/
 		l.ProxyLogs = c.getLogFile("/var/log/services/agi-proxy.log")
-		l.IngestLogs = c.getLogFile("/var/log/services/agi-ingest.log")
 		l.GrafanaFixLogs = c.getLogFile("/var/log/services/agi-grafanafix.log")
 		l.PluginLogs = c.getLogFile("/var/log/services/agi-plugin.log")
 	} else {
 		// Cloud mode (AWS/GCP) - use systemd with journalctl fallback
 		l.ProxyLogs = c.getLog("/var/log/agi-proxy.log", "agi-proxy")
-		l.IngestLogs = c.getLog("/var/log/agi-ingest.log", "agi-ingest")
 		l.GrafanaFixLogs = c.getLog("/var/log/agi-grafanafix.log", "agi-grafanafix")
 		l.PluginLogs = c.getLog("/var/log/agi-plugin.log", "agi-plugin")
 	}
