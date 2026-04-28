@@ -31,6 +31,12 @@ func DBOptionsFromConfig(cfg *Config) db.Options {
 	if cfg.DB.MaxOpenFiles != 0 {
 		opts.MaxOpenFiles = cfg.DB.MaxOpenFiles
 	}
+	if cfg.DB.BlockSize != 0 {
+		opts.BlockSize = cfg.DB.BlockSize
+	}
+	if cfg.DB.Compression != "" {
+		opts.Compression = cfg.DB.Compression
+	}
 	opts.EnableWAL = cfg.DB.EnableWAL
 	opts.SyncWrites = cfg.DB.SyncWrites
 	return opts

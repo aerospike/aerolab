@@ -114,10 +114,14 @@ type AgiMonitorConfigCmd struct {
 	RAMThresUsedPct   int `long:"ram-thres-used-pct" description:"Max used PCT of RAM (MemAvailable-based) before instance gets sized" default:"90"`
 	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized; doubles as 'headroom' in the pre-process sizing formula" default:"2"`
 
-	RAMFloorGB     int `long:"ram-floor-gb" description:"Always-on baseline RAM (process+grafana+memtables+ingest buffers). Added on top of cache target and headroom" default:"3"`
-	CacheTargetPct int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
-	CacheMinGB     int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
-	CacheMaxGB     int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
+	// Defaults mirror cmdAgiMonitor.go (with-agi build); keep in
+	// lockstep with the agiOSReserveBytes + agiNonPebbleOverheadBytes
+	// constants in cmdAgiCreate.go.
+	RAMFloorGB           int `long:"ram-floor-gb" description:"Always-on baseline RAM (OS reserve + merged-process non-Pebble overhead). Added on top of (multiplier × cache target) and headroom" default:"10"`
+	CachePeakMultiplier  int `long:"cache-peak-multiplier" description:"Multiplier on the Pebble cache target to predict total host RAM needed; 4 reflects 'Pebble = 50% of host, half cache + half memtables'" default:"4"`
+	CacheTargetPct       int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
+	CacheMinGB           int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
+	CacheMaxGB           int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
 
 	DisableSizing   bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
 	SizingMaxRamGB  int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"48"`

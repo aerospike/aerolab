@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/sstable"
 )
 
 // Exported sentinel errors. Callers that want to classify failures with
@@ -162,6 +164,24 @@ func Open(opts Options) (*DB, error) {
 	}
 	if opts.MaxOpenFiles > 0 {
 		pOpts.MaxOpenFiles = opts.MaxOpenFiles
+	}
+	// Per-level options: BlockSize and Compression. pebble.Options.Levels
+	// is a fixed-size array (NumLevels entries), so we set fields in
+	// place rather than reslicing. ApplyCompressionSettings iterates
+	// the array and installs a per-level Compression closure, which is
+	// exactly the per-level layout we want for AGI on EFS: cheap
+	// codecs on the upper levels (flushes / minor compactions on the
+	// hot path) and Zstd on the bottom levels where the bulk of bytes
+	// settle.
+	if opts.BlockSize > 0 {
+		for i := range pOpts.Levels {
+			pOpts.Levels[i].BlockSize = opts.BlockSize
+		}
+	}
+	if cs, ok := pickCompressionSettings(opts.Compression); ok {
+		pOpts.ApplyCompressionSettings(func() pebble.DBCompressionSettings { return cs })
+	} else if opts.Compression != "" {
+		opts.Logger.Printf("WARN: db: Open: unrecognised Compression %q, falling back to Pebble default", opts.Compression)
 	}
 
 	p, err := pebble.Open(opts.Path, pOpts)
@@ -775,6 +795,36 @@ func (s *stripedLocks) lockAll() {
 func (s *stripedLocks) unlockAll() {
 	for i := 0; i < stripeCount; i++ {
 		s.m[i].Unlock()
+	}
+}
+
+// pickCompressionSettings maps the string knob in Options.Compression
+// to one of Pebble's predefined DBCompressionSettings. The second return
+// is false when the input is empty (caller should leave Pebble's default
+// in place) or not recognised (caller should warn and fall back).
+//
+// "balanced" / "good" deliberately use Pebble's curated per-level
+// profiles instead of a uniform Zstd: data settles at the bottom levels
+// where Zstd amortises well, while flushes and minor compactions stay
+// on the cheap codec so the foreground write path is not slowed.
+func pickCompressionSettings(name string) (pebble.DBCompressionSettings, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "":
+		return pebble.DBCompressionSettings{}, false
+	case "default", "snappy":
+		return pebble.UniformDBCompressionSettings(sstable.SnappyCompression), true
+	case "fastest":
+		return pebble.DBCompressionFastest, true
+	case "balanced":
+		return pebble.DBCompressionBalanced, true
+	case "good":
+		return pebble.DBCompressionGood, true
+	case "zstd":
+		return pebble.UniformDBCompressionSettings(sstable.ZstdCompression), true
+	case "none":
+		return pebble.DBCompressionNone, true
+	default:
+		return pebble.DBCompressionSettings{}, false
 	}
 }
 

@@ -252,6 +252,8 @@ type Config struct {
 		MemTableStopWritesThreshold int    `yaml:"memTableStopWritesThreshold" default:"0"` // 0 -> db default
 		MaxConcurrentCompactions    int    `yaml:"maxConcurrentCompactions" default:"0"`    // 0 -> db default
 		MaxOpenFiles                int    `yaml:"maxOpenFiles" default:"0"`
+		BlockSize                   int    `yaml:"blockSize" default:"0"`     // 0 -> db default (Pebble default = 4 KiB)
+		Compression                 string `yaml:"compression" default:""`    // "" -> db default (Pebble default = uniform Snappy); see db.Options.Compression for valid values
 		EnableWAL                   bool   `yaml:"enableWAL" default:"false"`
 		SyncWrites                  bool   `yaml:"syncWrites" default:"false"`
 	} `yaml:"db"`

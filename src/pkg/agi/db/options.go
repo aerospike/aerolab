@@ -55,6 +55,42 @@ type Options struct {
 	// Zero leaves Pebble's default.
 	MaxOpenFiles int
 
+	// BlockSize is the target uncompressed size of each SSTable data
+	// block in bytes. Larger blocks raise the compression ratio (more
+	// cross-row redundancy per block) and reduce per-block metadata
+	// overhead at a small cost in point-Get amplification (each Get
+	// decompresses one block). 0 leaves Pebble's default of 4 KiB.
+	// AGI's hot path is range scans where successive reads share a
+	// block, so larger blocks (e.g. 32 KiB) are nearly free on the
+	// read side and useful on the write side.
+	BlockSize int
+
+	// Compression selects the per-level SSTable compression profile.
+	// The empty string leaves Pebble's default (uniform Snappy on
+	// every level). Recognised values are case-insensitive:
+	//
+	//   ""        / "default" — uniform Snappy on every level (Pebble default).
+	//   "snappy"             — uniform Snappy on every level (explicit).
+	//   "fastest"            — uniform FastestCompression (MinLZ on x86_64,
+	//                          Snappy on arm64). Slightly better ratio than
+	//                          Snappy on x86_64 at the same CPU cost.
+	//   "balanced"           — Pebble's DBCompressionBalanced: FastestCompression
+	//                          on the upper LSM levels (cheap flushes / minor
+	//                          compactions) and Zstd level 1 on the bottom 1-2
+	//                          levels where the bulk of bytes settle. Targets
+	//                          the EFS / network-FS profile where on-disk
+	//                          bytes dominate cost and CPU has slack.
+	//   "good"               — Pebble's DBCompressionGood: like "balanced"
+	//                          but with Zstd level 3 on the bottom levels.
+	//                          Tighter ratio, ~2x the CPU per byte compacted.
+	//   "zstd"               — uniform Zstd level 3 on every level. Heaviest
+	//                          CPU; only useful when L0 flush throughput is
+	//                          not on any hot path.
+	//   "none"               — no compression. For benchmarking only.
+	//
+	// Unrecognised values are treated as "" and a warning is logged.
+	Compression string
+
 	// EnableWAL turns on the Pebble write-ahead log. The WAL is OFF by
 	// default, matching the throwaway-fast posture of this package: a
 	// crash loses any still-in-memtable writes, which is acceptable

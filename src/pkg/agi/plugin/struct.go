@@ -100,6 +100,8 @@ type Config struct {
 		MemTableStopWritesThreshold int           `yaml:"memTableStopWritesThreshold" default:"0" envconfig:"PLUGIN_DB_MEMTABLE_STOP_THRESHOLD"`
 		MaxConcurrentCompactions    int           `yaml:"maxConcurrentCompactions" default:"0" envconfig:"PLUGIN_DB_MAX_COMPACTIONS"`
 		MaxOpenFiles                int           `yaml:"maxOpenFiles" default:"0" envconfig:"PLUGIN_DB_MAX_OPEN_FILES"`
+		BlockSize                   int           `yaml:"blockSize" default:"0" envconfig:"PLUGIN_DB_BLOCK_SIZE"`
+		Compression                 string        `yaml:"compression" default:"" envconfig:"PLUGIN_DB_COMPRESSION"`
 		EnableWAL                   bool          `yaml:"enableWAL" default:"false" envconfig:"PLUGIN_DB_ENABLE_WAL"`
 		SyncWrites                  bool          `yaml:"syncWrites" default:"false" envconfig:"PLUGIN_DB_SYNC_WRITES"`
 		ShutdownTimeout             time.Duration `yaml:"shutdownTimeout" default:"60s" envconfig:"PLUGIN_DB_SHUTDOWN_TIMEOUT"`

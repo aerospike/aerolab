@@ -566,15 +566,15 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	}
 
 	// Get available memory on the instance
-	memSize, err := c.getAvailableMemory(instance, backendType)
+	totalMem, memSize, err := c.getAvailableMemory(instance, backendType)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Available memory: %d GB", memSize/1024/1024/1024)
+	logger.Info("Available memory: %d GB total, %d GB after OS reserve", totalMem/1024/1024/1024, memSize/1024/1024/1024)
 
 	// Generate configuration files
 	logger.Info("Generating AGI configuration files")
-	configs, err := c.generateConfigs(system, memSize, backendType)
+	configs, err := c.generateConfigs(system, totalMem, memSize, backendType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate configs: %w", err)
 	}
@@ -1626,7 +1626,14 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 }
 
 // getAvailableMemory gets the available memory on the instance.
-func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backendType string) (int64, error) {
+//
+// Returns the total host RAM (totalMem, as reported by /proc/meminfo
+// MemTotal) and the post-reservation budget (memSize = totalMem -
+// reserved). Both are exposed because the Pebble sizing helpers cap
+// against totalMem (the OOM guardrail is a fraction of the *whole*
+// host) while the rest of the pipeline budgets against memSize (the
+// portion AGI may safely allocate after carving out the OS reserve).
+func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backendType string) (totalMem int64, memSize int64, err error) {
 	var lastErr error
 	var lastStdout, lastStderr string
 
@@ -1671,56 +1678,69 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 		// Success - parse the memory value
 		fields := strings.Fields(lines[1])
 		if len(fields) < 2 {
-			return 0, fmt.Errorf("malformed memory line: %q", lines[1])
+			return 0, 0, fmt.Errorf("malformed memory line: %q", lines[1])
 		}
 
-		totalMem, err := strconv.ParseInt(fields[1], 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse memory: %w", err)
+		total, perr := strconv.ParseInt(fields[1], 10, 64)
+		if perr != nil {
+			return 0, 0, fmt.Errorf("failed to parse memory: %w", perr)
 		}
 
 		// Reserve memory: 6GB for cloud, 3GB for docker
-		var reserved int64
+		reserved := agiOSReserveBytes(backendType)
+		mSize := total - reserved
+		// Minimum viable memSize differs by deployment:
+		//   - Cloud uses the 50%-of-host Pebble budget cap and the
+		//     full ingest/plugin concurrency; below 5 GiB memSize
+		//     the generated config pegs at 100% memory and OOMs.
+		//   - Docker uses the legacy "memSize/2" Pebble heuristic
+		//     and lower concurrency (MaxPutThreads halved); the
+		//     classic 1 GiB floor still works.
+		var minViable int64
 		if backendType == "docker" {
-			reserved = 3 * 1024 * 1024 * 1024
+			minViable = int64(1) << 30
 		} else {
-			reserved = 6 * 1024 * 1024 * 1024
+			minViable = agiNonPebbleOverheadBytes + (int64(1) << 30)
+		}
+		if mSize < minViable {
+			return 0, 0, fmt.Errorf("not enough RAM after %d GiB OS reserve: have %d GiB, need at least %d GiB",
+				reserved/(1<<30), mSize/(1<<30), minViable/(1<<30))
 		}
 
-		memSize := totalMem - reserved
-		if memSize < 1024*1024*1024 {
-			return 0, fmt.Errorf("not enough RAM (min 1GB after reservation)")
-		}
-
-		return memSize, nil
+		return total, mSize, nil
 	}
 
 	// All retries failed
-	return 0, fmt.Errorf("failed to get memory info after 10 attempts: %w (stdout=%q stderr=%q)", lastErr, lastStdout, lastStderr)
+	return 0, 0, fmt.Errorf("failed to get memory info after 10 attempts: %w (stdout=%q stderr=%q)", lastErr, lastStdout, lastStderr)
 }
 
 // generateConfigs generates all AGI configuration files.
-func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendType string) (map[string][]byte, error) {
+func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, backendType string) (map[string][]byte, error) {
 	configs := make(map[string][]byte)
 
-	// Compute Pebble DB tuning from the instance's available memory
-	// budget (post-reservation). Both ingest and plugin embed the same
-	// db handle in the merged service, so they MUST agree on these
-	// numbers; we generate them once here and inject them into both
-	// YAMLs.
-	dbCacheBytes := computePebbleCacheBytes(memSize)
-	dbMemTableBytes := computePebbleMemTableBytes(memSize, backendType)
+	// Compute Pebble DB tuning from the instance's memory profile.
+	// totalMem is the host's total RAM (used for the 50%-of-host
+	// guardrail); memSize is the post-reservation budget (used for
+	// the per-process budget that ingest+plugin+Go also share).
+	// Both ingest and plugin embed the same db handle in the merged
+	// service, so they MUST agree on these numbers; we generate them
+	// once here and inject them into both YAMLs.
+	dbCacheBytes := computePebbleCacheBytes(totalMem, memSize, backendType)
+	dbMemTableBytes := computePebbleMemTableBytes(totalMem, memSize, backendType)
 	dbMaxCompactions := computePebbleMaxConcurrentCompactions(backendType)
+	dbStopWritesThreshold := computePebbleStopWritesThreshold(totalMem, memSize, dbMemTableBytes, backendType)
+	dbBlockSize := computePebbleBlockSize(backendType)
+	dbCompression := computePebbleCompression(backendType)
 
 	// Generate ingest.yaml
-	ingestConfig, err := c.generateIngestConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions)
+	ingestConfig, err := c.generateIngestConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions, dbStopWritesThreshold, dbBlockSize, dbCompression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate ingest config: %w", err)
 	}
 	configs["/opt/agi/ingest.yaml"] = ingestConfig
 
 	// Generate plugin.yaml
-	pluginConfig := c.generatePluginConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions)
+	pluginConfig := c.generatePluginConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions, dbStopWritesThreshold, dbBlockSize, dbCompression)
 	configs["/opt/agi/plugin.yaml"] = pluginConfig
 
 	// Generate grafanafix.yaml
@@ -1755,17 +1775,93 @@ func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendTyp
 	return configs, nil
 }
 
-// computePebbleCacheBytes returns the recommended Pebble block cache size
-// given the post-reservation memory budget. Roughly half the budget goes to
-// the explicit block cache; the other half is left to the OS page cache,
-// which serves Pebble L1+ sstable reads transparently. The value is
-// floored at 256 MiB and capped at 16 GiB — beyond that, marginal value
-// drops sharply because the page cache is just as effective for cold
-// reads and cheaper to evict during compaction.
-func computePebbleCacheBytes(memSize int64) int64 {
-	cache := memSize / 2
+// agiNonPebbleOverheadBytes is the amount of memSize that AGI sets
+// aside for non-Pebble process needs: the ingest pipeline (PutBatch
+// shards × batch size × row size, scanner read buffers, decompressors),
+// the plugin pipeline (in-flight queries' decoded rows + result
+// buffers), the Go runtime (heap + goroutine stacks + GC overhead),
+// and the in-process Grafana / grafanafix bits. Empirically ~4 GiB at
+// the configured concurrency limits. Pebble's budget is computed as
+// memSize - this constant so all three layers fit at peak load.
+const agiNonPebbleOverheadBytes = int64(4) << 30
+
+// agiOSReserveBytes is the OS / system reserve carved out of the
+// host's total RAM before AGI may allocate. It is mirrored in
+// getAvailableMemory and the AGI monitor sizing formula; keep all
+// three in lockstep or instances generated here will fail the
+// monitor's pre-process sizing check.
+func agiOSReserveBytes(backendType string) int64 {
+	if backendType == "docker" {
+		return int64(3) << 30
+	}
+	return int64(6) << 30
+}
+
+// computePebbleTotalBudget returns the maximum number of host RAM
+// bytes Pebble may consume across its block cache and memtables
+// combined. It is the joint constraint of two limits:
+//
+//  1. **50% of total host RAM** — a hard guardrail against OOM under
+//     sudden plugin-query load, regardless of memSize. The remaining
+//     50% covers the OS reserve, ingest/plugin pipeline buffers, the
+//     Go runtime, Grafana, and the OS page cache that itself helps
+//     Pebble's L1+ reads.
+//  2. **memSize − agiNonPebbleOverheadBytes** — leaves at least
+//     agiNonPebbleOverheadBytes inside the post-reservation budget
+//     for the merged process's non-Pebble parts.
+//
+// On Docker the original "half of memSize" heuristic is preserved so
+// the existing dev path is unchanged.
+func computePebbleTotalBudget(totalMem, memSize int64, backendType string) int64 {
+	if backendType == "docker" {
+		return memSize / 2
+	}
+	halfHost := totalMem / 2
+	afterOverhead := memSize - agiNonPebbleOverheadBytes
+	if afterOverhead < 0 {
+		afterOverhead = 0
+	}
+	budget := halfHost
+	if afterOverhead < budget {
+		budget = afterOverhead
+	}
+	// Floor: even on very small cloud hosts (which AGI is not
+	// targeted at, but which we should not crash on at config
+	// generation), keep enough room for a minimal cache + a couple
+	// of memtables so the LSM remains functional.
+	const minBudget = int64(512) << 20
+	if budget < minBudget {
+		budget = minBudget
+	}
+	return budget
+}
+
+// computePebbleCacheBytes returns the recommended Pebble block cache
+// size.
+//
+// Cloud (AWS/GCP): half of the Pebble budget (see
+// computePebbleTotalBudget) goes to the explicit block cache; the
+// other half is reserved for peak memtable RAM. The value is
+// floored at 256 MiB and capped at 16 GiB — beyond 16 GiB, marginal
+// value drops sharply because the OS page cache is just as
+// effective for cold reads and cheaper to evict during compaction.
+// When the cache cap binds, the unused portion of the budget flows
+// to memtables (see computePebbleMemTableBytes).
+//
+// Docker: keeps the original "half of memSize" heuristic. Docker
+// AGIs use small fixed-size memtables (64–256 MiB × default 4
+// threshold) whose peak RAM is well under 1 GiB, so the cache and
+// memtable budgets do not need to share a pool — the original
+// formula is unchanged from the pre-budget-cap behaviour.
+func computePebbleCacheBytes(totalMem, memSize int64, backendType string) int64 {
 	const floor = int64(256) << 20
 	const cap = int64(16) << 30
+	var cache int64
+	if backendType == "docker" {
+		cache = memSize / 2
+	} else {
+		cache = computePebbleTotalBudget(totalMem, memSize, backendType) / 2
+	}
 	if cache < floor {
 		cache = floor
 	}
@@ -1775,39 +1871,60 @@ func computePebbleCacheBytes(memSize int64) int64 {
 	return cache
 }
 
-// computePebbleMemTableBytes returns the recommended Pebble memtable
-// (write buffer) size, tuned for the deployment's storage profile.
+// computePebbleMemTableBytes returns the recommended per-memtable
+// size (Pebble's write buffer). On cloud (AWS/GCP, EFS-backed) the
+// size is auto-picked so that the EFS-jitter buffer floor of 8
+// memtables fits in the half of the Pebble budget reserved for
+// memtables — i.e. 8 × memTableBytes ≤ memtableBudget.
 //
-// Docker AGIs run on local FS where SSTable creation is sub-millisecond;
-// the original tuning (256 MiB on >=6 GiB hosts, 64 MiB below) is
-// already throughput-bound on the actual write rather than file
-// metadata, so we leave it alone.
+// Docker AGIs run on local FS where SSTable creation is sub-
+// millisecond; the original tuning (256 MiB on >=6 GiB hosts,
+// 64 MiB below) is throughput-bound on the actual write rather
+// than file metadata, so we leave it alone.
 //
-// Cloud AGIs (AWS/GCP) back /opt/agi with EFS / Filestore. Each
-// memtable flush creates a new SSTable: open(O_CREAT) → write →
-// fsync → atomic rename → MANIFEST update + sync. On NFS-class
-// filesystems each of those metadata steps is 20–100 ms (vs <1 ms
-// on NVMe), so the dominant ingest cost is the *number* of flushes,
-// not the bytes-per-flush. Larger memtables linearly reduce flush
-// count: 256 MiB → 1 GiB cuts the L0 SSTable count for a 9 GiB
-// ingest from ~37 to ~9, with proportional knock-on reductions in
-// the L0→L1→L2 compaction cascade. The ceiling is set by
-// MemTableStopWritesThreshold (default 4): peak memtable RAM at
-// 1 GiB × 4 = 4 GiB, well within the cloud reservation budget.
-func computePebbleMemTableBytes(memSize int64, backendType string) uint64 {
+// Cloud rationale: each memtable flush on EFS opens a new SSTable
+// (O_CREAT → write → fsync → atomic rename → MANIFEST update + sync),
+// each metadata step costing 20–100 ms (vs <1 ms on NVMe). The
+// dominant ingest cost is therefore the *number* of flushes, not the
+// bytes-per-flush. Larger memtables linearly reduce flush count, so
+// we pick the largest size that still lets 8 memtables fit in the
+// memtable budget, capped at 1 GiB (beyond which a single flush
+// duration starts producing user-visible PutBatch stalls when the
+// stop-writes queue overruns during a slow EFS moment).
+//
+// Choice ladder on cloud (per-memtable budget = memtableBudget / 8):
+//
+//	≥ 1024 MiB → 1 GiB      // r7a.2xlarge and bigger
+//	≥  512 MiB → 512 MiB    // mid-size hosts
+//	≥  256 MiB → 256 MiB    // m7i.xlarge / 16 GiB cloud
+//	≥  128 MiB → 128 MiB    // tight hosts
+//	otherwise   → 64 MiB    // floor
+func computePebbleMemTableBytes(totalMem, memSize int64, backendType string) uint64 {
 	if backendType == "docker" {
 		if memSize >= int64(6)<<30 {
 			return uint64(256) << 20
 		}
 		return uint64(64) << 20
 	}
+	cacheBytes := computePebbleCacheBytes(totalMem, memSize, backendType)
+	pebbleBudget := computePebbleTotalBudget(totalMem, memSize, backendType)
+	memtableBudget := pebbleBudget - cacheBytes
+	if memtableBudget < int64(64)<<20 {
+		return uint64(64) << 20
+	}
+	const target = int64(8) // EFS-jitter floor — match computePebbleStopWritesThreshold
+	per := memtableBudget / target
 	switch {
-	case memSize >= int64(8)<<30:
-		return uint64(1) << 30 // 1 GiB
-	case memSize >= int64(4)<<30:
+	case per >= int64(1)<<30:
+		return uint64(1) << 30
+	case per >= int64(512)<<20:
 		return uint64(512) << 20
-	default:
+	case per >= int64(256)<<20:
 		return uint64(256) << 20
+	case per >= int64(128)<<20:
+		return uint64(128) << 20
+	default:
+		return uint64(64) << 20
 	}
 }
 
@@ -1835,8 +1952,117 @@ func computePebbleMaxConcurrentCompactions(backendType string) int {
 	return 1
 }
 
+// computePebbleStopWritesThreshold returns the upper bound on the
+// number of memtables Pebble keeps alive (active + queued +
+// flushing) before blocking incoming PutBatch calls.
+//
+// Docker AGIs run on local FS where memtable flushes are fast and
+// the writer rarely backs up; we return 0 so the db package's
+// default of 4 applies (db.DefaultOptions). Worst-case memtable
+// RAM at default Docker memtable sizes is well under 1 GiB.
+//
+// Cloud AGIs back /opt/agi with EFS, where a single memtable flush
+// can take 30+ seconds (EFS bandwidth + metadata RTTs). Any
+// transient EFS slowdown stalls the writer the moment the queue
+// hits the default of 4 — we therefore set a floor of 8 to absorb
+// short EFS hiccups without leaking flushes back to the foreground
+// put path. On bigger hosts where the memtable budget exceeds
+// 8 × memTableBytes the threshold scales with the budget up to a
+// ceiling of 32 (beyond which the post-EFS-recovery flush queue
+// takes pathologically long to drain).
+//
+// computePebbleMemTableBytes already auto-picks memTableBytes so
+// that 8 × memTableBytes ≤ memtableBudget, so the floor of 8 is
+// always satisfiable on cloud — no danger of peak memtable RAM
+// blowing the budget on small hosts.
+//
+// Worked examples (cloud only, with the auto-picked memTableBytes):
+//
+//	 16 GiB host: memtableBudget=3 GiB, memTableBytes=256 MiB → 12 → floor=8 wins (peak 2 GiB)
+//	 32 GiB host: memtableBudget=8 GiB, memTableBytes=1 GiB   → 8  → floor=8 wins (peak 8 GiB)
+//	 64 GiB host: memtableBudget=16 GiB, memTableBytes=1 GiB  → 16 → budget wins  (peak 16 GiB)
+//	128 GiB host: memtableBudget=32+ GiB, memTableBytes=1 GiB → 32 → ceiling wins (peak 32 GiB)
+func computePebbleStopWritesThreshold(totalMem, memSize int64, memTableBytes uint64, backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default = 4
+	}
+	if memTableBytes == 0 {
+		return 8
+	}
+	cacheBytes := computePebbleCacheBytes(totalMem, memSize, backendType)
+	pebbleBudget := computePebbleTotalBudget(totalMem, memSize, backendType)
+	memtableBudget := pebbleBudget - cacheBytes
+	if memtableBudget < 0 {
+		memtableBudget = 0
+	}
+	const floor = 8
+	const ceiling = 32
+	n := int(uint64(memtableBudget) / memTableBytes)
+	if n < floor {
+		n = floor
+	}
+	if n > ceiling {
+		n = ceiling
+	}
+	return n
+}
+
+// computePebbleBlockSize returns the SSTable data-block size for the
+// deployment.
+//
+// Docker AGIs use local FS where read amplification on point Gets
+// dominates the trade-off; we return 0 so the db package leaves
+// Pebble's default of 4 KiB in place.
+//
+// Cloud AGIs back /opt/agi with EFS, where the per-block compression
+// ratio improves meaningfully with larger blocks (more cross-row
+// redundancy of column-id / type / varint header bytes per block)
+// and EFS reads amortise better over fewer, larger requests. AGI's
+// hot path is timestamp-range scans where successive iterator
+// reads land in the same block anyway, so the read-side cost of a
+// 32 KiB block is near zero. The compounding effect with
+// "balanced" compression (Snappy / MinLZ on upper levels, Zstd1 on
+// the bottom 1-2 levels) is where the bulk of the on-disk savings
+// come from for the int-heavy AGI metric workload.
+func computePebbleBlockSize(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default → pebble default = 4 KiB
+	}
+	return 32 << 10 // 32 KiB
+}
+
+// computePebbleCompression returns the SSTable compression profile
+// for the deployment.
+//
+// Docker AGIs use local FS where Snappy is already the right
+// trade-off (cheap CPU, quick flushes, low write amplification);
+// we return "" so the db package leaves Pebble's uniform-Snappy
+// default in place.
+//
+// Cloud AGIs back /opt/agi with EFS, where on-disk byte volume is
+// the bottleneck and CPU has slack on the deployed instance shapes.
+// "balanced" maps to Pebble's DBCompressionBalanced: cheap codecs
+// (FastestCompression — MinLZ on x86_64 / Snappy on arm64) on the
+// upper LSM levels so flushes and minor compactions stay on the
+// hot path, plus Zstd level 1 on the bottom 1-2 levels where the
+// bulk of bytes settle. This concentrates Zstd CPU on the level
+// where it amortises best (data is rewritten there once and
+// stays) while never adding Zstd cost to the foreground writer.
+//
+// On the AGI metric workload (varint-encoded integer columns,
+// repeated colID/type tag bytes per row, timestamp-clustered
+// blocks) the realistic on-disk improvement vs uniform Snappy is
+// roughly 25-40%, which translates almost linearly into ingest
+// wall-clock when EFS-bandwidth-bound.
+func computePebbleCompression(backendType string) string {
+	if backendType == "docker" {
+		return "" // db default → pebble default = uniform Snappy
+	}
+	return "balanced"
+}
+
 // generateIngestConfig generates the ingest.yaml configuration.
-func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int) ([]byte, error) {
+func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int, dbStopWritesThreshold int, dbBlockSize int, dbCompression string) ([]byte, error) {
 	config, err := ingest.MakeConfigReader(true, nil, false)
 	if err != nil {
 		return nil, err
@@ -1845,12 +2071,15 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int
 	// Pebble DB tuning. The merged service (cmdAgiExecService) opens
 	// one Pebble handle and shares it between ingest and plugin; both
 	// YAML files must therefore declare the same cache/memtable/
-	// compaction-concurrency settings or the operator-set value from
-	// one would silently lose to the other depending on which call
-	// site builds the options first.
+	// compaction-concurrency/block-size/compression settings or the
+	// operator-set value from one would silently lose to the other
+	// depending on which call site builds the options first.
 	config.DB.CacheBytes = dbCacheBytes
 	config.DB.MemTableSizeBytes = dbMemTableBytes
 	config.DB.MaxConcurrentCompactions = dbMaxCompactions
+	config.DB.MemTableStopWritesThreshold = dbStopWritesThreshold
+	config.DB.BlockSize = dbBlockSize
+	config.DB.Compression = dbCompression
 
 	// Configure based on backend
 	config.MaxPutThreads = 128
@@ -1970,7 +2199,7 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int
 }
 
 // generatePluginConfig generates the plugin.yaml configuration.
-func (c *AgiCreateCmd) generatePluginConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int) []byte {
+func (c *AgiCreateCmd) generatePluginConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int, dbStopWritesThreshold int, dbBlockSize int, dbCompression string) []byte {
 	maxDp := 34560000
 	if backendType == "docker" {
 		maxDp = maxDp / 2
@@ -2008,7 +2237,10 @@ db:
   cacheBytes: %d
   memTableSizeBytes: %d
   maxConcurrentCompactions: %d
-%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel, dbCacheBytes, dbMemTableBytes, dbMaxCompactions, cpuProfiling)
+  memTableStopWritesThreshold: %d
+  blockSize: %d
+  compression: %q
+%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel, dbCacheBytes, dbMemTableBytes, dbMaxCompactions, dbStopWritesThreshold, dbBlockSize, dbCompression, cpuProfiling)
 
 	return []byte(config)
 }

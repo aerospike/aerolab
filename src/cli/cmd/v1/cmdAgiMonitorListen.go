@@ -1009,18 +1009,35 @@ func (m *agiMonitor) handleCheckSizing(w http.ResponseWriter, r *http.Request, u
 	}
 }
 
-// computeRequiredRAMGB applies the post-Pebble sizing formula:
+// computeRequiredRAMGB applies the post-budget-cap sizing formula:
 //
-//	required_RAM_GB = RAMFloorGB + clamp(CacheTargetPct * logSize_GB,
-//	                                      CacheMinGB,
-//	                                      CacheMaxGB)
+//	required_RAM_GB = RAMFloorGB
+//	                 + CachePeakMultiplier * cache_target_GB
 //	                 + RAMThresMinFreeGB
 //
-// The middle term is the Pebble block cache target plus the page-cache
-// surface needed for "fast in-memory queries" on the working set; the
-// floor accounts for the merged service process (Pebble memtables + Go
-// heap + ingest pipeline buffers), Grafana, and the OS; the trailing
-// MinFree term doubles as operator-visible headroom.
+//	cache_target_GB = clamp(CacheTargetPct/100 * logSize_GB,
+//	                         CacheMinGB, CacheMaxGB)
+//
+// Default RAMFloorGB=10, CachePeakMultiplier=4, RAMThresMinFreeGB=2.
+//
+// The CachePeakMultiplier=4 reflects the cmdAgiCreate budget split:
+// Pebble is hard-capped at 50% of total host RAM, of which roughly
+// half goes to the block cache. So for the cache to actually reach
+// `cache_target_GB`, the host needs at least 4 × cache_target_GB
+// just for the Pebble portion (block cache + matching peak memtable
+// RAM). RAMFloorGB on top of that covers the OS reservation
+// (matches agiOSReserveBytes) plus the merged process's non-Pebble
+// overhead (matches agiNonPebbleOverheadBytes); together they
+// guarantee that the predicted host has the headroom the create
+// path will actually use. Keep this in lockstep with cmdAgiCreate
+// or the monitor's pre-process sizing will mis-predict and either
+// upsize unnecessarily (formula too high) or fail the post-rotation
+// check because Pebble's cache fell short of cache_target (formula
+// too low).
+//
+// Defensive defaults: if CachePeakMultiplier is unset (0) we fall
+// back to the historical "1×" behaviour to keep the math defined,
+// which under-predicts but does not mis-behave.
 func (m *agiMonitor) computeRequiredRAMGB(logSizeBytes int64) int {
 	logSizeGB := float64(logSizeBytes) / (1024 * 1024 * 1024)
 
@@ -1032,7 +1049,12 @@ func (m *agiMonitor) computeRequiredRAMGB(logSizeBytes int64) int {
 		cacheTargetGB = float64(m.cmd.CacheMaxGB)
 	}
 
-	required := float64(m.cmd.RAMFloorGB) + cacheTargetGB + float64(m.cmd.RAMThresMinFreeGB)
+	multiplier := float64(m.cmd.CachePeakMultiplier)
+	if multiplier <= 0 {
+		multiplier = 1.0
+	}
+
+	required := float64(m.cmd.RAMFloorGB) + multiplier*cacheTargetGB + float64(m.cmd.RAMThresMinFreeGB)
 	// Round up so we never under-provision by sub-GiB amounts.
 	return int(required + 0.5)
 }

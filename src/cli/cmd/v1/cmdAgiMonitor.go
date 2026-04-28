@@ -17,11 +17,32 @@ import (
 // --agi-monitor-enable). Server/listener fields (address, TLS, autocert) live
 // in AgiMonitorListenCmd instead.
 //
-// Sizing model (post-Pebble migration):
+// Sizing model (post-Pebble migration, post-budget-cap update):
 //
 //	required_RAM_GB = RAMFloorGB
-//	                 + CacheTargetPct/100 * logSize_GB    // page-cache target
-//	                 + RAMThresMinFreeGB                  // operator-visible headroom
+//	                 + CachePeakMultiplier * cache_target_GB   // see below
+//	                 + RAMThresMinFreeGB                       // operator-visible headroom
+//
+//	cache_target_GB = clamp(CacheTargetPct/100 * logSize_GB, CacheMinGB, CacheMaxGB)
+//
+// The CachePeakMultiplier (default 4) reflects the post-budget-cap
+// allocation in cmdAgiCreate: Pebble is hard-capped at 50% of total
+// host RAM, of which roughly half goes to the block cache and half
+// to peak memtable RAM. So for the cache to actually reach
+// `cache_target_GB`, the host needs at least 4 × cache_target_GB
+// just for the Pebble portion. RAMFloorGB on top of that covers the
+// OS reservation, the merged process's non-Pebble overhead
+// (ingest/plugin/Go/Grafana), and is sized to mirror the
+// agiOSReserveBytes + agiNonPebbleOverheadBytes constants in
+// cmdAgiCreate. Keep the two in lockstep or the monitor's
+// pre-process sizing will mis-predict.
+//
+// Worked examples (cloud, with defaults RAMFloorGB=10, multiplier=4,
+// MinFree=2):
+//
+//	  9 GiB logs (cache_target=1):   10 + 4   + 2 = 16 GiB → m7i.xlarge
+//	100 GiB logs (cache_target=10):  10 + 40  + 2 = 52 GiB → r7a.2xlarge / 64 GiB
+//	500 GiB logs (cache_target=16):  10 + 64  + 2 = 76 GiB → SizingMaxRamGB caps at 48 GiB; warned
 //
 // The old DIM/NoDIM split is gone — there is no in-memory primary index
 // anymore; everything serves out of the Pebble LSM with a configurable block
@@ -45,10 +66,21 @@ type AgiMonitorConfigCmd struct {
 	RAMThresMinFreeGB int `long:"ram-thres-minfree-gb" description:"Minimum free GB of RAM before instance gets sized; doubles as 'headroom' in the pre-process sizing formula" default:"2"`
 
 	// New sizing model knobs (Pebble).
-	RAMFloorGB     int `long:"ram-floor-gb" description:"Always-on baseline RAM (process+grafana+memtables+ingest buffers). Added on top of cache target and headroom" default:"3"`
-	CacheTargetPct int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
-	CacheMinGB     int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
-	CacheMaxGB     int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
+	//
+	// RAMFloorGB default 10 = 6 GiB OS reserve (matches
+	// agiOSReserveBytes("aws"|"gcp")) + 4 GiB merged-process
+	// non-Pebble overhead (matches agiNonPebbleOverheadBytes) in
+	// cmdAgiCreate.go. CachePeakMultiplier default 4 matches the
+	// "Pebble = 50% of host RAM, half cache + half memtables"
+	// budget split also in cmdAgiCreate.go. Keep these defaults in
+	// lockstep with cmdAgiCreate's constants or pre-process sizing
+	// will under- or over-provision relative to what AGI actually
+	// allocates.
+	RAMFloorGB           int `long:"ram-floor-gb" description:"Always-on baseline RAM (OS reserve + merged-process non-Pebble overhead). Added on top of (multiplier × cache target) and headroom" default:"10"`
+	CachePeakMultiplier  int `long:"cache-peak-multiplier" description:"Multiplier on the Pebble cache target to predict total host RAM needed; 4 reflects 'Pebble = 50% of host, half cache + half memtables'" default:"4"`
+	CacheTargetPct       int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
+	CacheMinGB           int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
+	CacheMaxGB           int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
 
 	// Sizing options
 	DisableSizing   bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
