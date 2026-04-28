@@ -29,6 +29,9 @@ func (p *Plugin) Listen() error {
 	p.mux.HandleFunc("/tag-keys", p.trackHandler(p.handleTagKeys))
 	p.mux.HandleFunc("/tag-values", p.trackHandler(p.handleTagValues))
 	p.mux.HandleFunc("/histogram", p.trackHandler(p.handleHistogram))
+	// Debug/inspection routes for operators (read-only, localhost-only
+	// by virtue of the configured listen address). See frontend_debug.go.
+	p.registerDebugHandlers()
 	p.mux.HandleFunc("/", p.trackHandler(p.handlePing))
 	p.srv = &http.Server{
 		Addr:    p.config.Service.ListenAddress + ":" + strconv.Itoa(p.config.Service.ListenPort),

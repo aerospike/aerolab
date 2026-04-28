@@ -60,6 +60,7 @@ type AgiCmd struct {
 	Destroy   AgiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash" invwebforce:"true"`
 	Delete    AgiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy instance and volume" webicon:"fas fa-trash-can" invwebforce:"true"`
 	Attach    AgiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to AGI shell" webicon:"fas fa-terminal"`
+	Query     AgiQueryCmd     `command:"query" subcommands-optional:"true" description:"Query the running AGI database (read-only debug)" webicon:"fas fa-database"`
 	Open      AgiOpenCmd      `command:"open" subcommands-optional:"true" description:"Open AGI in browser" webicon:"fas fa-globe"`
 	AddToken  AgiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add auth token" webicon:"fas fa-key"`
 	Relabel   AgiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change label" webicon:"fas fa-tag"`
@@ -277,6 +278,16 @@ func (c *AgiAttachCmd) Execute(args []string) error { return errNoAGI }
 type AgiAttachCmdHelp struct{}
 
 func (c *AgiAttachCmdHelp) Execute(args []string) error { return errNoAGI }
+
+type AgiQueryCmd struct {
+	Help AgiQueryCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *AgiQueryCmd) Execute(args []string) error { return errNoAGI }
+
+type AgiQueryCmdHelp struct{}
+
+func (c *AgiQueryCmdHelp) Execute(args []string) error { return errNoAGI }
 
 type AgiOpenCmd struct {
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`

@@ -19,6 +19,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/installers/filebrowser"
 	"github.com/aerospike/aerolab/pkg/utils/installers/grafana"
 	"github.com/aerospike/aerolab/pkg/utils/installers/ttyd"
@@ -44,6 +45,7 @@ import (
 //   - Default SSL certificates
 type AgiTemplateCreateCmd struct {
 	GrafanaVersion  string         `short:"g" long:"grafana-version" description:"Grafana version to install" default:"11.2.6"`
+	ToolsVersion    string         `long:"tools-version" description:"Aerospike tools version to install ('latest' picks the newest)" default:"latest"`
 	Distro          string         `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
 	DistroVersion   string         `short:"i" long:"distro-version" description:"Distribution version to use" default:"latest"`
 	Arch            string         `short:"a" long:"arch" description:"Architecture (amd64 or arm64)" default:"amd64"`
@@ -704,6 +706,21 @@ func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, skipAerolabDow
 	script.WriteString("/usr/local/bin/aerolab config backend -t none\n")
 	script.WriteString("\n")
 
+	// Install aerospike-tools (asadm, aql, asinfo, …). The Aerospike
+	// server itself is intentionally NOT installed on AGI boxes —
+	// AGI ingests exported data, it doesn't run a local cluster —
+	// but operators still expect asadm/aql to be available for
+	// inspecting collected logs and connecting to remote clusters
+	// from the AGI shell. This was a feature regression when the
+	// Aerospike-server install step was removed; restore tools.
+	toolsScript, err := c.buildAerospikeToolsScript()
+	if err != nil {
+		return nil, fmt.Errorf("could not create aerospike-tools install script: %w", err)
+	}
+	script.WriteString("echo '=== Installing Aerospike tools ==='\n")
+	script.Write(toolsScript) //nolint:errcheck // bytes.Buffer.Write never fails
+	script.WriteString("\n")
+
 	// Create directory structure
 	script.WriteString("echo '=== Creating AGI Directory Structure ==='\n")
 	script.WriteString(`
@@ -935,4 +952,99 @@ apt-get clean || yum clean all || true
 	fmt.Fprintf(&script, "echo 'AGI Version: %d'\n", agi.AGIVersion) //nolint:errcheck
 
 	return script.Bytes(), nil
+}
+
+// buildAerospikeToolsScript resolves the aerospike-tools artifact for
+// the template's distro/arch via the Aerospike artifacts API and
+// returns a self-contained bash snippet that downloads + installs
+// it on the temporary template instance.
+//
+// We resolve the artifact at build-time (on the operator's machine)
+// rather than baking the lookup into the script because:
+//   - The artifacts metadata API requires HTTP access and HTML
+//     scraping; doing this on the operator's host keeps the
+//     in-image dependency surface minimal (the script only needs
+//     curl + the tarball URL).
+//   - Failure modes (e.g. unsupported distro/version, network
+//     blackhole on the operator's host) surface during template
+//     creation with a clear error, instead of silently bricking the
+//     temporary instance partway through bash -e.
+//
+// The Aerospike server itself is deliberately NOT installed; AGI
+// ingests exported logs and never runs a local cluster.
+func (c *AgiTemplateCreateCmd) buildAerospikeToolsScript() ([]byte, error) {
+	// Map AGI's distro flag onto the OS names the artifacts API
+	// uses. Rocky doesn't have its own artifact line; it shares
+	// CentOS RPMs (matching cmdAgiTemplateCreate's earlier alias).
+	osName := strings.ToLower(c.Distro)
+	if osName == "rocky" {
+		osName = "centos"
+	}
+	osVersion := c.DistroVersion
+	if osVersion == "latest" {
+		switch osName {
+		case "ubuntu":
+			osVersion = "24.04"
+		case "centos":
+			osVersion = "10"
+		case "debian":
+			osVersion = "13"
+		case "amazon":
+			osVersion = "2023"
+		default:
+			return nil, fmt.Errorf("unsupported distro for aerospike-tools: %s", osName)
+		}
+	}
+
+	var arch aerospike.ArchitectureType
+	switch c.Arch {
+	case "amd64", "x86_64":
+		arch = aerospike.ArchitectureTypeX86_64
+	case "arm64", "aarch64":
+		arch = aerospike.ArchitectureTypeAARCH64
+	default:
+		return nil, fmt.Errorf("unsupported architecture for aerospike-tools: %s", c.Arch)
+	}
+
+	products, err := aerospike.GetProducts(30 * time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike products: %w", err)
+	}
+	prod := products.WithName("aerospike-tools")
+	if len(prod) == 0 {
+		return nil, fmt.Errorf("aerospike-tools product not found in artifacts feed")
+	}
+
+	versions, err := aerospike.GetVersions(30*time.Second, prod[0])
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike-tools versions: %w", err)
+	}
+	if c.ToolsVersion != "" && c.ToolsVersion != "latest" {
+		versions = versions.WithNamePrefix(c.ToolsVersion)
+	}
+	chosen := versions.Latest()
+	if chosen == nil {
+		return nil, fmt.Errorf("no aerospike-tools version matching %q", c.ToolsVersion)
+	}
+
+	files, err := aerospike.GetFiles(30*time.Second, *chosen)
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike-tools files for %s: %w", chosen.Name, err)
+	}
+	// download=true, install=true, upgrade=true: the tools script
+	// fetches the tarball, unpacks it, runs the bundled installer,
+	// and replaces any existing installation. There is no existing
+	// install on a fresh template so upgrade=true is a no-op for
+	// the happy path.
+	installScript, err := files.GetInstallScript(arch, aerospike.OSName(osName), osVersion, false, true, true, true)
+	if err != nil {
+		return nil, fmt.Errorf("build aerospike-tools install script (arch=%s, os=%s/%s, version=%s): %w",
+			arch, osName, osVersion, chosen.Name, err)
+	}
+	// Prepend a small banner so the failure log identifies which
+	// version was attempted; this is invaluable when the artifacts
+	// API quietly publishes a new tools build that breaks one
+	// distro family.
+	header := fmt.Sprintf("echo 'Aerospike tools version: %s (arch=%s, os=%s/%s)'\n", chosen.Name, arch, osName, osVersion)
+	return append([]byte(header), installScript...), nil
 }
