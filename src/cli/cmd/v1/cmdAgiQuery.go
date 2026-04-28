@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/agi/ingest"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
@@ -58,6 +59,7 @@ type AgiQueryCmd struct {
 	GetSet   string `long:"get-set" description:"Set to point-read from (used with --get-key)" value-name:"SET"`
 	GetKey   string `long:"get-key" description:"Primary key to point-read (used with --get-set)" value-name:"KEY"`
 	Plan     string `long:"plan" description:"POST a query plan from a JSON file ('-' for stdin)" value-name:"FILE"`
+	HashKey  string `long:"hash-key" description:"Compute the metrics-set XXH3-128 PK for 'cluster::/::node_id::/::log_line' and exit (no transport, no SSH)" value-name:"STRING"`
 
 	// Common knobs.
 	Limit     int    `long:"limit" description:"Row cap for --sample / --plan (server caps further)" default:"100"`
@@ -134,6 +136,12 @@ Run a query plan from a file (or stdin):
     "limit":   100
   }
   EOF
+
+Compute the metrics-set XXH3-128 PK for a known triple (no transport
+needed; useful when an operator has the (cluster, node, line) parts
+and wants to point-read by --get-key):
+
+  aerolab agi query --hash-key 'cluster-a::/::1_bb978a3b3565000::/::Apr 22 2026 00:00:25 GMT+0700: INFO ...'
 `)
 	return nil
 }
@@ -144,6 +152,29 @@ Run a query plan from a file (or stdin):
 // the local-transport path.
 func (c *AgiQueryCmd) Execute(args []string) error {
 	cmd := []string{"agi", "query"}
+
+	// --hash-key is a pure local computation — no backend, no
+	// transport, no HTTP. Short-circuit before Initialize so it
+	// works on a bare laptop without an aerolab inventory and on
+	// an AGI box without the plugin running. Validate that no
+	// other mode was selected so behaviour is predictable.
+	if c.HashKey != "" {
+		if c.Info || c.ListSets || c.Describe != "" || c.Sample != "" ||
+			c.GetSet != "" || c.GetKey != "" || c.Plan != "" {
+			return fmt.Errorf("--hash-key is mutually exclusive with all other modes")
+		}
+		out := os.Stdout
+		if c.Out != "" {
+			f, err := os.OpenFile(string(c.Out), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			out = f
+		}
+		fmt.Fprintln(out, ingest.MetricsRowKeyFromString(c.HashKey))
+		return nil
+	}
 
 	transport, err := c.resolveTransport()
 	if err != nil {

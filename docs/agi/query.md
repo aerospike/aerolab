@@ -16,6 +16,7 @@ It exists because the database is held under an exclusive file lock by the live 
   - [`--describe SET`](#--describe-set)
   - [`--sample SET`](#--sample-set)
   - [`--get-set / --get-key`](#--get-set----get-key)
+  - [`--hash-key STRING`](#--hash-key-string)
   - [`--plan FILE`](#--plan-file)
 - [Query plan reference](#query-plan-reference)
   - [Values](#values)
@@ -38,6 +39,7 @@ It exists because the database is held under an exclusive file lock by the live 
 | Eyeball the first N rows of a set                      | `--sample SET`       |
 | Point-read one row by its primary key                  | `--get-set / --get-key` |
 | Run an arbitrary indexed-range + filter + project plan | `--plan FILE`        |
+| Compute the metrics-set PK for a known triple, locally | `--hash-key STRING`  |
 
 All operations are **read-only**. `Put`, `Delete`, `DropSet`, and friends are deliberately not exposed — debugging by mutating live ingest state is rarely what the operator wanted, and there is no rollback.
 
@@ -104,8 +106,11 @@ aerolab agi query -n myagi --describe metrics
 # eyeball some rows
 aerolab agi query -n myagi --sample metrics --limit 5
 
-# point read by primary key
-aerolab agi query -n myagi --get-set metrics --get-key "cluster-a/node-1/1730000000000"
+# point read by primary key (copy a real key from --sample first)
+aerolab agi query -n myagi --get-set metrics --get-key "$(aerolab agi query -n myagi --sample metrics --limit 1 -o ndjson | jq -r 'select(._meta == null) | .key')"
+
+# compute the metrics PK locally without contacting the box
+aerolab agi query --hash-key 'cluster-a::/::1_bb978a3b3565000::/::Apr 22 2026 00:00:25 GMT+0700: INFO ...'
 
 # arbitrary indexed-range query
 cat <<'EOF' | aerolab agi query -n myagi --plan -
@@ -124,7 +129,7 @@ EOF
 
 ## Modes
 
-Every command takes the AGI instance name (`-n / --name`, default `agi`) and an output format (`-o / --output`, default `table`). Modes are mutually exclusive — pass exactly one.
+Every command takes the AGI instance name (`-n / --name`, default `agi`) and an output format (`-o / --output`, default `table`). Modes are mutually exclusive — pass exactly one. `--hash-key` is the one exception that doesn't talk to the AGI instance at all and works without `-n`.
 
 ### `--info`
 
@@ -196,12 +201,37 @@ aerolab agi query -n myagi --sample metrics --limit 5
 Point-reads exactly one row by primary key. Returns `{"found": false}` when the key isn't present.
 
 ```bash
-aerolab agi query -n myagi \
-    --get-set metrics \
-    --get-key "cluster-a/node-1/1730000000000"
+aerolab agi query -n myagi --get-set metrics --get-key e3b0c44298fc1c149afbf4c8996fb924
 ```
 
-The primary key is whatever ingest put it at — for the `metrics` set the canonical shape is `<cluster>/<node>/<timestampMs>`; you'll typically discover it via `--sample` or the AGI plugin's own `/query` traffic.
+The primary key for the **metrics set** is a 32-character lowercase hex string: the XXH3-128 of `<ClusterName>::/::<NodePrefix>_<NodeID>::/::<rawLogLine>`. Practical consequences:
+
+- You can't construct a key by typing — copy one from `--sample` (the simplest path), or compute one locally from the three components with [`--hash-key`](#--hash-key-string) (handy when you have the (cluster, node, line) triple in front of you and want to point-read it without a round-trip).
+- It is exact-match only.
+- Because the line is part of the hashed input, two identical log lines from the same node at the same time hash to the **same** key and overwrite each other. That's the intended idempotency contract — re-running ingest on the same source data does not double-count.
+- Metrics-set keys are **opaque on purpose**: nothing on the live read path (Grafana datasource, plugin queries) decodes the key back into (cluster, node, line). Cluster and node identity travel as int columns inside the row payload (`ClusterName`, `NodeIdent`), indexed by the labels metadata. The raw line itself is intentionally not stored — if you want it, the original log files are still on disk under `/opt/agi/files/input`.
+
+The **`labels` set** is different: its keys are short, meaningful strings (`ClusterName`, `NodeIdent`, `BINLIST`, `sources`, `timerange`, …) that ingest writes by hand. Those you can pass to `--get-key` directly — see the [recipes](#real-life-recipes) below.
+
+> **Why hashed?** Pre-v3 builds used the raw `cluster::/::node::/::logLine` string as the key. That cost ~150 bytes per row in the LSM (twice — once in the `D/` forward pointer, once as the suffix of the `I/` index entry) and bought no functionality the live read path uses. XXH3-128 gives ~10× the storage saving with a birthday-collision probability of ≈1.5 × 10⁻¹⁹ at 1 TiB of typical Aerospike server logs — orders of magnitude below the box's other failure modes (uncorrected disk errors, ECC RAM faults). The DB layer is unchanged; only the `pkg/agi/ingest` PK construction differs. Old volumes opened by a v3 build will refuse with `ErrStorageVersionMismatch` and trigger a wipe + re-ingest, which is the standard recovery path AGI was designed around.
+
+### `--hash-key STRING`
+
+Compute the metrics-set primary key for a known `cluster::/::node::/::line` triple. Pure local computation — no SSH, no HTTP, no backend, no aerolab inventory needed. Works on a bare laptop.
+
+```bash
+aerolab agi query --hash-key 'aero-tbsprod::/::1_bb97829b3565000::/::Apr 22 2026 00:00:25 GMT+0700: INFO (nsup): (nsup.c:419) {vdsp} ...'
+# → e3b0c44298fc1c149afbf4c8996fb924
+```
+
+The output is the same 32-char hex string ingest would have written for that input. Pipe it straight into `--get-key`:
+
+```bash
+KEY=$(aerolab agi query --hash-key 'aero-tbsprod::/::1_bb97829b3565000::/::'"$(head -n 1 /path/to/aerospike.log)")
+aerolab agi query -n myagi --get-set metrics --get-key "$KEY"
+```
+
+`--hash-key` is mutually exclusive with all other modes; combining it with `--info`, `--sample`, etc. is a usage error. Its only "side effect" is printing one line to stdout (or to `--stdout FILE`).
 
 ### `--plan FILE`
 
@@ -484,6 +514,22 @@ aerolab agi query --transport=local --info
 ### Output is truncated / `_meta.truncated == true`
 
 You hit the row cap. Bump `--limit`, but keep in mind the server's hard ceiling (100 000 for `--plan`, 10 000 for `--sample`). For larger pulls, narrow the `between` range and run multiple queries.
+
+### `--info` reports `storageVersion: 2` (or you see `ErrStorageVersionMismatch` on plugin start)
+
+You're looking at a pre-v3 AGI volume. v3 changed the metrics-set PK from the raw `cluster::/::node::/::logLine` string to its 32-char XXH3-128 hex; old rows are unreachable from new ingest and the storage version constant was bumped so existing volumes refuse to open until they're wiped and re-ingested. The fix is the standard AGI recovery flow:
+
+```bash
+aerolab agi destroy   -n myagi    # keeps the volume
+aerolab agi delete    -n myagi    # or this, to also drop the volume
+aerolab agi create    -n myagi --source-... ...
+```
+
+The original log files on disk are the source of truth, so re-ingest is cheap and lossless.
+
+### `--get-key` with a hand-crafted metrics key always returns `{"found": false}`
+
+The metrics PK is a hashed value, not a meaningful string. Either copy a real key from `--sample <set>` output, or compute one with `--hash-key 'cluster::/::node::/::line'`. See the [`--get-set / --get-key`](#--get-set----get-key) section for context.
 
 ### "I want to write SQL, not JSON"
 

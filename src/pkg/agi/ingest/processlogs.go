@@ -265,7 +265,14 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
 					return
 				}
-				if perr := i.putData(setName, nodeIdentifier+"::/::"+logLine, row); perr != nil {
+				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
+				// See pk.go for the rationale; pre-v3 builds wrote the
+				// raw concatenation as the key, which cost ~150 bytes
+				// per row in two LSM keyspaces (D/ pointer + I/ index
+				// suffix) and bought no functionality the live read
+				// path uses.
+				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
+				if perr := i.putData(setName, pk, row); perr != nil {
 					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
 				}
 				serr := i.storeBinList()

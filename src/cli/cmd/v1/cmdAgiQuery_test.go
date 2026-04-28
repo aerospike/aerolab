@@ -9,8 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aerospike/aerolab/pkg/agi/ingest"
+	flags "github.com/rglonek/go-flags"
 )
 
 // TestLocalTransportRoundTripsAgainstHTTPTestServer wires a tiny
@@ -107,6 +112,76 @@ func TestLocalTransportSurfacesServerErrorEnvelope(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "404") {
 		t.Fatalf("error message did not include status code: %s", err)
+	}
+}
+
+// TestHashKeyShortCircuitsAndMatchesIngest validates that
+// --hash-key:
+//   1. produces the same hash that ingest's MetricsRowKey* helpers
+//      do (the ingest path is the source of truth — operators
+//      reaching for --hash-key are trying to reproduce a real
+//      on-disk PK);
+//   2. short-circuits Execute() before any backend / transport
+//      / HTTP work, so the helper is usable on a bare laptop
+//      with no aerolab inventory configured.
+//
+// We test #1 directly against ingest's own helper rather than
+// hard-coding the expected hex bytes — that way the upstream
+// xxh3 implementation owns the actual numeric output, and we
+// own the contract that "the CLI matches ingest".
+func TestHashKeyShortCircuitsAndMatchesIngest(t *testing.T) {
+	const (
+		cluster = "aero-tbsprod"
+		node    = "1_bb97829b3565000"
+		line    = "Apr 22 2026 00:00:25 GMT+0700: INFO (nsup): (nsup.c:419) {vdsp} hi"
+	)
+	joined := cluster + ingest.MetricsRowPKSeparator + node + ingest.MetricsRowPKSeparator + line
+	want := ingest.MetricsRowKey(cluster, node, line)
+
+	tmp := filepath.Join(t.TempDir(), "out")
+	c := &AgiQueryCmd{
+		HashKey: joined,
+		Out:     flags.Filename(tmp),
+	}
+	if err := c.Execute(nil); err != nil {
+		t.Fatalf("Execute(--hash-key) failed: %s", err)
+	}
+
+	got, err := os.ReadFile(tmp)
+	if err != nil {
+		t.Fatalf("read output file: %s", err)
+	}
+	if strings.TrimSpace(string(got)) != want {
+		t.Fatalf("hash mismatch:\n  cli  = %s\n  want = %s", strings.TrimSpace(string(got)), want)
+	}
+}
+
+// TestHashKeyExclusiveWithOtherModes guards against accidental
+// modal collisions: if an operator passes --hash-key together
+// with --info (or any other mode), we want a clear error rather
+// than a silent "hash printed, query ignored".
+func TestHashKeyExclusiveWithOtherModes(t *testing.T) {
+	cases := []struct {
+		name string
+		c    *AgiQueryCmd
+	}{
+		{"info", &AgiQueryCmd{HashKey: "x", Info: true}},
+		{"list-sets", &AgiQueryCmd{HashKey: "x", ListSets: true}},
+		{"describe", &AgiQueryCmd{HashKey: "x", Describe: "metrics"}},
+		{"sample", &AgiQueryCmd{HashKey: "x", Sample: "metrics"}},
+		{"plan", &AgiQueryCmd{HashKey: "x", Plan: "/dev/null"}},
+		{"get-set+key", &AgiQueryCmd{HashKey: "x", GetSet: "metrics", GetKey: "k"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.c.Execute(nil)
+			if err == nil {
+				t.Fatal("expected error for combined --hash-key + other mode")
+			}
+			if !strings.Contains(err.Error(), "mutually exclusive") {
+				t.Fatalf("error did not mention mutual exclusion: %s", err)
+			}
+		})
 	}
 }
 

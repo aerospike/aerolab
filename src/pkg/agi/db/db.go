@@ -64,7 +64,16 @@ const DefaultPath = "/opt/agi/db"
 //     change clusters indexed-set rows by their indexed value so an
 //     indexed Between iterates payload bytes in tight LSM order with
 //     zero per-row point Gets — see README.md "Storage layout".
-const currentStorageVersion uint32 = 2
+//   - v3: PK semantics change in pkg/agi/ingest. Metrics rows are now
+//     keyed by hex(XXH3-128(cluster::/::node::/::logLine)) instead of
+//     the raw concatenation; the DB layer is itself unchanged. Bumping
+//     the version here forces existing AGI volumes to fail open with
+//     ErrStorageVersionMismatch, which the agi exec path handles by
+//     wiping and re-ingesting from the source-of-truth log files —
+//     necessary because pre-v3 unhashed PKs are unreachable from new
+//     ingest writes (the fresh hashed PKs never collide with them, so
+//     stale rows would otherwise linger in the LSM).
+const currentStorageVersion uint32 = 3
 
 // DB is an embedded, single-node, sparse-column store tuned for the AGI
 // ingest + plugin workload.
