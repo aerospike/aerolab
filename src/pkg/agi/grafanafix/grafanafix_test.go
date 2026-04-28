@@ -65,5 +65,7 @@ func TestAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(string(out))
 	}
-	Run(nil)
+	if err := Run(nil); err != nil {
+		t.Fatal(err)
+	}
 }

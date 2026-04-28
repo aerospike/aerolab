@@ -1709,17 +1709,18 @@ func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendTyp
 	// numbers; we generate them once here and inject them into both
 	// YAMLs.
 	dbCacheBytes := computePebbleCacheBytes(memSize)
-	dbMemTableBytes := computePebbleMemTableBytes(memSize)
+	dbMemTableBytes := computePebbleMemTableBytes(memSize, backendType)
+	dbMaxCompactions := computePebbleMaxConcurrentCompactions(backendType)
 
 	// Generate ingest.yaml
-	ingestConfig, err := c.generateIngestConfig(backendType, dbCacheBytes, dbMemTableBytes)
+	ingestConfig, err := c.generateIngestConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate ingest config: %w", err)
 	}
 	configs["/opt/agi/ingest.yaml"] = ingestConfig
 
 	// Generate plugin.yaml
-	pluginConfig := c.generatePluginConfig(backendType, dbCacheBytes, dbMemTableBytes)
+	pluginConfig := c.generatePluginConfig(backendType, dbCacheBytes, dbMemTableBytes, dbMaxCompactions)
 	configs["/opt/agi/plugin.yaml"] = pluginConfig
 
 	// Generate grafanafix.yaml
@@ -1775,19 +1776,67 @@ func computePebbleCacheBytes(memSize int64) int64 {
 }
 
 // computePebbleMemTableBytes returns the recommended Pebble memtable
-// (write buffer) size. We keep the package default of 256 MiB on
-// hosts with at least 6 GiB of post-reservation budget; otherwise drop
-// to 64 MiB so the four-way memtable cap (default
-// MemTableStopWritesThreshold = 4) does not eat the entire heap.
-func computePebbleMemTableBytes(memSize int64) uint64 {
-	if memSize >= int64(6)<<30 {
+// (write buffer) size, tuned for the deployment's storage profile.
+//
+// Docker AGIs run on local FS where SSTable creation is sub-millisecond;
+// the original tuning (256 MiB on >=6 GiB hosts, 64 MiB below) is
+// already throughput-bound on the actual write rather than file
+// metadata, so we leave it alone.
+//
+// Cloud AGIs (AWS/GCP) back /opt/agi with EFS / Filestore. Each
+// memtable flush creates a new SSTable: open(O_CREAT) → write →
+// fsync → atomic rename → MANIFEST update + sync. On NFS-class
+// filesystems each of those metadata steps is 20–100 ms (vs <1 ms
+// on NVMe), so the dominant ingest cost is the *number* of flushes,
+// not the bytes-per-flush. Larger memtables linearly reduce flush
+// count: 256 MiB → 1 GiB cuts the L0 SSTable count for a 9 GiB
+// ingest from ~37 to ~9, with proportional knock-on reductions in
+// the L0→L1→L2 compaction cascade. The ceiling is set by
+// MemTableStopWritesThreshold (default 4): peak memtable RAM at
+// 1 GiB × 4 = 4 GiB, well within the cloud reservation budget.
+func computePebbleMemTableBytes(memSize int64, backendType string) uint64 {
+	if backendType == "docker" {
+		if memSize >= int64(6)<<30 {
+			return uint64(256) << 20
+		}
+		return uint64(64) << 20
+	}
+	switch {
+	case memSize >= int64(8)<<30:
+		return uint64(1) << 30 // 1 GiB
+	case memSize >= int64(4)<<30:
+		return uint64(512) << 20
+	default:
 		return uint64(256) << 20
 	}
-	return uint64(64) << 20
+}
+
+// computePebbleMaxConcurrentCompactions returns the upper bound on
+// concurrent Pebble compactions for the deployment.
+//
+// Docker AGIs use local FS where parallel compactions saturate
+// disk bandwidth and serialize harmlessly behind it; we return 0
+// so the db package's 4-way default applies (db.DefaultOptions).
+//
+// Cloud AGIs back /opt/agi with EFS. Multiple in-flight compactions
+// on EFS contend on the same MANIFEST and directory inode for
+// every SSTable create / atomic rename / unlink, and a single
+// compaction's bulk write is already throughput-bound on EFS
+// bandwidth — running four of them in parallel multiplies the
+// metadata round-trips without buying more bytes/sec. Pinning to
+// 1 trades a deeper compaction backlog (which catches up after
+// ingest finishes — AGI ingest is bounded, not continuous) for a
+// faster ingest wall-clock. Operators that observe write stalls
+// can override via the maxConcurrentCompactions yaml key.
+func computePebbleMaxConcurrentCompactions(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default = 4
+	}
+	return 1
 }
 
 // generateIngestConfig generates the ingest.yaml configuration.
-func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64) ([]byte, error) {
+func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int) ([]byte, error) {
 	config, err := ingest.MakeConfigReader(true, nil, false)
 	if err != nil {
 		return nil, err
@@ -1795,11 +1844,13 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int
 
 	// Pebble DB tuning. The merged service (cmdAgiExecService) opens
 	// one Pebble handle and shares it between ingest and plugin; both
-	// YAML files must therefore declare the same cache/memtable sizes
-	// or the operator-set value from one would silently lose to the
-	// other depending on which call site builds the options first.
+	// YAML files must therefore declare the same cache/memtable/
+	// compaction-concurrency settings or the operator-set value from
+	// one would silently lose to the other depending on which call
+	// site builds the options first.
 	config.DB.CacheBytes = dbCacheBytes
 	config.DB.MemTableSizeBytes = dbMemTableBytes
+	config.DB.MaxConcurrentCompactions = dbMaxCompactions
 
 	// Configure based on backend
 	config.MaxPutThreads = 128
@@ -1919,7 +1970,7 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, dbCacheBytes int
 }
 
 // generatePluginConfig generates the plugin.yaml configuration.
-func (c *AgiCreateCmd) generatePluginConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64) []byte {
+func (c *AgiCreateCmd) generatePluginConfig(backendType string, dbCacheBytes int64, dbMemTableBytes uint64, dbMaxCompactions int) []byte {
 	maxDp := 34560000
 	if backendType == "docker" {
 		maxDp = maxDp / 2
@@ -1956,7 +2007,8 @@ addNoneToLabels:
 db:
   cacheBytes: %d
   memTableSizeBytes: %d
-%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel, dbCacheBytes, dbMemTableBytes, cpuProfiling)
+  maxConcurrentCompactions: %d
+%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel, dbCacheBytes, dbMemTableBytes, dbMaxCompactions, cpuProfiling)
 
 	return []byte(config)
 }

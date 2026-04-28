@@ -77,7 +77,9 @@ if err != nil {
 import "github.com/aerospike/aerolab/pkg/agi/grafanafix"
 
 // Setup Grafana with default configuration
-grafanafix.Run(nil)
+if err := grafanafix.Run(nil); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Configuration

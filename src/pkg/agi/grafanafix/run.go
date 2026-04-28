@@ -57,56 +57,73 @@ func MakeConfig(setDefaults bool, configYaml io.Reader, parseEnv bool) (*Grafana
 	return config, nil
 }
 
-func Run(g *GrafanaFix) {
+// grafanaReadyTimeout is the maximum time we will wait for Grafana to become
+// reachable on its HTTP API before giving up. On slow cloud instances (notably
+// AWS with cold EBS volumes plus the simpod-json-datasource plugin
+// initialising for the first time) Grafana can take well over a minute to
+// bind its port, so the budget is generous.
+const grafanaReadyTimeout = 5 * time.Minute
+
+// Run drives the Grafana helper lifecycle: it waits for Grafana to come up,
+// applies the timezone fix, imports dashboards, sets the home dashboard,
+// loads annotations and then enters a periodic save-annotations loop.
+//
+// If Grafana does not become reachable within grafanaReadyTimeout, Run
+// returns an error so the caller (and systemd, via Restart=always) can
+// retry from a clean slate instead of silently leaving Grafana
+// misconfigured. Once the readiness probe succeeds, post-startup
+// operations log their errors and continue, matching pre-existing
+// behaviour.
+//
+// Run only returns under error conditions; on success it blocks
+// indefinitely inside the save-annotations loop.
+func Run(g *GrafanaFix) error {
 	if g == nil {
 		var err error
 		g, err = MakeConfig(true, nil, true)
 		if err != nil {
-			log.Fatal(err)
+			return fmt.Errorf("could not create default config: %w", err)
 		}
 	}
-	log.Println("Waiting for grafana to be up and fixing timezone")
-	try := 0
-	for try < 60 {
-		try++
+	log.Printf("Waiting for grafana to be up and fixing timezone (up to %s)", grafanaReadyTimeout)
+	deadline := time.Now().Add(grafanaReadyTimeout)
+	var lastErr error
+	for {
 		time.Sleep(time.Second)
-		err := g.fixTimezone()
-		if err == nil {
+		lastErr = g.fixTimezone()
+		if lastErr == nil {
 			break
 		}
-		log.Println(err)
+		log.Println(lastErr)
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("grafana did not become ready within %s: %w", grafanaReadyTimeout, lastErr)
+		}
 	}
 	log.Println("Importing dashboards")
-	err := g.importDashboards()
-	if err != nil {
+	if err := g.importDashboards(); err != nil {
 		log.Println(err)
 	}
 	log.Println("Setting home dashboard")
-	err = g.homeDashboard()
-	if err != nil {
+	if err := g.homeDashboard(); err != nil {
 		log.Println(err)
-		err = g.homeDashboard()
-		if err != nil {
+		if err := g.homeDashboard(); err != nil {
 			log.Println(err)
 		}
 	}
 	log.Println("Loading annotations")
-	err = g.loadAnnotations()
-	if err != nil {
+	if err := g.loadAnnotations(); err != nil {
 		log.Print(err)
 	}
 	if len(g.LabelFiles) > 0 {
 		fmt.Println("Setting HTML Title to Label")
-		err := g.setLabel()
-		if err != nil {
+		if err := g.setLabel(); err != nil {
 			log.Println(err)
 		}
 	}
 	log.Println("Entering sleep-save-annotation loop")
 	for {
 		time.Sleep(time.Minute * 5)
-		err = g.saveAnnotations()
-		if err != nil {
+		if err := g.saveAnnotations(); err != nil {
 			log.Print(err)
 		}
 	}
