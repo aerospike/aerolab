@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -182,6 +183,51 @@ func TestHashKeyExclusiveWithOtherModes(t *testing.T) {
 				t.Fatalf("error did not mention mutual exclusion: %s", err)
 			}
 		})
+	}
+}
+
+// TestRenderRowsTablePreservesIntegerLiterals locks in the
+// no-scientific-notation contract for table output: a 13-digit ms
+// timestamp and an 8-digit counter must render as plain decimals
+// even though they would be silently floated by the default JSON
+// decoder. Regression guard for the formatWireValue UseNumber path.
+func TestRenderRowsTablePreservesIntegerLiterals(t *testing.T) {
+	// Synthesise the same NDJSON shape the plugin's
+	// /debug/db/sample emits: one record per row plus a trailing
+	// _meta line. We also include a string column with a "-1"
+	// suffix to make sure the regex below doesn't false-positive
+	// on regular hyphenated identifiers.
+	body := []byte(strings.Join([]string{
+		`{"key":"k1","row":{"timestamp":{"int":1776816025000},"nsupExpireTotal":{"int":26088699},"latency":{"float":1.5e-3},"hot":{"bool":true},"name":{"str":"node-1"}}}`,
+		`{"_meta":{"rowsReturned":1,"truncated":false,"durationMs":"0"}}`,
+		"",
+	}, "\n"))
+
+	var buf bytes.Buffer
+	if err := renderNDJSONResponse(&buf, "table", body); err != nil {
+		t.Fatalf("renderNDJSONResponse: %s", err)
+	}
+	out := buf.String()
+
+	// Forbidden: actual scientific notation. A digit, then an
+	// e|E, then an optional sign, then another digit. Plain
+	// strings like "node-1" will not match.
+	sci := regexp.MustCompile(`[0-9][eE][+-]?[0-9]`)
+	if loc := sci.FindStringIndex(out); loc != nil {
+		t.Errorf("output contains scientific-notation %q at %d:\n%s",
+			out[loc[0]:loc[1]], loc[0], out)
+	}
+
+	// Required: the literal big-int values appear unmodified.
+	for _, want := range []string{
+		"1776816025000",
+		"26088699",
+		"node-1",
+		"true",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing literal %q:\n%s", want, out)
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -707,7 +708,15 @@ func renderRowsTable(out io.Writer, rows []json.RawMessage, meta json.RawMessage
 	colSet := map[string]struct{}{}
 	for _, raw := range rows {
 		var r rowRec
-		if err := json.Unmarshal(raw, &r); err != nil {
+		// UseNumber so int64 timestamps (and any other 64-bit
+		// counters) survive decode without being truncated to
+		// float64. Without this, /debug/db/sample on the metrics
+		// set prints things like 1.776816025e+12 for ms-precision
+		// timestamps; formatWireValue's json.Number branch keeps
+		// the exact wire bytes.
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+		if err := dec.Decode(&r); err != nil {
 			return fmt.Errorf("decode row: %w", err)
 		}
 		parsed = append(parsed, r)
@@ -759,18 +768,43 @@ func renderRowsTable(out io.Writer, rows []json.RawMessage, meta json.RawMessage
 // formatWireValue renders a wire-form Value (a single-key tagged
 // union) as a short string. The codec always emits exactly one of
 // int|float|str|bytes|bool, so the first non-nil value wins.
+//
+// Numbers come out of UseNumber()-mode decoding as json.Number (the
+// exact literal the server emitted). We render them in plain
+// decimal form so 13-digit ms timestamps and 8-digit counters never
+// appear as 1.776816e+12 or 2.6e+07.
 func formatWireValue(v interface{}) string {
 	if v == nil {
 		return ""
 	}
 	m, ok := v.(map[string]interface{})
 	if !ok {
-		return fmt.Sprintf("%v", v)
+		return formatScalar(v)
 	}
 	for k, val := range m {
 		switch k {
-		case "int", "float", "bool":
-			return fmt.Sprintf("%v", val)
+		case "int":
+			// Server-side int64 → json.Number on the wire;
+			// the literal already lacks any exponent, so
+			// returning .String() gives a clean integer.
+			if n, ok := val.(json.Number); ok {
+				return n.String()
+			}
+			return formatScalar(val)
+		case "float":
+			// Server-side float64 → json.Number, which may
+			// or may not carry an exponent depending on the
+			// magnitude. Re-format through Float64 so the
+			// table column is consistent across rows.
+			if n, ok := val.(json.Number); ok {
+				if f, err := n.Float64(); err == nil {
+					return strconv.FormatFloat(f, 'f', -1, 64)
+				}
+				return n.String()
+			}
+			return formatScalar(val)
+		case "bool":
+			return formatScalar(val)
 		case "str":
 			s, _ := val.(string)
 			return s
@@ -780,6 +814,21 @@ func formatWireValue(v interface{}) string {
 		}
 	}
 	return ""
+}
+
+// formatScalar handles the residual cases where a value reached us
+// without UseNumber() (e.g. raw json.Unmarshal somewhere in the
+// pipeline). It applies the same "no scientific notation" rule.
+func formatScalar(v interface{}) string {
+	switch x := v.(type) {
+	case json.Number:
+		return x.String()
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(x), 'f', -1, 32)
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // --- helpers ---
