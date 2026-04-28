@@ -2,7 +2,9 @@ package ingest
 
 import (
 	"errors"
+	"hash/maphash"
 	"log"
+	"runtime"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
@@ -10,10 +12,14 @@ import (
 
 // putBatcher streams ingest metric rows into per-set buffers and flushes
 // each buffer via db.PutBatch (with AssumeNew=true) when it reaches
-// flushSize entries OR ages past flushAge. The single flusher goroutine
-// is the only writer to the metric sets during ingest, so per-batch
-// commits run without contention against the per-row Pebble Batch
-// commits the legacy putData hot path used to produce.
+// flushSize entries OR ages past flushAge. The batcher fans out to N
+// shard goroutines (see newPutBatcher) so the Pebble commit pipeline
+// is no longer gated by a single flusher; each shard maintains its
+// own pending map and runs db.PutBatch independently. db.PutBatch is
+// concurrency-safe (acquire/release uses an RWMutex; row mutations
+// are protected by stripedLocks keyed by (setID, PK), and shards
+// route by maphash(key) so two shards essentially never contend on
+// the same stripe).
 //
 // AssumeNew is correct here because metric primary keys are constructed
 // as <nodeIdentifier>::/::<logLine> — the log line includes a byte
@@ -23,18 +29,31 @@ import (
 // d.assumeNewSeen) drops the stale entry on read. Age-out reclaims the
 // orphan permanently when its ts falls below the retention window.
 //
-// On db.ErrColumnTypeConflict the whole batch fails atomically; we then
-// fall back to the legacy single-row putData path, which retries with
-// type-coercion. This keeps the type-conflict recovery semantics
-// identical to the pre-batching behaviour even though the happy path
-// commits in batches of putBatchSize rows.
+// On db.ErrColumnTypeConflict the affected shard's batch fails
+// atomically; we then fall back to the legacy single-row putData
+// path, which retries with type-coercion. Different shards commit
+// independent batches, so a type conflict on one shard never
+// rolls back rows that already committed on another shard — that
+// matches the pre-sharding semantics where flushes for different
+// sets were already independent.
 type putBatcher struct {
 	db        *db.DB
-	inCh      chan putReq
 	flushSize int
 	flushAge  time.Duration
-	done      chan struct{}
 	fallback  func(set, key string, row db.Row) error
+
+	// shards owns N flusher goroutines. Producers route into one
+	// of them via maphash(key) % nShards; the seed is randomised
+	// per process so adversarial key distributions cannot pin all
+	// traffic to one shard across runs.
+	shards  []*batcherShard
+	nShards uint32
+	seed    maphash.Seed
+}
+
+type batcherShard struct {
+	inCh chan putReq
+	done chan struct{}
 }
 
 type putReq struct {
@@ -43,33 +62,57 @@ type putReq struct {
 	row db.Row
 }
 
-// newPutBatcher constructs and starts the flusher goroutine. flushSize
+// newPutBatcher constructs and starts the flusher goroutines. flushSize
 // and flushAge defaults are applied when the caller passes 0/<=0; that
 // preserves the "leave config zero to take the package default" idiom
-// the rest of the ingest config uses.
-func newPutBatcher(d *db.DB, flushSize, flushAgeMs int, fallback func(string, string, db.Row) error) *putBatcher {
+// the rest of the ingest config uses. shardCount<=0 selects an auto
+// value of min(GOMAXPROCS, 8) which matches the parallelism the
+// upstream worker pool can sustain on AGI's typical hardware without
+// adding scheduler churn for small boxes.
+func newPutBatcher(d *db.DB, flushSize, flushAgeMs, shardCount int, fallback func(string, string, db.Row) error) *putBatcher {
 	if flushSize <= 0 {
 		flushSize = 256
 	}
 	if flushAgeMs <= 0 {
 		flushAgeMs = 50
 	}
+	if shardCount <= 0 {
+		// Auto: align with the GOMAXPROCS budget so the batcher
+		// can keep up with the parallel worker fan-in. Capped at
+		// 8 because db.PutBatch saturates Pebble's commit
+		// pipeline well before that on typical hardware, and
+		// additional shards beyond 8 mostly add scheduler
+		// overhead without raising throughput.
+		shardCount = runtime.GOMAXPROCS(0)
+		if shardCount < 1 {
+			shardCount = 1
+		}
+		if shardCount > 8 {
+			shardCount = 8
+		}
+	}
+	// Per-shard backlog mirrors the legacy single-shard depth
+	// (flushSize*4) so each shard absorbs the same steady-state
+	// burst the old single inCh did. Aggregate memory is N×4×
+	// flushSize×row_size which is sub-MB at default settings.
+	perShard := flushSize * 4
 	b := &putBatcher{
-		db: d,
-		// 4× flushSize backlog: when 128 putData callers fan in,
-		// the channel absorbs a steady-state burst without
-		// blocking the producers. Larger backlogs delay shutdown
-		// (drain on close) and consume memory but cannot cause
-		// correctness issues because ProcessLogs waits for both
-		// the producer wg and putBatcher.close() before declaring
-		// the step complete.
-		inCh:      make(chan putReq, flushSize*4),
+		db:        d,
 		flushSize: flushSize,
 		flushAge:  time.Duration(flushAgeMs) * time.Millisecond,
-		done:      make(chan struct{}),
 		fallback:  fallback,
+		nShards:   uint32(shardCount),
+		seed:      maphash.MakeSeed(),
 	}
-	go b.run()
+	b.shards = make([]*batcherShard, shardCount)
+	for i := 0; i < shardCount; i++ {
+		sh := &batcherShard{
+			inCh: make(chan putReq, perShard),
+			done: make(chan struct{}),
+		}
+		b.shards[i] = sh
+		go b.run(sh)
+	}
 	return b
 }
 
@@ -77,21 +120,41 @@ func newPutBatcher(d *db.DB, flushSize, flushAgeMs int, fallback func(string, st
 // row after calling submit — the row is forwarded by reference into a
 // db.PutItem inside the flusher and read concurrently with the
 // producer's next iteration.
+//
+// Routing: maphash(key) % nShards. We hash the key (not set+key)
+// because (a) AGI's primary metrics keys are already XXH3-128 hex
+// strings so they're uniformly distributed on their own, and (b)
+// keying purely on PK keeps a given row's writes always on the same
+// shard, which preserves the original "single-flusher per row"
+// ordering guarantee the legacy batcher relied on for type-conflict
+// recovery semantics.
 func (b *putBatcher) submit(set, key string, row db.Row) {
-	b.inCh <- putReq{set: set, key: key, row: row}
+	var idx uint32
+	if b.nShards == 1 {
+		idx = 0
+	} else {
+		h := uint32(maphash.String(b.seed, key))
+		idx = h % b.nShards
+	}
+	b.shards[idx].inCh <- putReq{set: set, key: key, row: row}
 }
 
-// close signals the flusher to drain the in-flight batches and exit.
-// Returns once the flusher has committed everything it had buffered.
+// close signals every shard to drain its in-flight batches and exit.
+// Returns once all shards have committed everything they had buffered.
 // It is safe to call close multiple times only via sync.Once at the
-// caller; this method does not idempotency-guard close(inCh).
+// caller; this method does not idempotency-guard close(inCh) on the
+// per-shard channels.
 func (b *putBatcher) close() {
-	close(b.inCh)
-	<-b.done
+	for _, sh := range b.shards {
+		close(sh.inCh)
+	}
+	for _, sh := range b.shards {
+		<-sh.done
+	}
 }
 
-func (b *putBatcher) run() {
-	defer close(b.done)
+func (b *putBatcher) run(sh *batcherShard) {
+	defer close(sh.done)
 	pending := make(map[string][]db.PutItem)
 	timer := time.NewTimer(b.flushAge)
 	defer timer.Stop()
@@ -131,7 +194,7 @@ func (b *putBatcher) run() {
 
 	for {
 		select {
-		case req, ok := <-b.inCh:
+		case req, ok := <-sh.inCh:
 			if !ok {
 				flushAll()
 				return

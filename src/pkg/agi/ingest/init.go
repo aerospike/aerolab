@@ -153,37 +153,40 @@ func newIngest(config *Config) (*Ingest, error) {
 		return nil, fmt.Errorf("failed to compile %s: %s", config.FindClusterNameNodeIdRegex, err)
 	}
 	config.findClusterNameNodeIdRegex = regex
+	defaultBins := []string{
+		"BINLIST",
+		"cfName",
+		"summary",
+		"health",
+		"conffile",
+		"sysinfo",
+		"build",
+		"clientConns",
+		"ip",
+		"migrations",
+		"nodeId",
+		"uptime",
+		"integrity",
+		"clusterKey",
+		"principal",
+		"clusterSize",
+		"clusterName",
+	}
+	bl := &binList{
+		BinNames: defaultBins,
+		// Force the first storeBinList() to actually persist the
+		// row. Without this the plugin's cacheBinList() never
+		// finds BINLIST until a pattern emits a previously-unseen
+		// bin name, which can leave Grafana with an empty bin
+		// cache for an entire ingest cycle on a fresh AGI.
+		changed: true,
+	}
+	bl.seedSnapshot()
 	return &Ingest{
 		config:   config,
 		patterns: p,
 		progress: new(Progress),
-		binList: &binList{
-			BinNames: []string{
-				"BINLIST",
-				"cfName",
-				"summary",
-				"health",
-				"conffile",
-				"sysinfo",
-				"build",
-				"clientConns",
-				"ip",
-				"migrations",
-				"nodeId",
-				"uptime",
-				"integrity",
-				"clusterKey",
-				"principal",
-				"clusterSize",
-				"clusterName",
-			},
-			// Force the first storeBinList() to actually persist the
-			// row. Without this the plugin's cacheBinList() never
-			// finds BINLIST until a pattern emits a previously-unseen
-			// bin name, which can leave Grafana with an empty bin
-			// cache for an entire ingest cycle on a fresh AGI.
-			changed: true,
-		},
+		binList:  bl,
 	}, nil
 }
 
@@ -214,6 +217,12 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 					log.Printf("DEBUG: INIT: could not unmarshal bin list: %s", jerr)
 				} else {
 					i.binList.BinNames = aBinList
+					// Re-seed the presence snapshot from the loaded
+					// BINLIST so the hot path's lock-free probe in
+					// upsertMetaEntry / ProcessLogs sees every
+					// previously-persisted bin name on first sight
+					// and avoids spurious BINLIST updates.
+					i.binList.seedSnapshot()
 					log.Printf("DEBUG: INIT: Existing bin list loaded")
 				}
 			}
@@ -276,7 +285,7 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 	// drain in Close (the close() helper handles a never-used
 	// batcher cleanly). The fallback handles type-conflict
 	// retries the same way the pre-batcher putData hot path did.
-	i.putBatcher = newPutBatcher(i.db, i.config.PutBatchSize, i.config.PutBatchFlushMs, i.putDataSingle)
+	i.putBatcher = newPutBatcher(i.db, i.config.PutBatchSize, i.config.PutBatchFlushMs, i.config.PutBatchShards, i.putDataSingle)
 	i.bg.Add(2)
 	go func() {
 		defer i.bg.Done()
@@ -410,6 +419,30 @@ func (p *patterns) compile() error {
 				}
 				p.Defs[k].Patterns[i].Replace[j].regex = regex
 			}
+		}
+		// Build the Aho-Corasick matcher over every pattern's
+		// `search` substring for this Defs entry. This replaces
+		// the linear `for _, p := range Patterns { if
+		// !strings.Contains(line, p.Search) continue }` walk in
+		// lineProcess with a single O(len(line)) traversal.
+		// Empty `search` strings are rejected at compile time:
+		// today's embedded patterns.yml has none, but a custom
+		// PatternsFile could, and an empty needle would degenerate
+		// the AC trie into matching at every input position.
+		if len(p.Defs[k].Patterns) > 0 {
+			needles := make([]string, len(p.Defs[k].Patterns))
+			for i := range p.Defs[k].Patterns {
+				needles[i] = p.Defs[k].Patterns[i].Search
+				if needles[i] == "" {
+					return fmt.Errorf("patterns: defs[%d].patterns[%d] (setName=%q) has empty `search`",
+						k, i, p.Defs[k].Patterns[i].Name)
+				}
+			}
+			m, err := newACMatcher(needles)
+			if err != nil {
+				return fmt.Errorf("patterns: defs[%d]: build AC matcher: %w", k, err)
+			}
+			p.Defs[k].matcher = m
 		}
 	}
 	return nil

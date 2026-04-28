@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -123,7 +124,7 @@ type AgiCreateCmd struct {
 	MonitorCertIgnore bool   `long:"monitor-ignore-cert" description:"Ignore invalid monitor SSL certificate"`
 
 	// Configuration options
-	NoConfigOverride bool   `long:"no-config-override" description:"Don't override existing config when restarting with EFS"`
+	NoConfigOverride bool `long:"no-config-override" description:"Don't override existing config when restarting with EFS"`
 	// RefreshEngineConfigs forces re-upload of engine-tuning configs
 	// (ingest.yaml, plugin.yaml) even when NoConfigOverride is set.
 	// Set by the monitor on sizing-driven reattach so that the new
@@ -366,6 +367,28 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		return nil, fmt.Errorf("bind mount (bind:/path) for --source-local is only supported on Docker backend")
 	}
 
+	// Bind mount source is incompatible with S3/SFTP sources because the
+	// downloader writes into DirtyTmp/{s3source,sftpsource}, which lives on
+	// the read-only bind mount and would fail to create files at download
+	// time.
+	if isBindMountSource(string(c.LocalSource)) && (c.S3Enable || c.SftpEnable) {
+		return nil, fmt.Errorf("bind mount (bind:/path) for --source-local cannot be combined with --source-s3-enable or --source-sftp-enable; the bind-mounted directory is read-only and cannot receive downloaded files")
+	}
+
+	// Resolve bind mount source to an absolute path; Docker rejects relative
+	// paths (interpreting them as named volumes).
+	if isBindMountSource(string(c.LocalSource)) {
+		bindPath := getBindMountPath(string(c.LocalSource))
+		absBindPath, err := filepath.Abs(bindPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve --source-local bind path %q to absolute: %w", bindPath, err)
+		}
+		if absBindPath != bindPath {
+			logger.Info("Resolved --source-local bind path %s -> %s", bindPath, absBindPath)
+		}
+		c.LocalSource = flags.Filename("bind:" + absBindPath)
+	}
+
 	// --bind-files-dir is only supported on Docker
 	if c.BindFilesDir != "" && backendType != "docker" {
 		return nil, fmt.Errorf("--bind-files-dir is only supported on Docker backend")
@@ -373,6 +396,16 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 
 	// Validate --bind-files-dir directory exists
 	if c.BindFilesDir != "" {
+		// Resolve to absolute path for the same Docker reason as above.
+		absBindFilesDir, err := filepath.Abs(string(c.BindFilesDir))
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve --bind-files-dir %q to absolute: %w", c.BindFilesDir, err)
+		}
+		if absBindFilesDir != string(c.BindFilesDir) {
+			logger.Info("Resolved --bind-files-dir %s -> %s", c.BindFilesDir, absBindFilesDir)
+		}
+		c.BindFilesDir = flags.Filename(absBindFilesDir)
+
 		info, err := os.Stat(string(c.BindFilesDir))
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("--bind-files-dir directory not found: %s", c.BindFilesDir)
@@ -1066,8 +1099,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.AWS.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.AWS.SpotInstance),
-			"aerolab.agi.volume=true",
-			fmt.Sprintf("agifips=%t", c.AWS.EFSFips),
+				"aerolab.agi.volume=true",
+				fmt.Sprintf("agifips=%t", c.AWS.EFSFips),
 				fmt.Sprintf("agisubnet=%s", c.AWS.SubnetID),
 				fmt.Sprintf("agisecgroup=%s", c.AWS.SecurityGroupID),
 				fmt.Sprintf("agiefsexpire=%s", c.AWS.EFSExpires.String()),
@@ -1123,19 +1156,19 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update EFS tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   string(c.AWS.InstanceType),
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
-			"aerolab.agi.volume": "true",
-			"agifips":            fmt.Sprintf("%t", c.AWS.EFSFips),
-				"agisubnet":     c.AWS.SubnetID,
-				"agisecgroup":   c.AWS.SecurityGroupID,
-				"agiefsexpire":  c.AWS.EFSExpires.String(),
-				"agiLabel":      agiLabelB64,
-				"agiSrcLocal":   sourceStringLocalB64,
-				"agiSrcSftp":    sourceStringSftpB64,
-				"agiSrcS3":      sourceStringS3B64,
+				"agiinstance":        string(c.AWS.InstanceType),
+				"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":          fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
+				"isspot":             fmt.Sprintf("%t", c.AWS.SpotInstance),
+				"aerolab.agi.volume": "true",
+				"agifips":            fmt.Sprintf("%t", c.AWS.EFSFips),
+				"agisubnet":          c.AWS.SubnetID,
+				"agisecgroup":        c.AWS.SecurityGroupID,
+				"agiefsexpire":       c.AWS.EFSExpires.String(),
+				"agiLabel":           agiLabelB64,
+				"agiSrcLocal":        sourceStringLocalB64,
+				"agiSrcSftp":         sourceStringSftpB64,
+				"agiSrcS3":           sourceStringS3B64,
 			}
 			if err := vol.AddTags(newTags, 5*time.Minute); err != nil {
 				logger.Warn("Failed to update EFS volume tags: %s", err)
@@ -1155,8 +1188,8 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.GCP.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.GCP.SpotInstance),
-			"aerolab.agi.volume=true",
-			fmt.Sprintf("agifips=%t", c.GCP.VolFips),
+				"aerolab.agi.volume=true",
+				fmt.Sprintf("agifips=%t", c.GCP.VolFips),
 				fmt.Sprintf("agizone=%s", c.GCP.Zone),
 				fmt.Sprintf("agivolexpire=%s", c.GCP.VolExpires.String()),
 				fmt.Sprintf("agiLabel=%s", agiLabelB64),
@@ -1209,18 +1242,18 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update GCP volume tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   string(c.GCP.InstanceType),
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
-			"aerolab.agi.volume": "true",
-			"agifips":            fmt.Sprintf("%t", c.GCP.VolFips),
-				"agizone":       string(c.GCP.Zone),
-				"agivolexpire":  c.GCP.VolExpires.String(),
-				"agiLabel":      agiLabelB64,
-				"agiSrcLocal":   sourceStringLocalB64,
-				"agiSrcSftp":    sourceStringSftpB64,
-				"agiSrcS3":      sourceStringS3B64,
+				"agiinstance":        string(c.GCP.InstanceType),
+				"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":          fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
+				"isspot":             fmt.Sprintf("%t", c.GCP.SpotInstance),
+				"aerolab.agi.volume": "true",
+				"agifips":            fmt.Sprintf("%t", c.GCP.VolFips),
+				"agizone":            string(c.GCP.Zone),
+				"agivolexpire":       c.GCP.VolExpires.String(),
+				"agiLabel":           agiLabelB64,
+				"agiSrcLocal":        sourceStringLocalB64,
+				"agiSrcSftp":         sourceStringSftpB64,
+				"agiSrcS3":           sourceStringS3B64,
 			}
 			if err := vol.AddTags(newTags, 5*time.Minute); err != nil {
 				logger.Warn("Failed to update GCP volume tags: %s", err)

@@ -160,6 +160,27 @@ This creates:
 | `--plugin-log-level` | Plugin log level | `4` |
 | `--plugin-cpu-profiling` | Enable CPU profiling | |
 
+When `--plugin-cpu-profiling` is set, the plugin writes its live profile
+to `/opt/agi/cpu.plugin.pprof`. Go's `runtime/pprof` buffers the entire
+profile in memory and only flushes to disk when the profile is stopped,
+so this file is **0 bytes for the whole time the service is running**
+— this is expected. To obtain a complete, parseable profile without
+restarting the AGI service, send `SIGUSR1` to the merged service
+process:
+
+```bash
+kill -USR1 $(cat /opt/agi/service.pid)
+ls /opt/agi/cpu.plugin.pprof*
+# cpu.plugin.pprof                                        0  (live, in-memory)
+# cpu.plugin.pprof.20260428-110234.123456789Z      4202496  (just flushed)
+go tool pprof /opt/agi/cpu.plugin.pprof.20260428-110234.123456789Z
+```
+
+`SIGUSR1` is repeatable: each rotation produces a new timestamp-suffixed
+file alongside the configured path, and the live profile keeps sampling
+the next interval. A clean `systemctl stop agi-plugin` also flushes the
+live profile (without rotation) before exit.
+
 ### Notifications
 
 | Option | Description |

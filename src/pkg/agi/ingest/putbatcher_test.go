@@ -2,6 +2,8 @@ package ingest
 
 import (
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,7 +41,7 @@ func TestIngestUsesPutBatch(t *testing.T) {
 	// Mirror finalizeInit: aggressive flush parameters keep the
 	// test fast and deterministic without changing the semantics
 	// the production batcher exposes.
-	i.putBatcher = newPutBatcher(d, 256, 5, i.putDataSingle)
+	i.putBatcher = newPutBatcher(d, 256, 5, 0, i.putDataSingle)
 	// We close the batcher explicitly mid-test to drain pending
 	// rows before reading stats. Re-closing inside a defer would
 	// panic on the closed inCh, so the explicit close below also
@@ -88,6 +90,85 @@ func TestIngestUsesPutBatch(t *testing.T) {
 	// race detector a window to surface concurrent map writes if
 	// any were introduced.
 	time.Sleep(10 * time.Millisecond)
+}
+
+// TestPutBatcherShardedConcurrentSubmit verifies that a sharded
+// putBatcher correctly accepts concurrent submit() calls from many
+// producers and that every row lands exactly once. It is deliberately
+// constructed so several keys hash to each shard (the key space is
+// dense and the shard count is small) to exercise the multi-shard
+// path and shake out any data races; the race detector is the
+// primary signal here, but we also assert the row count and a few
+// random Get() probes for correctness.
+func TestPutBatcherShardedConcurrentSubmit(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "ingest-shard-db")
+	opts := db.DefaultOptions()
+	opts.Path = dir
+	d, err := db.Open(opts)
+	if err != nil {
+		t.Fatalf("db.Open: %s", err)
+	}
+	defer d.Close()
+
+	if err := d.RegisterSet("metrics", []db.ColumnSpec{
+		{Name: "timestamp", Type: db.TypeInt64, Indexed: true},
+		{Name: "v", Type: db.TypeInt64},
+	}); err != nil {
+		t.Fatalf("RegisterSet: %s", err)
+	}
+
+	cfg := new(Config)
+	cfg.TimestampColumnName = "timestamp"
+	i := &Ingest{config: cfg, db: d}
+	// Force a non-trivial shard count so submit() actually
+	// distributes rows across multiple flusher goroutines.
+	const shards = 4
+	i.putBatcher = newPutBatcher(d, 64, 5, shards, i.putDataSingle)
+
+	const (
+		producers      = 8
+		rowsPerProducer = 500
+	)
+	var submitted atomic.Int64
+	wg := new(sync.WaitGroup)
+	wg.Add(producers)
+	for p := 0; p < producers; p++ {
+		go func(p int) {
+			defer wg.Done()
+			for r := 0; r < rowsPerProducer; r++ {
+				key := "p" + itoa(p) + "-r" + itoa(r)
+				if perr := i.putData("metrics", key, db.Row{
+					"timestamp": db.Int(int64(1_000_000 + p*rowsPerProducer + r)),
+					"v":         db.Int(int64(r)),
+				}); perr != nil {
+					t.Errorf("putData[%s]: %s", key, perr)
+					return
+				}
+				submitted.Add(1)
+			}
+		}(p)
+	}
+	wg.Wait()
+
+	i.putBatcher.close()
+	i.putBatcher = nil
+
+	if got := submitted.Load(); got != int64(producers*rowsPerProducer) {
+		t.Fatalf("submitted=%d want=%d", got, producers*rowsPerProducer)
+	}
+
+	// Spot-check that the rows actually persisted under their
+	// own keys (i.e. the sharded routing did not corrupt any
+	// (set,key) tuple).
+	for _, k := range []string{"p0-r0", "p3-r123", "p7-r499"} {
+		row, gerr := d.Get("metrics", k)
+		if gerr != nil {
+			t.Fatalf("Get %s: %s", k, gerr)
+		}
+		if row == nil {
+			t.Errorf("ingest dropped row %s", k)
+		}
+	}
 }
 
 // itoa is a stack-allocating int->string for hot test loops; the

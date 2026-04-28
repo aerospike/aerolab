@@ -9,7 +9,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
+	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,84 @@ type metaEntries struct {
 	Entries          []string
 	ByCluster        map[string][]int
 	StaticEntriesIdx []int
+
+	// Unexported derived state, never serialised. Built lazily in
+	// ensureIdx() from Entries / ByCluster the first time a
+	// metaEntries is observed (after json.Unmarshal of an existing
+	// label row, or right at &metaEntries{} construction). Kept in
+	// sync with the slice fields on every mutation. Lower-case
+	// names => the json package skips them, so the wire format
+	// stays compatible with the plugin's reader in
+	// backendQueryAndCache.go.
+	mu           sync.Mutex                  // per-entry hot-path lock
+	entriesIdx   map[string]int              // sv -> index into Entries
+	byClusterSet map[string]map[int]struct{} // clusterName -> set of idx
+}
+
+// ensureIdx populates entriesIdx and byClusterSet from the JSON-loaded
+// slice fields. Called once when an entry is loaded from disk in
+// ProcessLogsPrep and once when first allocated in the hot path; safe
+// to call repeatedly (idempotent).
+func (m *metaEntries) ensureIdx() {
+	if m.entriesIdx == nil {
+		m.entriesIdx = make(map[string]int, len(m.Entries))
+		for i, e := range m.Entries {
+			// On a duplicate (shouldn't happen with the current
+			// pipeline, but be defensive), keep the first
+			// index — that matches what slices.Index returned
+			// pre-fix.
+			if _, ok := m.entriesIdx[e]; !ok {
+				m.entriesIdx[e] = i
+			}
+		}
+	}
+	if m.byClusterSet == nil {
+		m.byClusterSet = make(map[string]map[int]struct{}, len(m.ByCluster))
+		for cl, idxs := range m.ByCluster {
+			s := make(map[int]struct{}, len(idxs))
+			for _, idx := range idxs {
+				s[idx] = struct{}{}
+			}
+			m.byClusterSet[cl] = s
+		}
+	}
+}
+
+// metaShards wraps the parent meta map with a single RWMutex that
+// guards structural mutations (first-sighting insertion). Per-entry
+// mutations on the hot path use metaEntries.mu instead — this RWMutex
+// is held only for the brief get-or-create branch, so first sightings
+// of a never-seen key (a few dozen times per ingest) are the only
+// readers blocked behind the exclusive lock.
+type metaShards struct {
+	parentMu sync.RWMutex
+	meta     map[string]*metaEntries
+}
+
+// getOrCreate returns the metaEntries for key, allocating one (with
+// pre-populated index maps) on first sighting. The two-phase
+// RLock-then-Lock dance is the standard double-checked init pattern:
+// the hot read path takes the cheap RLock once the key exists; only
+// the rare insertion takes the exclusive Lock.
+func (s *metaShards) getOrCreate(key string) *metaEntries {
+	s.parentMu.RLock()
+	if m, ok := s.meta[key]; ok {
+		s.parentMu.RUnlock()
+		return m
+	}
+	s.parentMu.RUnlock()
+	s.parentMu.Lock()
+	defer s.parentMu.Unlock()
+	if m, ok := s.meta[key]; ok {
+		return m
+	}
+	m := &metaEntries{
+		ByCluster:    make(map[string][]int),
+		entriesIdx:   make(map[string]int),
+		byClusterSet: make(map[string]map[int]struct{}),
+	}
+	s.meta[key] = m
+	return m
 }
 
 func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[string]*metaEntries, err error) {
@@ -101,6 +180,9 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 			log.Printf("WARN: Failed to unmarshal existing label data for %s: %s", key, uerr)
 			continue
 		}
+		// Pre-build the index maps so the hot path's per-row
+		// lookups never have to lazy-init under a lock.
+		metaItem.ensureIdx()
 		meta[key] = metaItem
 	}
 	if serr := it.Err(); serr != nil {
@@ -128,142 +210,121 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 		i.progress.LogProcessor.running = false
 		i.progress.Unlock()
 	}()
-	metaLock := new(sync.Mutex)
-	// process
-	resultsChan := make(chan *processResult)
+	// metaShards replaces the single global metaLock with one
+	// sync.Mutex per meta key (sitting on metaEntries.mu) plus a
+	// RWMutex over the parent map. The hot path holds only the
+	// per-key mu while it performs the Index lookup, append,
+	// JSON marshal, db.Put, rollback for that key. Different rows
+	// touching disjoint key sets proceed in parallel; rows that
+	// collide on the always-shared keys (ClusterName, NodeIdent)
+	// only serialize on those, not on every label.
+	shards := &metaShards{meta: meta}
+	// resultsChan is buffered so producers can push multiple rows
+	// without a per-row scheduler rendezvous against the receivers.
+	// The buffer is a smoothing window, not a parallelism
+	// multiplier; correctness is independent of the size. We size
+	// it to one slot per worker so the producer side is rarely
+	// the gate even when one or two workers are mid-PutBatch.
+	workers := i.config.MaxPutThreads
+	if workers <= 0 {
+		// Default that scales with the box. The pre-pool
+		// dispatcher used 128 as a hard-coded semaphore depth;
+		// keeping the same upper bound makes the upgrade
+		// behaviourally identical for users who never set the
+		// knob, while letting tiny boxes (GOMAXPROCS=1-2) avoid
+		// 128 idle goroutines parked on the channel.
+		workers = runtime.GOMAXPROCS(0) * 4
+		if workers < 4 {
+			workers = 4
+		}
+		if workers > 128 {
+			workers = 128
+		}
+	}
+	resultsChan := make(chan *processResult, workers)
 	go i.processLogsFeed(foundLogs, resultsChan)
 
-	// feed results to backend DB
+	// feed results to backend DB.
+	//
+	// Pre-pool design spawned one goroutine per row from a single
+	// dispatcher loop, gated by a 128-slot semaphore. At AGI's
+	// typical throughput of ~1M rows/s the per-row goroutine
+	// creation (~1-3µs each) saturated the dispatcher's single
+	// goroutine and capped the entire pipeline at ~2 cores busy
+	// regardless of how parallel the producers, batcher, or worker
+	// body actually were. The fixed worker pool below removes
+	// that ceiling: N persistent goroutines pull directly from
+	// resultsChan with no per-row spawn and no semaphore. The
+	// per-row body is unchanged; only the goroutine lifecycle
+	// around it is.
 	wg := new(sync.WaitGroup)
-	threads := make(chan bool, i.config.MaxPutThreads)
-	for data := range resultsChan {
-		if data.Error != nil {
-			log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
-		}
-		if data.Data != nil && data.SetName != "" && data.LogLine != "" {
-			wg.Add(1)
-			threads <- true
-			go func(metadata map[string]any, data map[string]any, fn string, logLine string, setName string, nodeIdentifier string) {
-				defer func() {
-					wg.Done()
-					<-threads
-				}()
-				metaLock.Lock()
-				// Walk every meta key. Previously a marshal or db.Put
-				// failure for one key returned immediately, dropping
-				// every remaining label (including ClusterName) on
-				// the floor and writing the metric row with a
-				// partial label-set. Keep going on per-key errors
-				// and only skip translation (data[k]=idx) for keys
-				// we couldn't persist.
-				for k, v := range metadata {
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for data := range resultsChan {
+				if data.Error != nil {
+					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
+				}
+				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
+					continue
+				}
+				metadata := data.Metadata
+				rowData := data.Data
+				fn := data.FileName
+				logLine := data.LogLine
+				setName := data.SetName
+				nodeIdentifier := data.UniqNodeString
+				clusterName, _ := metadata["ClusterName"].(string)
+				// Snapshot and sort the metadata key list. Sorting
+				// is not strictly required (each key is locked
+				// independently and never simultaneously, so
+				// deadlock is impossible regardless of order) but
+				// it gives deterministic, reproducible per-row
+				// behavior under concurrent ingests, which makes
+				// failure-mode tests easier to reason about.
+				keys := make([]string, 0, len(metadata))
+				for k := range metadata {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				// Walk every meta key. Previously a marshal or
+				// db.Put failure for one key returned immediately,
+				// dropping every remaining label (including
+				// ClusterName) on the floor and writing the metric
+				// row with a partial label-set. Keep going on
+				// per-key errors and only skip translation
+				// (data[k]=idx) for keys we couldn't persist.
+				for _, k := range keys {
+					v := metadata[k]
 					sv, ok := v.(string)
 					if !ok {
 						log.Printf("ERROR: Log Processor: metadata %q has non-string value %T; skipping", k, v)
 						continue
 					}
-					if _, ok := meta[k]; !ok {
-						meta[k] = &metaEntries{
-							ByCluster: make(map[string][]int),
-						}
-					}
-					clusterName, _ := metadata["ClusterName"].(string)
-					// Track exactly which mutation we made so we can
-					// roll it back if the labels-set Put fails.
-					// Without rollback the in-memory meta drifts
-					// ahead of the on-disk snapshot: subsequent
-					// metric rows in this run encode an idx that
-					// the plugin can't resolve (entries[idx]
-					// missing), and after a restart the plugin
-					// surfaces "metadata corrupt or log ingestion
-					// in progress" errors for those rows.
-					const (
-						mutNone        = 0
-						mutAppendEntry = 1 // appended to Entries (and possibly ByCluster)
-						mutAppendCl    = 2 // only appended to ByCluster[cluster]
-					)
-					mutKind := mutNone
-					var mutCluster string
-					saveMeta := false
-					idx := slices.Index(meta[k].Entries, sv)
-					if idx == -1 {
-						idx = len(meta[k].Entries)
-						saveMeta = true
-						meta[k].Entries = append(meta[k].Entries, sv)
-						if meta[k].ByCluster == nil {
-							meta[k].ByCluster = make(map[string][]int)
-						}
-						if clusterName != "" {
-							meta[k].ByCluster[clusterName] = append(meta[k].ByCluster[clusterName], len(meta[k].Entries)-1)
-							mutCluster = clusterName
-						}
-						mutKind = mutAppendEntry
-					} else if clusterName != "" && !slices.Contains(meta[k].ByCluster[clusterName], idx) {
-						meta[k].ByCluster[clusterName] = append(meta[k].ByCluster[clusterName], idx)
-						saveMeta = true
-						mutKind = mutAppendCl
-						mutCluster = clusterName
-					}
-					rollback := func() {
-						switch mutKind {
-						case mutAppendEntry:
-							if n := len(meta[k].Entries); n > 0 {
-								meta[k].Entries = meta[k].Entries[:n-1]
-							}
-							if mutCluster != "" {
-								if cl := meta[k].ByCluster[mutCluster]; len(cl) > 0 {
-									meta[k].ByCluster[mutCluster] = cl[:len(cl)-1]
-									if len(meta[k].ByCluster[mutCluster]) == 0 {
-										delete(meta[k].ByCluster, mutCluster)
-									}
-								}
-							}
-						case mutAppendCl:
-							if cl := meta[k].ByCluster[mutCluster]; len(cl) > 0 {
-								meta[k].ByCluster[mutCluster] = cl[:len(cl)-1]
-								if len(meta[k].ByCluster[mutCluster]) == 0 {
-									delete(meta[k].ByCluster, mutCluster)
-								}
-							}
-						}
-					}
-					if saveMeta {
-						metajson, merr := json.Marshal(meta[k])
-						if merr != nil {
-							log.Printf("ERROR: Log Processor: could not jsonify metadata for %s key %s: %s; rolling back in-memory meta", fn, k, merr)
-							rollback()
-							// Skip this key: the metric row will
-							// not carry a translated idx for it,
-							// but no other label is corrupted.
-							continue
-						}
-						i.binList.lock.Lock()
-						if !slices.Contains(i.binList.BinNames, k) {
-							i.binList.BinNames = append(i.binList.BinNames, k)
-							i.binList.changed = true
-						}
-						i.binList.lock.Unlock()
-						if perr := i.db.Put(i.patterns.LabelsSetName, k, db.Row{labelsValueCol: db.Str(string(metajson))}); perr != nil {
-							log.Printf("ERROR: Log Processor: could not store metadata for %s key %s: %s; rolling back in-memory meta", fn, k, perr)
-							rollback()
-							continue
-						}
-					}
-					data[k] = idx
-				}
-				metaLock.Unlock()
-				i.binList.lock.Lock()
-				for k := range data {
-					if !slices.Contains(i.binList.BinNames, k) {
-						i.binList.BinNames = append(i.binList.BinNames, k)
-						i.binList.changed = true
+					me := shards.getOrCreate(k)
+					if idx, persisted := i.upsertMetaEntry(me, k, sv, clusterName, fn); persisted {
+						rowData[k] = idx
 					}
 				}
-				i.binList.lock.Unlock()
-				row, rerr := buildDataRow(data, i.config.TimestampColumnName)
+				// Hot path: lock-free probe against the bin-list
+				// snapshot. After warmup every column is already
+				// known and missingNames returns nil with zero
+				// allocations; the rare miss takes b.lock once
+				// and publishes a copy-on-written replacement.
+				// We deliberately do NOT call storeBinList here.
+				// Persistence is folded into saveProgress (see
+				// trackprogress.go) so the on-disk pair
+				// (BINLIST, progress) is consistent at every
+				// checkpoint, which is the invariant the
+				// crash-resume path relies on.
+				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
+					i.binList.addNames(missing)
+				}
+				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
 				if rerr != nil {
 					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
-					return
+					continue
 				}
 				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
 				// See pk.go for the rationale; pre-v3 builds wrote the
@@ -275,12 +336,8 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 				if perr := i.putData(setName, pk, row); perr != nil {
 					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
 				}
-				serr := i.storeBinList()
-				if serr != nil {
-					log.Printf("ERROR: Log Processor: could not store bin list: %s", serr)
-				}
-			}(data.Metadata, data.Data, data.FileName, data.LogLine, data.SetName, data.UniqNodeString)
-		}
+			}
+		}()
 	}
 	wg.Wait()
 
@@ -300,19 +357,175 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	return nil
 }
 
+// upsertMetaEntry performs the previously-monolithic per-key body of
+// ProcessLogs's worker loop under the per-key metaEntries.mu lock.
+// Returns (idx, true) when sv has a stable index in me.Entries (either
+// because it was already present, or because the append + db.Put
+// succeeded); returns (_, false) when the key could not be persisted
+// and the metric row should NOT carry a translated idx for it (the row
+// goes through with one less label rather than dumping every other
+// label too, matching the multi-key resilience the pre-fix code
+// already had).
+//
+// Rollback is kept symmetric with the slice append: if anything fails
+// after we've appended, we shrink Entries / ByCluster AND the
+// entriesIdx / byClusterSet maps in lockstep so the in-memory state
+// stays consistent with the on-disk JSON.
+func (i *Ingest) upsertMetaEntry(me *metaEntries, k, sv, clusterName, fn string) (int, bool) {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+	// Defensive: ensureIdx is also called at load time and at
+	// allocation time, so the maps should already be non-nil. Be
+	// permissive in case a future caller bypasses metaShards.
+	me.ensureIdx()
+	const (
+		mutNone        = 0
+		mutAppendEntry = 1 // appended to Entries (and possibly ByCluster)
+		mutAppendCl    = 2 // only appended to ByCluster[cluster]
+	)
+	mutKind := mutNone
+	var mutCluster string
+	saveMeta := false
+	idx, present := me.entriesIdx[sv]
+	if !present {
+		idx = len(me.Entries)
+		saveMeta = true
+		me.Entries = append(me.Entries, sv)
+		me.entriesIdx[sv] = idx
+		if me.ByCluster == nil {
+			me.ByCluster = make(map[string][]int)
+		}
+		if clusterName != "" {
+			me.ByCluster[clusterName] = append(me.ByCluster[clusterName], idx)
+			if me.byClusterSet[clusterName] == nil {
+				me.byClusterSet[clusterName] = make(map[int]struct{})
+			}
+			me.byClusterSet[clusterName][idx] = struct{}{}
+			mutCluster = clusterName
+		}
+		mutKind = mutAppendEntry
+	} else if clusterName != "" {
+		if _, inSet := me.byClusterSet[clusterName][idx]; !inSet {
+			me.ByCluster[clusterName] = append(me.ByCluster[clusterName], idx)
+			if me.byClusterSet[clusterName] == nil {
+				me.byClusterSet[clusterName] = make(map[int]struct{})
+			}
+			me.byClusterSet[clusterName][idx] = struct{}{}
+			saveMeta = true
+			mutKind = mutAppendCl
+			mutCluster = clusterName
+		}
+	}
+	rollback := func() {
+		switch mutKind {
+		case mutAppendEntry:
+			if n := len(me.Entries); n > 0 {
+				last := me.Entries[n-1]
+				me.Entries = me.Entries[:n-1]
+				// Only delete from entriesIdx if it still
+				// points at the index we just appended; a
+				// concurrent goroutine cannot reach here
+				// because we hold me.mu, but the map could
+				// still have a stale entry from a previous
+				// rollback if the same sv was re-introduced.
+				if cur, ok := me.entriesIdx[last]; ok && cur == n-1 {
+					delete(me.entriesIdx, last)
+				}
+			}
+			if mutCluster != "" {
+				if cl := me.ByCluster[mutCluster]; len(cl) > 0 {
+					popped := cl[len(cl)-1]
+					me.ByCluster[mutCluster] = cl[:len(cl)-1]
+					delete(me.byClusterSet[mutCluster], popped)
+					if len(me.ByCluster[mutCluster]) == 0 {
+						delete(me.ByCluster, mutCluster)
+						delete(me.byClusterSet, mutCluster)
+					}
+				}
+			}
+		case mutAppendCl:
+			if cl := me.ByCluster[mutCluster]; len(cl) > 0 {
+				popped := cl[len(cl)-1]
+				me.ByCluster[mutCluster] = cl[:len(cl)-1]
+				delete(me.byClusterSet[mutCluster], popped)
+				if len(me.ByCluster[mutCluster]) == 0 {
+					delete(me.ByCluster, mutCluster)
+					delete(me.byClusterSet, mutCluster)
+				}
+			}
+		}
+	}
+	if saveMeta {
+		metajson, merr := json.Marshal(me)
+		if merr != nil {
+			log.Printf("ERROR: Log Processor: could not jsonify metadata for %s key %s: %s; rolling back in-memory meta", fn, k, merr)
+			rollback()
+			return 0, false
+		}
+		// First-sighting bin list bookkeeping. Lock-free probe;
+		// addNames takes the per-list mutex once on a true miss
+		// and publishes a copy-on-written snapshot. The hot
+		// ProcessLogs worker uses the same helpers, so this path
+		// shares cache lines and never contends with itself.
+		if !i.binList.containsName(k) {
+			i.binList.addNames([]string{k})
+		}
+		if perr := i.db.Put(i.patterns.LabelsSetName, k, db.Row{labelsValueCol: db.Str(string(metajson))}); perr != nil {
+			log.Printf("ERROR: Log Processor: could not store metadata for %s key %s: %s; rolling back in-memory meta", fn, k, perr)
+			rollback()
+			return 0, false
+		}
+	}
+	return idx, true
+}
+
+// storeBinList persists the canonical BinNames slice into the BINLIST
+// row of the labels set. It is called (a) from the head of every
+// saveProgress() so the on-disk pair (BINLIST, progress) is
+// consistent at every persisted checkpoint — the crash-resume
+// contract relies on this — and (b) once at the end of ProcessLogs
+// as a clean-shutdown final flush.
+//
+// We intentionally do NOT hold binList.lock across the db.Put. A
+// concurrent addNames (the COW writer that publishes a new snapshot)
+// would otherwise block for the whole Pebble round-trip, briefly
+// stalling the hot-path workers that actually need to add a new
+// column. Instead we snapshot BinNames under the lock, drop the
+// lock, do the Put, then re-take the lock and only clear `changed`
+// if BinNames did not grow during the Put — otherwise the next
+// caller re-flushes.
 func (i *Ingest) storeBinList() error {
+	if i.binList == nil {
+		return nil
+	}
+	// No labels set configured (test fixtures and minimal Init
+	// paths can leave patterns nil or LabelsSetName empty). Treat
+	// as "nothing to persist" rather than failing — the in-memory
+	// state is still correct and saveProgress() will keep calling
+	// us, this just makes the call cheap.
+	if i.patterns == nil || i.patterns.LabelsSetName == "" {
+		return nil
+	}
 	i.binList.lock.Lock()
-	defer i.binList.lock.Unlock()
-	if i.binList.changed {
-		binListJson, err := json.Marshal(i.binList.BinNames)
-		if err != nil {
-			return err
-		}
-		if err := i.db.Put(i.patterns.LabelsSetName, "BINLIST", db.Row{labelsValueCol: db.Str(string(binListJson))}); err != nil {
-			return err
-		}
+	if !i.binList.changed {
+		i.binList.lock.Unlock()
+		return nil
+	}
+	namesCopy := make([]string, len(i.binList.BinNames))
+	copy(namesCopy, i.binList.BinNames)
+	i.binList.lock.Unlock()
+	binListJson, err := json.Marshal(namesCopy)
+	if err != nil {
+		return err
+	}
+	if err := i.db.Put(i.patterns.LabelsSetName, "BINLIST", db.Row{labelsValueCol: db.Str(string(binListJson))}); err != nil {
+		return err
+	}
+	i.binList.lock.Lock()
+	if len(i.binList.BinNames) == len(namesCopy) {
 		i.binList.changed = false
 	}
+	i.binList.lock.Unlock()
 	return nil
 }
 
@@ -672,25 +885,15 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			continue
 		}
 		for _, d := range out {
-			results := make(map[string]any)
-			for k, v := range d.Data {
-				switch vt := v.(type) {
-				case string:
-					vint, err := strconv.Atoi(vt)
-					if err != nil {
-						results[k] = v
-					} else {
-						results[k] = vint
-					}
-				default:
-					results[k] = v
-				}
-			}
+			// Int-coercion of d.Data now happens inside
+			// lineProcess (see logstream.go) so the per-row map
+			// allocation + copy that lived here is gone. d.Data
+			// is owned by this row; no other goroutine reads it.
 			meta := d.Metadata
 			maps.Copy(meta, labels)
 			resultsChan <- &processResult{
 				FileName:       fileName,
-				Data:           results,
+				Data:           d.Data,
 				Error:          d.Error,
 				SetName:        d.SetName,
 				LogLine:        d.Line,

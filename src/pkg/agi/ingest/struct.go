@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
@@ -47,10 +48,138 @@ type Ingest struct {
 	putBatcher *putBatcher
 }
 
+// binList is the catalog of every column ever produced by ingest.
+// It is published two ways:
+//
+//   - BinNames: the canonical, ordered slice that is JSON-serialised
+//     into the BINLIST row of the labels set. Mutated only under
+//     lock.
+//   - snapshot: an atomic.Pointer to an immutable presence-set map.
+//     The ProcessLogs hot path reads this with NO lock; rare
+//     additions take lock and publish a copy-on-written replacement.
+//
+// The two views are kept in step: a single mutator goroutine takes
+// lock, appends to BinNames, builds a new map = old map ∪ new keys,
+// atomically swaps snapshot, sets changed=true, releases lock.
+//
+// Persistence is decoupled from the hot path. storeBinList() is
+// invoked (a) at the head of every saveProgress() so the on-disk
+// (BINLIST, progress) pair is consistent at every persisted
+// checkpoint — the crash-resume contract relies on this — and (b)
+// at the end of ProcessLogs as a clean-shutdown final flush.
 type binList struct {
 	lock     sync.Mutex
 	BinNames []string `json:"binNames"`
+	// snapshot holds the read-only presence map used by the
+	// lock-free hot path. The pointed-at map is treated as
+	// immutable: writers always allocate a fresh map and atomic
+	// Store, never mutate the existing one. Concurrent readers
+	// holding a stale pointer keep working safely against the old
+	// map until they reload.
+	snapshot atomic.Pointer[map[string]struct{}]
 	changed  bool
+}
+
+// loadSnapshot returns the current immutable presence map; nil only
+// before seedSnapshot has been called (i.e. only in tests that
+// bypass newIngest / finalizeInit).
+func (b *binList) loadSnapshot() *map[string]struct{} {
+	return b.snapshot.Load()
+}
+
+// seedSnapshot publishes a snapshot built from BinNames. Called at
+// the end of newIngest and finalizeInit so the very first hot-path
+// read sees a non-nil map. Caller must hold b.lock or be running
+// during single-threaded init.
+func (b *binList) seedSnapshot() {
+	m := make(map[string]struct{}, len(b.BinNames))
+	for _, n := range b.BinNames {
+		m[n] = struct{}{}
+	}
+	b.snapshot.Store(&m)
+}
+
+// missingNames returns the subset of keys in data that are not
+// present in the current snapshot. Lock-free; safe to call from any
+// goroutine. The returned slice is freshly allocated only when at
+// least one key is missing (the steady-state hot path returns nil).
+func (b *binList) missingNames(data map[string]any) []string {
+	snap := b.snapshot.Load()
+	if snap == nil {
+		out := make([]string, 0, len(data))
+		for k := range data {
+			out = append(out, k)
+		}
+		return out
+	}
+	var out []string
+	m := *snap
+	for k := range data {
+		if _, present := m[k]; !present {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// containsName is the single-key probe used by the upsertMetaEntry
+// first-sighting path. Lock-free.
+func (b *binList) containsName(k string) bool {
+	snap := b.snapshot.Load()
+	if snap == nil {
+		return false
+	}
+	_, ok := (*snap)[k]
+	return ok
+}
+
+// addNames appends every key from `keys` that is not already in the
+// snapshot. Returns the slice of names actually added (so callers
+// can log or react). Acquires b.lock for the duration of the COW;
+// the lock is held for microseconds (one map copy + one slice
+// append) and is uncontested in steady state because the hot path
+// never enters this branch after the first ~thousand rows.
+//
+// addNames re-checks presence under the lock to absorb races where
+// two goroutines saw the same missing key in their own snapshot
+// reads.
+func (b *binList) addNames(keys []string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	cur := b.snapshot.Load()
+	var base map[string]struct{}
+	if cur != nil {
+		base = *cur
+	}
+	var added []string
+	var nextMap map[string]struct{}
+	for _, k := range keys {
+		if _, present := base[k]; present {
+			continue
+		}
+		if nextMap != nil {
+			if _, present := nextMap[k]; present {
+				continue
+			}
+		}
+		if nextMap == nil {
+			nextMap = make(map[string]struct{}, len(base)+len(keys))
+			for kk := range base {
+				nextMap[kk] = struct{}{}
+			}
+		}
+		nextMap[k] = struct{}{}
+		b.BinNames = append(b.BinNames, k)
+		added = append(added, k)
+	}
+	if len(added) > 0 {
+		b.snapshot.Store(&nextMap)
+		b.changed = true
+	}
+	return added
 }
 
 type lineErrors struct {
@@ -153,7 +282,22 @@ type Config struct {
 	// benefit because the flusher trips before any meaningful
 	// number of rows accumulate.
 	PutBatchFlushMs int `yaml:"putBatchFlushMs" default:"50"`
-	Dedup struct {
+	// PutBatchShards is the number of parallel flusher goroutines
+	// behind putBatcher. The pre-sharded batcher used a single
+	// flusher whose db.PutBatch throughput became the ingest
+	// pipeline's hard ceiling once the upstream metaLock was
+	// removed; sharding by maphash(key) lets independent batches
+	// commit through Pebble in parallel because db.PutBatch is
+	// concurrency-safe and stripedLocks never collide across
+	// shards.
+	//
+	// 0 selects auto = min(GOMAXPROCS, 8). The upper cap reflects
+	// that Pebble's commit pipeline saturates well before 8 active
+	// writers on typical AGI hardware; raising this knob beyond
+	// the available cores adds scheduler churn without raising
+	// throughput.
+	PutBatchShards int `yaml:"putBatchShards" default:"0"`
+	Dedup          struct {
 		Enabled   bool `yaml:"enabled" default:"true"`
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`
@@ -293,6 +437,13 @@ type patterns struct {
 				Increment bool          `yaml:"increment"` // increment the field value counts by 1 as part of aggregation; this is for lines that have (repeated:X) where the repeated stat does not contain the first argument, only repeat counts
 			} `yaml:"aggregate"`
 		} `yaml:"patterns"`
+		// matcher is the Aho-Corasick automaton over every
+		// Patterns[i].Search string for this Defs entry. Built
+		// once in (*patterns).compile() and used by lineProcess to
+		// pick the first matching pattern in O(len(line)) instead
+		// of N strings.Contains scans. Lower-case name => yaml
+		// decoder skips it.
+		matcher *acMatcher
 	} `yaml:"defs"`
 }
 

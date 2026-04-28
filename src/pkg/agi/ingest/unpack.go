@@ -99,15 +99,27 @@ func (i *Ingest) Unpack() error {
 	}
 
 	var files map[string]*EnumFile
+	// In read-only mode the input directory is a bind mount whose archives are
+	// never deleted, so re-walking it every iteration would re-pick the same
+	// archives forever (the loop relied on archive deletion to detect "done").
+	// Enumerate it once and cache; subsequent iterations only re-walk the
+	// writable staging directory where extracted nested archives live.
+	var originalsFiles map[string]*EnumFile
 	var err error
+	firstIteration := true
 	ignoreFailedUnpacks := new(safeStringSlice)
 	ignoreFailedErrors := new(safeStringMap)
+	unpackedOK := new(safeStringSlice)
 	for {
-		log.Printf("DETAIL: unpack: enumerate")
-		files, err = i.enum()
-		if err != nil {
-			return fmt.Errorf("failed to enumerate files: %s", err)
+		if firstIteration || !readOnlyInput {
+			log.Printf("DETAIL: unpack: enumerate")
+			originalsFiles, err = i.enum()
+			if err != nil {
+				return fmt.Errorf("failed to enumerate files: %s", err)
+			}
 		}
+		files = make(map[string]*EnumFile, len(originalsFiles))
+		maps.Copy(files, originalsFiles)
 
 		// In read-only mode, also enumerate the staging directory
 		if readOnlyInput && stagingDir != "" {
@@ -118,18 +130,27 @@ func (i *Ingest) Unpack() error {
 				maps.Copy(files, stagingFiles)
 			}
 		}
+		firstIteration = false
 
 		foundArchives := new(safeBool)
 		wg := new(sync.WaitGroup)
 		threads := make(chan bool, i.config.PreProcess.UnpackerFileThreads)
 		log.Printf("DETAIL: unpack: unpacking")
 		for fn, file := range files {
-			if !file.IsArchive || slices.Contains(ignoreFailedUnpacks.Get(), fn) {
+			if !file.IsArchive ||
+				slices.Contains(ignoreFailedUnpacks.Get(), fn) ||
+				slices.Contains(unpackedOK.Get(), fn) {
 				failedUnpack := false
+				alreadyUnpacked := false
 				if file.IsArchive {
-					failedUnpack = true
+					if slices.Contains(ignoreFailedUnpacks.Get(), fn) {
+						failedUnpack = true
+					}
+					if slices.Contains(unpackedOK.Get(), fn) {
+						alreadyUnpacked = true
+					}
 				}
-				log.Printf("DETAIL: unpack %s no-unpack isArchive:%t unpackFailed:%t", fn, file.IsArchive, failedUnpack)
+				log.Printf("DETAIL: unpack %s no-unpack isArchive:%t unpackFailed:%t alreadyUnpacked:%t", fn, file.IsArchive, failedUnpack, alreadyUnpacked)
 				continue
 			}
 			wg.Add(1)
@@ -143,6 +164,7 @@ func (i *Ingest) Unpack() error {
 					ignoreFailedErrors.Set(fn, err.Error())
 				} else {
 					foundArchives.Set(true)
+					unpackedOK.Append(fn)
 				}
 				<-threads
 				wg.Done()

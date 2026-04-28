@@ -10,7 +10,16 @@ import (
 )
 
 type Plugin struct {
-	config       *Config
+	config *Config
+	// pprofMu serialises StartCPUProfile, StopCPUProfile,
+	// RotateCPUProfile and Close. Without it: a deferred coordinator
+	// (cmdAgiExecService starts plugin pprof when ingest completes)
+	// could race shutdown and leave a profile running against a
+	// plugin that has already torn down, or a SIGUSR1-driven rotate
+	// could re-truncate a file Close is about to flush. Hold this
+	// for the entire stop-and-rename window in RotateCPUProfile so
+	// no other goroutine can recreate the file before the rename.
+	pprofMu      sync.Mutex
 	cpuProfile   *os.File
 	pprofRunning bool
 	db           *db.DB

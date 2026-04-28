@@ -191,6 +191,43 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 	}()
 
+	// SIGUSR1: flush+rotate the plugin CPU profile without restarting
+	// the service. Go's runtime/pprof buffers the entire profile in
+	// memory until StopCPUProfile is called, so the only way for an
+	// operator to obtain a populated cpu.plugin.pprof short of a full
+	// service stop is to ask the running process to rotate. Each
+	// rotation produces a timestamped, fully-formed pprof file next
+	// to the configured output path; the configured path itself
+	// always points at the live (in-memory, 0-byte on disk) profile.
+	// Repeatable: the goroutine drains the channel in a loop and
+	// only exits when usrCh is closed via defer at the end of
+	// Execute. SIGUSR2 is intentionally left unbound so future
+	// "reload config" or similar can claim it without disturbing
+	// the rotate handler.
+	usrCh := make(chan os.Signal, 1)
+	signal.Notify(usrCh, syscall.SIGUSR1)
+	defer func() {
+		signal.Stop(usrCh)
+		close(usrCh)
+	}()
+	go func() {
+		for range usrCh {
+			if p == nil {
+				continue
+			}
+			rotated, err := p.RotateCPUProfile()
+			if err != nil {
+				system.Logger.Warn("plugin CPU profile rotate failed: %s", err)
+				continue
+			}
+			if rotated != "" {
+				system.Logger.Info("plugin CPU profile rotated to %s", rotated)
+			} else {
+				system.Logger.Info("plugin CPU profile started (no prior profile to flush)")
+			}
+		}
+	}()
+
 	// Kick off ingest in a goroutine so the plugin can start serving
 	// queries immediately (on cached/partial data if the pipeline is
 	// still running).
@@ -209,6 +246,24 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 			if err := inner.Execute(args); err != nil {
 				system.Logger.Warn("Ingest pipeline returned error: %s", err)
 				ingestErr = err
+			}
+		}()
+	}
+
+	// Plugin CPU profiling is process-global (Go's runtime/pprof CPU
+	// profiler can only have one writer at a time) and would otherwise
+	// clash with the ingest profile. Defer the plugin profile until
+	// ingest is fully closed: ingest's deferred Close runs before its
+	// goroutine signals ingestWG.Done, so by the time Wait returns the
+	// process-global pprof is free and the resulting cpu.plugin.pprof
+	// captures plugin-only work (queries, cache refresh, HTTP). When
+	// --skip-ingest is set, the wait group is empty and the coordinator
+	// fires immediately, matching the standalone-plugin behaviour.
+	if p != nil && pluginCfg.CPUProfilingOutputFile != "" {
+		go func() {
+			ingestWG.Wait()
+			if err := p.StartCPUProfile(); err != nil {
+				system.Logger.Warn("plugin CPU profile start failed: %s", err)
 			}
 		}()
 	}
