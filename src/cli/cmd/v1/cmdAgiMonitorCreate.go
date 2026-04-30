@@ -329,7 +329,7 @@ func (c *AgiMonitorCreateCmd) createBaseInstance(system *System, inventory *back
 			InstanceType:       c.AWS.InstanceType,
 			Firewalls:          firewalls,
 			IAMInstanceProfile: instanceRole,
-			Disks:              []string{"type=gp2,size=20"}, // 20GB for monitor
+			Disks:              []string{"type=gp3,size=20"}, // 20GB for monitor
 			Expire:             c.AWS.Expires,
 			NetworkPlacement:   c.AWS.SubnetID,
 		}

@@ -1348,13 +1348,36 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		if err != nil {
 			return nil, err
 		}
+		// EFS throughput mode selection.
+		//
+		//   - Provisioned: operator passed a non-zero Throughput
+		//     flag at create time. Honour it verbatim — the
+		//     caller is paying explicitly for a fixed ceiling.
+		//
+		//   - Elastic (default): pay-per-throughput-byte with no
+		//     credit pool, no baseline cliff, and a per-filesystem
+		//     ceiling of ~3 GiB/s write / ~10 GiB/s read. AGI's
+		//     ingest workload is the textbook spiky-throughput
+		//     case (idle → minutes of flat-out writes → idle),
+		//     and a small bursting EFS exhausts its credit pool
+		//     within minutes of ingest start, then collapses to
+		//     a baseline of 50 KiB/s per stored GiB — which on a
+		//     20 GiB AGI volume is ~1 MiB/s and was the source of
+		//     the ~24 MiB/s plateau we saw regardless of how
+		//     much we tuned Pebble. Elastic eliminates that cliff.
+		//     AWS itself recommends Elastic over Bursting as the
+		//     default for new filesystems with unpredictable load.
+		//     Pricing is per-byte read/written; on idle volumes
+		//     it costs the same as Bursting, and on burst-heavy
+		//     volumes it costs more BUT only because we actually
+		//     used the throughput we asked for.
 		var throughputMode etypes.ThroughputMode
 		var throughput *float64
 		if backendSpecificParams.Throughput > 0 {
 			throughputMode = etypes.ThroughputModeProvisioned
 			throughput = aws.Float64(float64(backendSpecificParams.Throughput) * 8 / 1024 / 1024)
 		} else {
-			throughputMode = etypes.ThroughputModeBursting
+			throughputMode = etypes.ThroughputModeElastic
 		}
 		tagsIn := make(map[string]string)
 		maps.Copy(tagsIn, input.Tags)

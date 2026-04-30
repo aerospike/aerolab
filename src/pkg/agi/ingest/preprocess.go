@@ -244,8 +244,7 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
 			}
-			err = moveOrCopyFile(fna, outpath, readOnlyInput)
-			if err != nil {
+			if err := moveOrCopyFile(fna, outpath, readOnlyInput); err != nil {
 				return err
 			}
 			return nil

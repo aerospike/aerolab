@@ -102,9 +102,19 @@ type Config struct {
 		MaxOpenFiles                int           `yaml:"maxOpenFiles" default:"0" envconfig:"PLUGIN_DB_MAX_OPEN_FILES"`
 		BlockSize                   int           `yaml:"blockSize" default:"0" envconfig:"PLUGIN_DB_BLOCK_SIZE"`
 		Compression                 string        `yaml:"compression" default:"" envconfig:"PLUGIN_DB_COMPRESSION"`
-		EnableWAL                   bool          `yaml:"enableWAL" default:"false" envconfig:"PLUGIN_DB_ENABLE_WAL"`
-		SyncWrites                  bool          `yaml:"syncWrites" default:"false" envconfig:"PLUGIN_DB_SYNC_WRITES"`
-		ShutdownTimeout             time.Duration `yaml:"shutdownTimeout" default:"60s" envconfig:"PLUGIN_DB_SHUTDOWN_TIMEOUT"`
+		// EFS / NFS-shape Pebble tuning knobs. See db.Options docs
+		// for full semantics. 0 = leave Pebble's default; for
+		// BytesPerSync a negative value (db.BytesPerSyncDisabled)
+		// explicitly disables the periodic sync_file_range cadence
+		// that becomes a NFS COMMIT round-trip on EFS.
+		TargetFileSizeL0      int64 `yaml:"targetFileSizeL0" default:"0" envconfig:"PLUGIN_DB_TARGET_FILE_SIZE_L0"`
+		BytesPerSync          int   `yaml:"bytesPerSync" default:"0" envconfig:"PLUGIN_DB_BYTES_PER_SYNC"`
+		LBaseMaxBytes         int64 `yaml:"lBaseMaxBytes" default:"0" envconfig:"PLUGIN_DB_LBASE_MAX_BYTES"`
+		L0StopWritesThreshold int   `yaml:"l0StopWritesThreshold" default:"0" envconfig:"PLUGIN_DB_L0_STOP_WRITES_THRESHOLD"`
+		EnableBloomFilter     bool  `yaml:"enableBloomFilter" default:"false" envconfig:"PLUGIN_DB_ENABLE_BLOOM_FILTER"`
+		EnableWAL             bool  `yaml:"enableWAL" default:"false" envconfig:"PLUGIN_DB_ENABLE_WAL"`
+		SyncWrites            bool  `yaml:"syncWrites" default:"false" envconfig:"PLUGIN_DB_SYNC_WRITES"`
+		ShutdownTimeout       time.Duration `yaml:"shutdownTimeout" default:"60s" envconfig:"PLUGIN_DB_SHUTDOWN_TIMEOUT"`
 	} `yaml:"db"`
 	TimestampBinName       string `yaml:"timestampBinName" default:"timestamp" envconfig:"PLUGIN_TIMESTAMP_BIN"`
 	CPUProfilingOutputFile string `yaml:"cpuProfilingOutputFile" envconfig:"PLUGIN_CPUPROFILE_FILE"`

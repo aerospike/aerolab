@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -348,6 +349,60 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// whole pipeline.
 	if serr := i.storeBinList(); serr != nil {
 		log.Printf("ERROR: Log Processor: could not store bin list: %s", serr)
+	}
+
+	// Optional post-ingest manual compaction. Runs synchronously
+	// before we mark LogProcessor.Finished so that "ingest done"
+	// implies "DB is in its optimised steady state" — the first
+	// plugin query after this point sees a single dense bottom
+	// level instead of L0+L1+L2 merges. Failure is logged and
+	// swallowed: the data is queryable either way; the only loss
+	// is that the on-disk layout stays in its un-compacted post-
+	// ingest shape until Pebble's background compactions catch up
+	// naturally.
+	//
+	// Compact already implies a memtable flush (Pebble waits for
+	// any overlapping memtable before walking the levels), so a
+	// successful Compact is also our durability barrier. When
+	// PostIngestCompact is off (Docker default) we fall through
+	// to an explicit db.Flush() below — the dirty marker can
+	// only be cleared after we know every Put is on disk.
+	durable := false
+	if i.config.DB.PostIngestCompact {
+		if i.db == nil {
+			log.Printf("WARN: post-ingest compaction skipped: db handle not initialised")
+		} else {
+			compactStart := time.Now()
+			log.Printf("INFO: post-ingest compaction starting; this may take several minutes on large EFS-backed DBs")
+			if cerr := i.db.Compact(context.TODO()); cerr != nil {
+				log.Printf("WARN: post-ingest compaction failed after %s: %s", time.Since(compactStart), cerr)
+			} else {
+				log.Printf("INFO: post-ingest compaction complete in %s", time.Since(compactStart))
+				durable = true
+			}
+		}
+	}
+	if !durable && i.db != nil {
+		// No Compact (or Compact failed). Force a memtable
+		// flush so the dirty-marker clear below is honest about
+		// disk state. Cheap (single Pebble Flush call), bounded
+		// by the size of the active memtable.
+		flushStart := time.Now()
+		if ferr := i.db.Flush(); ferr != nil {
+			log.Printf("WARN: post-ingest db.Flush failed after %s: %s; leaving dirty marker in place", time.Since(flushStart), ferr)
+		} else {
+			log.Printf("INFO: post-ingest db.Flush complete in %s", time.Since(flushStart))
+			durable = true
+		}
+	}
+	// Only clear the dirty marker once we have a real durability
+	// guarantee. If both Compact and Flush failed we leave the
+	// marker behind so the next startup wipes-and-reingests
+	// (WAL=off) rather than trusting a half-flushed DB.
+	if durable {
+		if cerr := ClearDirtyMarker(i.config.ProgressFile.OutputFilePath); cerr != nil {
+			log.Printf("WARN: could not clear ingest dirty marker: %s", cerr)
+		}
 	}
 
 	// done
@@ -831,7 +886,7 @@ type processResult struct {
 	UniqNodeString string
 }
 
-func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]any, nodePrefix int, uniqNodeString string) {
+func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *processResult, labels map[string]any, nodePrefix int, uniqNodeString string) {
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.LogProcessor.changed = true
@@ -840,7 +895,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	_, fn := path.Split(fileName)
 	var unmatched *os.File
 	var err error
-	s := bufio.NewScanner(r)
+	s := bufio.NewScanner(fd)
 	buffer := make([]byte, i.config.Processor.LogReadBufferSizeKb*1024)
 	s.Buffer(buffer, i.config.Processor.LogReadBufferSizeKb*1024)
 	loc := int64(0)
@@ -901,9 +956,8 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 				UniqNodeString: uniqNodeString,
 			}
 		}
-		// tracker of how many lines we processed already
 		if time.Since(timer) > stepper {
-			newloc, _ := r.Seek(0, 1)
+			newloc, _ := fd.Seek(0, 1)
 			if newloc > 0 && newloc != loc {
 				loc = newloc
 				i.progress.Lock()

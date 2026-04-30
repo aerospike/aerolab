@@ -254,8 +254,38 @@ type Config struct {
 		MaxOpenFiles                int    `yaml:"maxOpenFiles" default:"0"`
 		BlockSize                   int    `yaml:"blockSize" default:"0"`     // 0 -> db default (Pebble default = 4 KiB)
 		Compression                 string `yaml:"compression" default:""`    // "" -> db default (Pebble default = uniform Snappy); see db.Options.Compression for valid values
-		EnableWAL                   bool   `yaml:"enableWAL" default:"false"`
-		SyncWrites                  bool   `yaml:"syncWrites" default:"false"`
+		// EFS / NFS-shape Pebble tuning knobs. See db.Options docs
+		// for full semantics. 0 = leave Pebble's default for every
+		// numeric field here (consistent with the rest of this
+		// struct). BytesPerSync also accepts a negative value
+		// (db.BytesPerSyncDisabled) to explicitly disable the
+		// periodic sync_file_range cadence, which is the
+		// EFS-friendly setting.
+		TargetFileSizeL0      int64 `yaml:"targetFileSizeL0" default:"0"`      // 0 -> Pebble default 2 MiB
+		BytesPerSync          int   `yaml:"bytesPerSync" default:"0"`          // 0 -> Pebble default 512 KiB; <0 -> disabled (EFS-friendly)
+		LBaseMaxBytes         int64 `yaml:"lBaseMaxBytes" default:"0"`         // 0 -> Pebble default 64 MiB
+		L0StopWritesThreshold int   `yaml:"l0StopWritesThreshold" default:"0"` // 0 -> Pebble default 12
+		EnableBloomFilter     bool  `yaml:"enableBloomFilter" default:"false"` // false -> Pebble default (no bloom)
+		EnableWAL             bool  `yaml:"enableWAL" default:"false"`
+		SyncWrites            bool  `yaml:"syncWrites" default:"false"`
+		// PostIngestCompact, when true, triggers a synchronous
+		// full-keyspace db.Compact() at the end of ProcessLogs
+		// (just before LogProcessor.Finished is set). The
+		// compaction collapses L0 sublevel overlap, GC's
+		// tombstones, and re-encodes the LSM under the bottom-
+		// level compression profile — typically shrinking the
+		// on-disk DB by 30-50% and making subsequent indexed
+		// range scans (the plugin's hot path) noticeably faster
+		// because they touch a single dense level instead of
+		// merging across L0/L1/L2. The cost is a one-time
+		// post-ingest pause whose duration is bounded by total
+		// DB bytes ÷ EFS bandwidth (typically a few minutes on
+		// AGI-shaped runs). Default false to preserve the legacy
+		// "ingest finished == LogProcessor.Finished == queryable"
+		// timing; cmdAgiCreate flips this on for cloud
+		// (AWS / GCP) deploys where the post-compaction layout
+		// pays for itself immediately on the first plugin query.
+		PostIngestCompact bool `yaml:"postIngestCompact" default:"false"`
 	} `yaml:"db"`
 	// Pipeline tuning. These were under `db:` in earlier versions; they
 	// are not engine-level knobs and were moved here for clarity. AGI

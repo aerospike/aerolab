@@ -37,6 +37,20 @@ func DBOptionsFromConfig(cfg *Config) db.Options {
 	if cfg.DB.Compression != "" {
 		opts.Compression = cfg.DB.Compression
 	}
+	if cfg.DB.TargetFileSizeL0 != 0 {
+		opts.TargetFileSizeL0 = cfg.DB.TargetFileSizeL0
+	}
+	// BytesPerSync: 0 = leave Pebble's default; <0 = disable
+	// periodic sync; >0 = exact bytes. Pass through verbatim — the
+	// db package interprets the sentinels.
+	opts.BytesPerSync = cfg.DB.BytesPerSync
+	if cfg.DB.LBaseMaxBytes != 0 {
+		opts.LBaseMaxBytes = cfg.DB.LBaseMaxBytes
+	}
+	if cfg.DB.L0StopWritesThreshold != 0 {
+		opts.L0StopWritesThreshold = cfg.DB.L0StopWritesThreshold
+	}
+	opts.EnableBloomFilter = cfg.DB.EnableBloomFilter
 	opts.EnableWAL = cfg.DB.EnableWAL
 	opts.SyncWrites = cfg.DB.SyncWrites
 	return opts

@@ -103,8 +103,8 @@ type CreateInstanceParams struct {
 	// volume types and sizes, backend-specific definitions
 	//
 	// aws format:
-	//   type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]
-	//   example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
+	//   type={gp3|gp2|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]
+	//   example: type=gp3,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
 	//
 	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
 	Disks []string `yaml:"disks" json:"disks" required:"true"`

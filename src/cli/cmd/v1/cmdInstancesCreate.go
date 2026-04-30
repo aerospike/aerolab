@@ -87,7 +87,7 @@ type InstancesCreateCmdAws struct {
 	Expire             TypeExpiry      `long:"expire" description:"Expire the instances in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	NetworkPlacement   string          `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
-	Disks              []string        `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
+	Disks              []string        `long:"disk" description:"Format: type={gp3|gp2|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp3,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp3,size=20"`
 	Firewalls          []string        `long:"firewall" description:"Extra security group names to assign to the instances"`
 	SpotInstance       bool            `long:"spot" description:"Create spot instances"`
 	DisablePublicIP    bool            `long:"no-public-ip" description:"Disable public IP assignment to the instances"`

@@ -65,6 +65,75 @@ type Options struct {
 	// read side and useful on the write side.
 	BlockSize int
 
+	// TargetFileSizeL0 is the target uncompressed size of L0 SSTables
+	// produced by memtable flushes (in bytes). Higher levels' targets
+	// double from this value (LBase = 2 × L0, LBase+1 = 4 × L0, ...).
+	// 0 leaves Pebble's default of 2 MiB.
+	//
+	// Why this matters on EFS / NFS: a memtable flush splits its
+	// output into many SSTables of this size. With 1 GiB memtables
+	// and a 2 MiB target, Pebble creates ~500 small files per flush,
+	// each one paying 2-3 metadata RTTs (~60-90 ms each) for the
+	// open/close/rename + MANIFEST update path. On AGI's EFS deploys
+	// that's tens of seconds of pure metadata cost per flush.
+	// Bumping to 32-64 MiB collapses that 500 down to 16-32 files.
+	// Trade-off: range scans touch slightly fewer, slightly larger
+	// files; point Gets pay marginal cost (one block decompression
+	// per query) and bloom filters offset the rest.
+	TargetFileSizeL0 int64
+
+	// BytesPerSync sets the periodic SSTable sync_file_range cadence
+	// in bytes. Pebble's default is 512 KiB, which "smooths disk
+	// writes" on local block devices but is harmful on NFS/EFS
+	// because each call maps to a synchronous COMMIT RPC
+	// (~30 ms each). Disabling it on cloud deployments removes
+	// thousands of in-line COMMITs per ingest run.
+	//
+	//   0                          → leave Pebble's default 512 KiB.
+	//   BytesPerSyncDisabled (< 0) → disable periodic sync entirely;
+	//                                the kernel still flushes on close().
+	//   > 0                        → call sync every N bytes.
+	//
+	// 0 is the "field not set" sentinel to keep the construction
+	// pattern consistent with the rest of this struct (zero value =
+	// leave Pebble alone). To explicitly disable, pass
+	// BytesPerSyncDisabled.
+	BytesPerSync int
+
+	// LBaseMaxBytes is the maximum size of LBase (the level into
+	// which L0 compacts). Pebble dynamically picks LBase; this is
+	// the upper bound. 0 leaves Pebble's default of 64 MiB.
+	//
+	// Bigger LBase amortises the L0→Lbase compaction over more
+	// keys per cycle, reducing the number of compactions overall
+	// — a meaningful win on EFS where every compaction creates
+	// new SSTables (each with the metadata RTT cost above) and
+	// retires old ones.
+	LBaseMaxBytes int64
+
+	// L0StopWritesThreshold is the L0 sublevel count at which
+	// Pebble stalls foreground writers. 0 leaves Pebble's default
+	// of 12. On EFS with serial compactions
+	// (MaxConcurrentCompactions=1), L0 can build a longer queue
+	// during slow EFS moments; raising this to 30-50 absorbs the
+	// spike instead of stalling the ingest pipeline. The hard cap
+	// is the L0 file count Pebble can hold in memory metadata —
+	// values up to ~1000 are safe and used by other Pebble
+	// deployments on slow storage.
+	L0StopWritesThreshold int
+
+	// EnableBloomFilter installs a 10-bits-per-key bloom filter on
+	// every level (Pebble defaults to no filter). Bloom filters
+	// add ~1.25% on-disk overhead but make negative point lookups
+	// effectively free, which speeds up:
+	//   - the per-row indexed-orphan check (when
+	//     IndexCanHaveOrphans is on);
+	//   - cold plugin queries that touch keys not present in the
+	//     block cache.
+	// Default false to preserve the Pebble baseline; cloud AGI
+	// turns it on.
+	EnableBloomFilter bool
+
 	// Compression selects the per-level SSTable compression profile.
 	// The empty string leaves Pebble's default (uniform Snappy on
 	// every level). Recognised values are case-insensitive:
@@ -132,6 +201,13 @@ type Options struct {
 // not allocate a block cache at all". Pass this when the workload is
 // scan-heavy and the cache would only waste memory.
 const NoBlockCache int64 = -1
+
+// BytesPerSyncDisabled is the sentinel value for Options.BytesPerSync
+// meaning "set Pebble's BytesPerSync to 0", which disables the
+// periodic sync_file_range Pebble would otherwise issue every 512 KiB.
+// Useful on NFS / EFS, where each sync_file_range becomes a network
+// COMMIT and each one costs a metadata RTT.
+const BytesPerSyncDisabled = -1
 
 // DefaultOptions returns Options with the throwaway-fast defaults filled in.
 // Path is left empty and must be set by the caller.

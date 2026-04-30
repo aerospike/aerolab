@@ -219,7 +219,7 @@ Create a simple 2-node cluster:
 ```bash
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -228,7 +228,7 @@ This command:
 - Uses Ubuntu 24.04 (`-d ubuntu -i 24.04`)
 - Installs Aerospike version 8.x (`-v '8.*'`)
 - Uses `t3a.xlarge` instance type (`-I t3a.xlarge`)
-- Creates 20GB GP2 root disk (`--aws-disk type=gp2,size=20`)
+- Creates 20GB GP3 root disk (`--aws-disk type=gp3,size=20`)
 - Sets expiry to 8 hours (`--aws-expire=8h`)
 
 ### Multiple Disks
@@ -238,7 +238,7 @@ Add multiple disks:
 ```bash
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-disk type=gp3,size=100,count=3 \
   --aws-expire=8h
 ```
@@ -255,7 +255,7 @@ Specify a subnet:
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   -U subnet-12345678 \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -267,7 +267,7 @@ Add custom security groups:
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   --secgroup-name aerolab-sg \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -279,7 +279,7 @@ Enable public IP access:
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   -L \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -291,7 +291,7 @@ Use spot instances for cost savings:
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   --aws-spot-instance \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -304,7 +304,7 @@ aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   --tags Environment=Development \
   --tags Team=Platform \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -451,7 +451,7 @@ aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
   --aws-efs-create \
   --aws-efs-mount myefs:/mnt/efs \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -499,7 +499,7 @@ aerolab config aws create-security-groups -n aerolab-sg -p 3000-3005
 # 3. Create cluster
 aerolab cluster create -c 3 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-disk type=gp3,size=100,count=3 \
   --secgroup-name aerolab-sg \
   --aws-expire=8h

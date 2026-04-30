@@ -283,7 +283,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       guiInstanceType(awsInstanceType),
-			Disks:              []string{"type=gp2,size=30"},
+			Disks:              []string{"type=gp3,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			DisablePublicIP:    c.DisablePublicIP,

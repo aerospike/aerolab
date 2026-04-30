@@ -198,7 +198,7 @@ aerolab config backend -t aws -r us-east-1
 # Create a 2-node cluster with expiry
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 
 # Start cluster

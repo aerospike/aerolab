@@ -280,6 +280,18 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 		log.Printf("DEBUG: INIT: labels set name is empty; skipping label writes")
 	}
 	i.endLock = new(sync.Mutex)
+	// Drop the dirty-ingest sentinel ("we have written rows that
+	// may not be flushed to disk yet") into the progress dir
+	// BEFORE we start the metric-row batcher. The orchestrating
+	// CLI consults the same marker on next startup: with WAL=off
+	// the marker triggers a soft wipe (DB + log-processor.json
+	// reset; Downloader / Unpacker / PreProcessor progress is
+	// preserved so logs/ that already landed on disk are reused).
+	// Failure here is logged but not fatal — at worst a future
+	// crash-on-WAL-off run misses the wipe and re-ingests once.
+	if merr := WriteDirtyMarker(i.config.ProgressFile.OutputFilePath); merr != nil {
+		log.Printf("WARN: INIT: could not write dirty marker: %s", merr)
+	}
 	// Spin up the metric-row batcher BEFORE the progress goroutines
 	// so a SIGTERM right after Init still has a defined batcher to
 	// drain in Close (the close() helper handles a never-used

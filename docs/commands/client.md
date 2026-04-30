@@ -119,7 +119,7 @@ aerolab client create tools -n tools -d ubuntu -i 24.04 \
 | Option | Description |
 |--------|-------------|
 | `-I, --instance-type` | Instance type (e.g., `t3a.medium`) |
-| `--aws-disk` | Disk spec: `type={gp2\|gp3},size={GB}[,count=N]` |
+| `--aws-disk` | Disk spec: `type={gp3\|gp2},size={GB}[,count=N]` |
 | `--aws-expire` | Expiry time (e.g., `4h`, `30m`) |
 | `-U, --subnet-id` | Subnet ID or availability zone |
 | `-L, --public-ip` | Enable public IP |

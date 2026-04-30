@@ -37,7 +37,15 @@ type AgiExecIngestCmd struct {
 	// runs in the same process as the plugin; the db is then owned by
 	// the service command and ingest's Close does not close it.
 	sharedDB *db.DB
-	Help     HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	// skipDirtyCheck, when true, suppresses the dirty-marker
+	// crash-safety wipe at the top of run(). The merged service
+	// (cmdAgiExecService) sets this because it has already run its
+	// own dirty check against the FINAL WAL setting (after the
+	// !NoForceWAL override) before opening the shared DB; running
+	// the check again here would either miss the override (and
+	// wrongly wipe a WAL=on DB) or duplicate work.
+	skipDirtyCheck bool
+	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute runs the complete log ingestion pipeline.
@@ -156,6 +164,28 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	config, err := ingest.MakeConfig(true, yamlFile, true)
 	if err != nil {
 		return fmt.Errorf("MakeConfig: %s", err)
+	}
+
+	// Crash-safety check (Option A): if a previous ingest run set
+	// the dirty marker and never cleared it, the embedded DB may
+	// be missing rows that the byte-offset progress thinks were
+	// already ingested. With WAL=off the only correct response is
+	// to reset both DB and log-processor.json so ProcessLogs
+	// re-runs from scratch over the existing logs/ files —
+	// Downloader / Unpacker / PreProcessor progress is preserved
+	// because those stages wrote artifacts atomically to disk and
+	// don't need to repeat. With WAL=on Pebble's WAL replay
+	// restores any un-flushed rows on db.Open, the byte-offset
+	// progress matches durability, and the wipe is skipped (the
+	// marker is left in place; finalizeInit will refresh it
+	// shortly anyway). The standalone-ingest CLI uses
+	// config.DB.EnableWAL directly because there is no service-
+	// level WAL override on this path.
+	if !c.skipDirtyCheck && ingest.DirtyMarkerExists(config.ProgressFile.OutputFilePath) && !config.DB.EnableWAL {
+		system.Logger.Warn("ingest dirty marker present at %s with WAL=off; wiping db and resetting log-processor progress", ingest.DirtyMarkerPath(config.ProgressFile.OutputFilePath))
+		if werr := agiWipeOnDirty(config.DB.Path, config.ProgressFile.OutputFilePath, "/opt/agi/ingest/steps.json"); werr != nil {
+			return fmt.Errorf("agi wipe-on-dirty: %s", werr)
+		}
 	}
 
 	// Load/init steps tracking

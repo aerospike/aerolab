@@ -50,8 +50,7 @@ type AgiExecServiceCmd struct {
 	IngestYaml     string  `long:"ingest-yaml" description:"Path to ingest YAML config file" default:"/opt/agi/ingest.yaml"`
 	PluginYaml     string  `long:"plugin-yaml" description:"Path to plugin YAML config file" default:"/opt/agi/plugin.yaml"`
 	SkipIngest     bool    `long:"skip-ingest" description:"Skip running the ingest pipeline (plugin-only mode, useful for reopening an existing DB)"`
-	SkipPlugin     bool    `long:"skip-plugin" description:"Skip running the plugin (ingest-only mode, equivalent to 'agi exec ingest' but with WAL on)"`
-	NoForceWAL     bool    `long:"no-force-wal" description:"By default, service mode forces EnableWAL=true on the shared DB regardless of what plugin.yaml says — service mode is long-lived and a SIGTERM mid-ingest must not lose still-in-memtable rows. When this flag is set, the yaml's enableWAL value wins instead (this is a passthrough toggle, NOT a 'turn WAL off' switch; to actually disable WAL you must both pass --no-force-wal AND set enableWAL: false in the yaml)."`
+	SkipPlugin     bool    `long:"skip-plugin" description:"Skip running the plugin (ingest-only mode, equivalent to 'agi exec ingest')"`
 	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -113,16 +112,34 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 	}
 
 	// Build DB options from the plugin's config (larger cache by
-	// default; the plugin has to satisfy interactive queries). WAL is
-	// forced on in service mode unless the operator explicitly opts
-	// out via --no-force-wal, to avoid losing still-in-memtable
-	// writes on SIGTERM.
+	// default; the plugin has to satisfy interactive queries). WAL
+	// is governed entirely by plugin.yaml (default off): AGI's
+	// source-of-truth is the on-disk log files, not the DB, so a
+	// crash-and-re-ingest is the cheaper trade than paying WAL
+	// fsync overhead on every batch. The dirty-marker mechanism
+	// (below) handles crash recovery by wiping a half-flushed DB
+	// and re-running ProcessLogs from the byte-offset checkpoint.
 	dbOpts := plugin.DBOptionsFromConfig(pluginCfg)
 	if dbOpts.Path == "" {
 		dbOpts.Path = db.DefaultPath
 	}
-	if !c.NoForceWAL {
-		dbOpts.EnableWAL = true
+
+	// Crash-safety check (Option A): if a previous ingest run
+	// crashed before clearing the dirty marker AND the DB will
+	// be opened with WAL off, the on-disk DB may be missing
+	// rows that log-processor.json thinks were already ingested.
+	// Soft-wipe (DB + log-processor.json + reset steps.ProcessLogs)
+	// so ProcessLogs re-runs cleanly. With WAL=on (operator-opt-in
+	// via plugin.yaml) we skip the wipe — Pebble's WAL replay on
+	// db.Open restores any un-flushed memtable contents and the
+	// byte-offset progress is consistent again. Run this BEFORE
+	// db.Open so the wipe can rm -rf the directory without a
+	// "directory in use" file lock.
+	if !dbOpts.EnableWAL && ingest.DirtyMarkerExists(ingestCfg.ProgressFile.OutputFilePath) {
+		system.Logger.Warn("ingest dirty marker present at %s with WAL=off; wiping db and resetting log-processor progress", ingest.DirtyMarkerPath(ingestCfg.ProgressFile.OutputFilePath))
+		if werr := agiWipeOnDirty(dbOpts.Path, ingestCfg.ProgressFile.OutputFilePath, "/opt/agi/ingest/steps.json"); werr != nil {
+			return Error(werr, system, cmd, c, args)
+		}
 	}
 
 	system.Logger.Info("Opening shared AGI db at %s (WAL=%t)", dbOpts.Path, dbOpts.EnableWAL)
@@ -238,10 +255,11 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		go func() {
 			defer ingestWG.Done()
 			inner := &AgiExecIngestCmd{
-				AGIName:  c.AGIName,
-				Async:    c.Async,
-				YamlFile: c.IngestYaml,
-				sharedDB: d,
+				AGIName:        c.AGIName,
+				Async:          c.Async,
+				YamlFile:       c.IngestYaml,
+				sharedDB:       d,
+				skipDirtyCheck: true,
 			}
 			if err := inner.Execute(args); err != nil {
 				system.Logger.Warn("Ingest pipeline returned error: %s", err)

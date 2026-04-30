@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/cockroachdb/pebble/v2/sstable"
 )
 
@@ -165,17 +167,56 @@ func Open(opts Options) (*DB, error) {
 	if opts.MaxOpenFiles > 0 {
 		pOpts.MaxOpenFiles = opts.MaxOpenFiles
 	}
-	// Per-level options: BlockSize and Compression. pebble.Options.Levels
-	// is a fixed-size array (NumLevels entries), so we set fields in
-	// place rather than reslicing. ApplyCompressionSettings iterates
-	// the array and installs a per-level Compression closure, which is
-	// exactly the per-level layout we want for AGI on EFS: cheap
-	// codecs on the upper levels (flushes / minor compactions on the
-	// hot path) and Zstd on the bottom levels where the bulk of bytes
+	// Storage-shape tuning knobs. All of these are zero-valued by
+	// default (pebble's own defaults apply); cloud AGI overrides
+	// them via the YAML config to suit EFS / NFS-class storage,
+	// while Docker stays on Pebble defaults.
+	//
+	// TargetFileSizeL0 sizes the per-flush output SSTables. Bigger
+	// = fewer files per flush = far less metadata RTT on EFS. Pebble
+	// defaults the higher levels to 2× the previous level's target,
+	// so setting only the L0 entry cascades correctly.
+	if opts.TargetFileSizeL0 > 0 {
+		pOpts.TargetFileSizes[0] = opts.TargetFileSizeL0
+	}
+	// BytesPerSync: 0 leaves Pebble's default of 512 KiB;
+	// BytesPerSyncDisabled (<0) disables periodic sync entirely
+	// (we set pebble's BytesPerSync to 0); positive values pass
+	// through as-is. The negative-as-disable scheme keeps "0 =
+	// leave default" consistent with every other field in this
+	// struct, while still letting NFS/EFS callers shut periodic
+	// sync_file_range off explicitly.
+	switch {
+	case opts.BytesPerSync == BytesPerSyncDisabled:
+		pOpts.BytesPerSync = 0
+	case opts.BytesPerSync > 0:
+		pOpts.BytesPerSync = opts.BytesPerSync
+	}
+	if opts.LBaseMaxBytes > 0 {
+		pOpts.LBaseMaxBytes = opts.LBaseMaxBytes
+	}
+	if opts.L0StopWritesThreshold > 0 {
+		pOpts.L0StopWritesThreshold = opts.L0StopWritesThreshold
+	}
+	// Per-level options: BlockSize, Compression, and (optional)
+	// bloom filter. pebble.Options.Levels is a fixed-size array
+	// (NumLevels entries), so we set fields in place rather than
+	// reslicing. ApplyCompressionSettings iterates the array and
+	// installs a per-level Compression closure, which is exactly
+	// the per-level layout we want for AGI on EFS: cheap codecs on
+	// the upper levels (flushes / minor compactions on the hot
+	// path) and Zstd on the bottom levels where the bulk of bytes
 	// settle.
 	if opts.BlockSize > 0 {
 		for i := range pOpts.Levels {
 			pOpts.Levels[i].BlockSize = opts.BlockSize
+		}
+	}
+	if opts.EnableBloomFilter {
+		fp := bloom.FilterPolicy(10)
+		for i := range pOpts.Levels {
+			pOpts.Levels[i].FilterPolicy = fp
+			pOpts.Levels[i].FilterType = pebble.TableFilter
 		}
 	}
 	if cs, ok := pickCompressionSettings(opts.Compression); ok {
@@ -342,6 +383,85 @@ func (d *DB) Close() error {
 
 // Path returns the on-disk path this DB was opened with.
 func (d *DB) Path() string { return d.opts.Path }
+
+// Flush forces every active memtable to spill into L0 SSTables. It
+// is the cheap alternative to Compact() when the caller only needs
+// the "everything written so far is durable on disk" guarantee
+// (e.g. clearing an ingest dirty-marker) and does not need the
+// LSM re-shaped to the bottom level.
+//
+// Useful even with WAL on: WAL replay restores in-memory state on
+// restart, but the next-startup work to replay the WAL is
+// proportional to its size. A Flush here trims the WAL on Pebble's
+// next checkpoint, shortening recovery time.
+//
+// Like Compact, Flush takes the DB lifecycle read-lock so it
+// cannot race with Close. Errors are wrapped; ErrClosed is
+// returned if the DB has already been Close()d.
+func (d *DB) Flush() error {
+	if !d.acquire() {
+		return ErrClosed
+	}
+	defer d.release()
+	if err := d.p.Flush(); err != nil {
+		return fmt.Errorf("db: Flush: %w", err)
+	}
+	return nil
+}
+
+// Compact triggers a synchronous full-keyspace manual compaction. It
+// pushes every level's data down to the bottom level, collapsing L0
+// sublevel overlap, GC'ing tombstones / orphan I/ entries, and re-
+// encoding blocks under the bottom-level compression profile (Zstd
+// when Compression == "balanced" / "good"). On EFS / NFS this
+// produces a noticeable on-disk shrink (typically 30-50% from the
+// post-ingest steady state) and a corresponding query speedup
+// because indexed range scans then touch a single level of densely
+// packed SSTables instead of merging across L0/L1/L2.
+//
+// Compact blocks until the entire LSM has been re-shaped, which on
+// AGI-shaped workloads can take several minutes (it is bounded by
+// total bytes × MaxConcurrentCompactions ÷ EFS bandwidth). Callers
+// that surface progress to a user should log start/elapsed around
+// the call; Pebble itself does not expose mid-compaction progress.
+//
+// The call is safe under concurrent reads (Pebble holds its own
+// internal locks for compaction); it must NOT race with Close
+// because Close drains lifecycle ops and then closes the underlying
+// handle. acquire/release here pin the DB for the duration of the
+// (possibly long) Compact so a concurrent Close blocks until we
+// return — that's intentional: shutting down mid-compaction would
+// leave the LSM in a partially-rewritten state that the next Open
+// would have to compact anyway.
+//
+// Errors from the underlying Pebble.Compact are wrapped and
+// returned. ctx==nil is accepted (we substitute context.Background)
+// to keep the caller code path simple.
+func (d *DB) Compact(ctx context.Context) error {
+	if !d.acquire() {
+		return ErrClosed
+	}
+	defer d.release()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Cover the entire user keyspace. AGI uses single-byte prefixes
+	// (D=0x44, I=0x49, M=0x4D); [0x00, 0xFF) bracket every key we
+	// could ever write. parallelize=true tells Pebble it may run
+	// independent ranges concurrently, capped by the DB's
+	// CompactionConcurrencyRange (which on cloud is 1 — so this is
+	// effectively serial on EFS, by design).
+	start := []byte{0x00}
+	end := []byte{0xFF}
+	began := time.Now()
+	d.opts.Logger.Printf("INFO: pebble manual compaction starting (full keyspace)")
+	if err := d.p.Compact(ctx, start, end, true); err != nil {
+		d.opts.Logger.Printf("WARN: pebble manual compaction failed after %s: %s", time.Since(began), err)
+		return fmt.Errorf("db: Compact: %w", err)
+	}
+	d.opts.Logger.Printf("INFO: pebble manual compaction complete in %s", time.Since(began))
+	return nil
+}
 
 // loadSchemas reads the M/schema/ namespace into the in-memory caches.
 // Called from Open before the DB is published, so no locks are needed.
