@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -243,7 +242,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 		}
 	}
 	resultsChan := make(chan *processResult, workers)
-	go i.processLogsFeed(foundLogs, resultsChan)
+	go i.processLogsFeed(foundLogs, resultsChan, shards)
 
 	// feed results to backend DB.
 	//
@@ -255,9 +254,25 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// regardless of how parallel the producers, batcher, or worker
 	// body actually were. The fixed worker pool below removes
 	// that ceiling: N persistent goroutines pull directly from
-	// resultsChan with no per-row spawn and no semaphore. The
-	// per-row body is unchanged; only the goroutine lifecycle
-	// around it is.
+	// resultsChan with no per-row spawn and no semaphore.
+	//
+	// Label resolution USED to live inside the worker body too —
+	// each worker resolved every meta key per row via
+	// shards.getOrCreate + upsertMetaEntry, holding metaEntries.mu
+	// each time. Labels with low cardinality (ClusterName,
+	// NodeIdent) had a single mutex shared by every one of the 128
+	// workers; the resulting contention serialised the pipeline
+	// onto roughly the cardinality of the labels (~10 effective
+	// parallel workers) regardless of how many goroutines or cores
+	// were available, and showed up as ~50% idle CPU on 8-vCPU
+	// boxes with throughput stuck around 27 MiB/s on EFS / EBS /
+	// RAMdisk alike (the bottleneck was in-process mutex
+	// contention, not storage). Resolution now happens parser-side
+	// in processLogFile via a per-file resolveCache: the contended
+	// metaEntries.mu path runs O(distinct values per file) instead
+	// of O(rows), and only the 6 parser goroutines (not 128
+	// workers) ever take it. The worker body below is reduced to
+	// stamping pre-resolved indices into rowData.
 	wg := new(sync.WaitGroup)
 	wg.Add(workers)
 	for w := 0; w < workers; w++ {
@@ -270,43 +285,24 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
 					continue
 				}
-				metadata := data.Metadata
 				rowData := data.Data
 				fn := data.FileName
 				logLine := data.LogLine
 				setName := data.SetName
 				nodeIdentifier := data.UniqNodeString
-				clusterName, _ := metadata["ClusterName"].(string)
-				// Snapshot and sort the metadata key list. Sorting
-				// is not strictly required (each key is locked
-				// independently and never simultaneously, so
-				// deadlock is impossible regardless of order) but
-				// it gives deterministic, reproducible per-row
-				// behavior under concurrent ingests, which makes
-				// failure-mode tests easier to reason about.
-				keys := make([]string, 0, len(metadata))
-				for k := range metadata {
-					keys = append(keys, k)
-				}
-				sort.Strings(keys)
-				// Walk every meta key. Previously a marshal or
-				// db.Put failure for one key returned immediately,
-				// dropping every remaining label (including
-				// ClusterName) on the floor and writing the metric
-				// row with a partial label-set. Keep going on
-				// per-key errors and only skip translation
-				// (data[k]=idx) for keys we couldn't persist.
-				for _, k := range keys {
-					v := metadata[k]
-					sv, ok := v.(string)
-					if !ok {
-						log.Printf("ERROR: Log Processor: metadata %q has non-string value %T; skipping", k, v)
-						continue
-					}
-					me := shards.getOrCreate(k)
-					if idx, persisted := i.upsertMetaEntry(me, k, sv, clusterName, fn); persisted {
-						rowData[k] = idx
-					}
+				// Stamp pre-resolved label indices. The parser-side
+				// processLogFile already paid the metaShards /
+				// metaEntries.mu cost (typically once per (file,
+				// key, value) combination via the per-file
+				// resolveCache), so this loop is pure map writes.
+				// Keys absent from data.Resolved are keys that
+				// resolveLabelsCached refused (non-string value or
+				// upsertMetaEntry persist failure) — the row goes
+				// through with one less label rather than dumping
+				// every other label too, matching the legacy
+				// per-key error semantics.
+				for k, idx := range data.Resolved {
+					rowData[k] = idx
 				}
 				// Hot path: lock-free probe against the bin-list
 				// snapshot. After warmup every column is already
@@ -410,6 +406,103 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	i.progress.LogProcessor.Finished = true
 	i.progress.Unlock()
 	return nil
+}
+
+// resolveCache is a per-file (key -> value -> idx) memoiser that
+// short-circuits the contended metaEntries.mu / metaShards.parentMu
+// path on the hot row-emit loop in processLogFile. It is owned by
+// exactly one parser goroutine (one per log file), so it requires no
+// synchronisation of its own. Cache misses fall through to the
+// shared metaShards / upsertMetaEntry path, paying the lock cost
+// once per (file, key, value) combination instead of once per row.
+//
+// The legacy design did the resolve in the 128-strong worker pool
+// (one upsertMetaEntry per row per key), which serialised the entire
+// pipeline on a small set of metaEntries.mu mutexes — labels like
+// ClusterName have one distinct value across the whole ingest, so
+// every worker contended on the same mutex for every row. After the
+// switch every parser sees a cache hit on the second-and-onwards row
+// for a given (key, value), so the contended path runs O(distinct
+// values) times per file instead of O(rows).
+type resolveCache map[string]map[string]int
+
+// resolveLabelsCached resolves every (k, v) pair in metadata to a
+// metaEntries idx using the per-file cache first and the shared
+// metaShards path on miss. The returned map is freshly allocated and
+// owned by the caller; callers stamp it into rowData on the consumer
+// side (or into a processResult that the worker copies). Non-string
+// values and per-key persistence failures are dropped from the
+// resulting map (they were dropped from rowData by the legacy worker
+// loop too) so a single bad label never poisons the whole row.
+//
+// clusterName is the cluster context for the row (for the per-cluster
+// reverse-index). It is the file-scope ClusterName passed to
+// processLogFile; the legacy worker fished the same value out of
+// metadata["ClusterName"] every row.
+func (i *Ingest) resolveLabelsCached(metadata map[string]any, cache resolveCache, shards *metaShards, clusterName, fn string) map[string]int {
+	if len(metadata) == 0 {
+		return nil
+	}
+	resolved := make(map[string]int, len(metadata))
+	for k, v := range metadata {
+		sv, ok := v.(string)
+		if !ok {
+			log.Printf("ERROR: Log Processor: metadata %q has non-string value %T; skipping", k, v)
+			continue
+		}
+		if vmap, ok := cache[k]; ok {
+			if idx, ok := vmap[sv]; ok {
+				resolved[k] = idx
+				continue
+			}
+		}
+		me := shards.getOrCreate(k)
+		idx, persisted := i.upsertMetaEntry(me, k, sv, clusterName, fn)
+		if !persisted {
+			continue
+		}
+		resolved[k] = idx
+		vmap := cache[k]
+		if vmap == nil {
+			vmap = make(map[string]int)
+			cache[k] = vmap
+		}
+		vmap[sv] = idx
+	}
+	return resolved
+}
+
+// mergeResolved is the row-emit fast path: if perLine is empty the
+// caller's resolvedLabels (file-scope, allocated once per file) is
+// returned by reference and the worker reads it directly — no copy
+// per row. Otherwise we resolve the per-line keys via the cache and
+// merge with the file-scope labels into a fresh map. Merge order
+// matches the legacy `meta := d.Metadata; maps.Copy(meta, labels)`
+// semantics: file-scope labels win on collision.
+//
+// Returning resolvedLabels by reference is safe because the worker
+// pool only reads from processResult.Resolved (it stamps idx values
+// into rowData, which is per-row); resolvedLabels is never mutated
+// after the file-scope pre-resolve in processLogFile.
+func (i *Ingest) mergeResolved(resolvedLabels map[string]int, perLine map[string]any, cache resolveCache, shards *metaShards, clusterName, fn string) map[string]int {
+	if len(perLine) == 0 {
+		return resolvedLabels
+	}
+	resolved := i.resolveLabelsCached(perLine, cache, shards, clusterName, fn)
+	if len(resolved) == 0 {
+		return resolvedLabels
+	}
+	if len(resolvedLabels) == 0 {
+		return resolved
+	}
+	merged := make(map[string]int, len(resolvedLabels)+len(resolved))
+	for k, v := range resolved {
+		merged[k] = v
+	}
+	for k, v := range resolvedLabels {
+		merged[k] = v
+	}
+	return merged
 }
 
 // upsertMetaEntry performs the previously-monolithic per-key body of
@@ -818,7 +911,7 @@ func (i *Ingest) coerceRow(row db.Row, schema []db.ColumnSpec) db.Row {
 	return coerced
 }
 
-func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *processResult) {
+func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *processResult, shards *metaShards) {
 	// resultsChan MUST be closed exactly once, even if a per-file
 	// goroutine or this dispatcher itself panics. Otherwise the
 	// consumer in ProcessLogs (`for data := range resultsChan`)
@@ -870,23 +963,32 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 				}
 			}
 			nprefix, _ := strconv.Atoi(f.NodePrefix)
-			i.processLogFile(n, fd, resultsChan, labels, nprefix, f.ClusterName+"::/::"+f.NodePrefix+"_"+f.NodeID)
+			i.processLogFile(n, fd, resultsChan, shards, labels, nprefix, f.ClusterName+"::/::"+f.NodePrefix+"_"+f.NodeID)
 		}(n, f)
 	}
 	wg.Wait()
 }
 
 type processResult struct {
-	FileName       string
-	Data           map[string]any
-	Metadata       map[string]any
+	FileName string
+	Data     map[string]any
+	// Resolved carries pre-translated label indices (key -> idx into
+	// metaEntries.Entries). The parser-side processLogFile populates
+	// this via resolveLabelsCached so the per-row worker pool can
+	// stamp indices into Data without touching metaShards or
+	// metaEntries.mu — the single biggest source of lock contention
+	// in the legacy worker loop. Keys with translation failures (or
+	// non-string values that resolveLabelsCached refused) are simply
+	// absent from Resolved; the worker behaves identically to the
+	// pre-fix per-key error path (skip translation, keep going).
+	Resolved       map[string]int
 	Error          error
 	SetName        string
 	LogLine        string
 	UniqNodeString string
 }
 
-func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *processResult, labels map[string]any, nodePrefix int, uniqNodeString string) {
+func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *processResult, shards *metaShards, labels map[string]any, nodePrefix int, uniqNodeString string) {
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.LogProcessor.changed = true
@@ -904,6 +1006,21 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 	logDir, fileNameOnly := path.Split(fileName)
 	_, clusterName := path.Split(strings.Trim(logDir, "/"))
 	stream := newLogStream(clusterName, i.patterns, &i.config.IngestTimeRanges, i.config.TimestampColumnName)
+	// Per-file (key, value) -> idx cache. Owned by this goroutine, no
+	// synchronisation needed. The label resolution path (formerly run
+	// once per row in every one of the 128 worker goroutines) becomes
+	// "miss once per (file, key, value) combination" — for AGI's
+	// label cardinality (~10 keys with a handful of distinct values
+	// each) the cache hits >99% of resolves after the first dozen
+	// rows, taking the contended metaEntries.mu out of the steady-
+	// state hot path entirely.
+	cache := make(resolveCache, len(labels)+4)
+	// File-scope labels are constant for the duration of this file;
+	// resolve them ONCE here so the per-line emit loop doesn't have
+	// to even re-walk the cache for them. resolvedLabels is shared
+	// (read-only after this point) by every emit below; the worker
+	// pool reads it via processResult.Resolved.
+	resolvedLabels := i.resolveLabelsCached(labels, cache, shards, clusterName, fn)
 	for s.Scan() {
 		if err = s.Err(); err != nil {
 			resultsChan <- &processResult{
@@ -944,15 +1061,13 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 			// lineProcess (see logstream.go) so the per-row map
 			// allocation + copy that lived here is gone. d.Data
 			// is owned by this row; no other goroutine reads it.
-			meta := d.Metadata
-			maps.Copy(meta, labels)
 			resultsChan <- &processResult{
 				FileName:       fileName,
 				Data:           d.Data,
+				Resolved:       i.mergeResolved(resolvedLabels, d.Metadata, cache, shards, clusterName, fn),
 				Error:          d.Error,
 				SetName:        d.SetName,
 				LogLine:        d.Line,
-				Metadata:       meta,
 				UniqNodeString: uniqNodeString,
 			}
 		}
@@ -970,15 +1085,13 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 	}
 	out, startTime, endTime := stream.Close()
 	for _, d := range out {
-		meta := d.Metadata
-		maps.Copy(meta, labels)
 		resultsChan <- &processResult{
 			FileName:       fileName,
 			Data:           d.Data,
+			Resolved:       i.mergeResolved(resolvedLabels, d.Metadata, cache, shards, clusterName, fn),
 			Error:          d.Error,
 			SetName:        d.SetName,
 			LogLine:        d.Line,
-			Metadata:       meta,
 			UniqNodeString: uniqNodeString,
 		}
 	}
@@ -991,19 +1104,19 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 		if err != nil {
 			continue
 		}
-		meta := make(map[string]any)
-		maps.Copy(meta, labels)
-		meta["fileName"] = clusterName + "/" + fileNameOnly
+		// Synthetic "fileName" label per-emit; cache hits on the
+		// second timestamp emit for this file.
+		extra := map[string]any{"fileName": clusterName + "/" + fileNameOnly}
 		resultsChan <- &processResult{
 			FileName: fileName,
 			Data: map[string]any{
 				"nodePrefix":                 nodePrefix,
 				i.config.TimestampColumnName: point.UnixMilli(),
 			},
+			Resolved:       i.mergeResolved(resolvedLabels, extra, cache, shards, clusterName, fn),
 			Error:          nil,
 			SetName:        i.config.LogFileRangesSetName,
 			LogLine:        fmt.Sprintf("%s:%d", fileName, point.UnixMilli()),
-			Metadata:       meta,
 			UniqNodeString: uniqNodeString,
 		}
 	}
