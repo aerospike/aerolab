@@ -2272,24 +2272,17 @@ func computePebbleEnableBloomFilter(backendType string) bool {
 // computePebblePostIngestCompact returns whether to trigger a
 // synchronous full-keyspace db.Compact() at the end of ProcessLogs.
 //
-// Cloud (AWS / GCP, EFS-backed): true. The post-ingest LSM is
-// uneven by construction — bytes pile up in L0/L1/L2 (Snappy on the
-// "balanced" profile) instead of the bottom level (Zstd) because
-// MaxConcurrentCompactions=1 and LBaseMaxBytes is intentionally
-// large to keep ingest fast on EFS. A one-shot manual compaction
-// once the writer is done re-shapes the LSM into a single dense
-// bottom level: the on-disk DB shrinks 30-50%, plugin range scans
-// stop merging across L0/L1/L2 (typically 2-3× faster cold, 1.3-
-// 1.8× warm), and EFS storage cost goes down. The pause is
-// already-finished-from-the-user's-perspective time and is bounded
-// by EFS bandwidth.
-//
-// Docker / local: false. Legacy AGI behaviour. Local FS doesn't
-// pay the EFS metadata penalty so the steady-state LSM is already
-// near its compacted shape; small CI runs would just pay the pause
-// for negligible gain.
+// Always false. Post-ingest compaction is disabled for every
+// backend (Docker, AWS, GCP) because the synchronous Compact()
+// stalls the "ingest finished" signal for an unbounded amount of
+// time on EFS-backed DBs and has been observed to wedge the
+// service on large runs. The yaml field (db.postIngestCompact)
+// and the ProcessLogs implementation are retained so an operator
+// can still flip it on by hand for a one-off run, but the create
+// command never opts in.
 func computePebblePostIngestCompact(backendType string) bool {
-	return backendType != "docker"
+	_ = backendType
+	return false
 }
 
 // generateIngestConfig generates the ingest.yaml configuration.
