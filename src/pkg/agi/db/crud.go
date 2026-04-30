@@ -40,8 +40,7 @@ func (d *DB) Put(set, key string, row Row) error {
 // behind as an orphan. indexScanIter has an orphan-skip guard
 // (compares the I/ key's biased ts against the current D/ pointer)
 // that drops the stale I/ entry on the next read. The orphan is
-// reclaimed on the next overwrite of the same pk with AssumeNew=false
-// or by the next age-out chunk that covers the orphan's ts.
+// reclaimed on the next overwrite of the same pk with AssumeNew=false.
 type PutItem struct {
 	Key       string
 	Row       Row
@@ -112,33 +111,76 @@ func (d *DB) PutBatch(set string, items []PutItem) error {
 		preps[i].payload = payload
 	}
 
-	// Acquire row locks in stripe-index order. Dedup hash-collided
-	// PKs in this batch so we don't double-lock the same mutex
-	// (sync.Mutex is non-reentrant). Cardinality is bounded by
-	// min(len(items), stripeCount) so a small slice is fine.
-	type held struct {
-		idx uint32
-		mu  *sync.Mutex
-	}
-	locks := make([]held, 0, len(items))
-	seen := make(map[uint32]struct{}, len(items))
+	// Skip the row-stripe lock pool when every item is AssumeNew.
+	//
+	// The stripe locks exist to serialise concurrent writers to the
+	// same PK so the read-modify-write of (D/ pointer, old I/ entry,
+	// new I/ entry) is atomic. The AGI ingest hot path — the only
+	// AssumeNew=true caller in this repo — routes rows through the
+	// putBatcher with maphash(key) % nShards, so any given PK is
+	// only ever handled by one shard goroutine, and the shard
+	// processes batches sequentially. Two concurrent PutBatch calls
+	// can therefore never see the same PK; the cross-shard stripe
+	// lock acquisition was guarding a race that the routing layer
+	// already makes structurally impossible.
+	//
+	// In production runs (mutex.pprof) ≈99% of all mutex contention
+	// across the ingest pipeline came from this very lock pool —
+	// shards waiting on each other for stripe overlap during their
+	// batch.Commit windows. The skip turns that contention into
+	// zero for the ingest hot path while leaving the locked
+	// behaviour exactly as before for non-AssumeNew callers
+	// (single-row Put, label-set writes, mixed batches).
+	//
+	// CONTRACT: the safety of skipping the stripe locks rests on
+	// "no other writer to the same set is concurrent with an
+	// AssumeNew=true PutBatch". This was previously also enforced
+	// by the legacy DeleteBelow age-out primitive (removed because
+	// AGI did not use it). Any future caller that re-introduces
+	// concurrent same-set deletion or non-AssumeNew writers MUST
+	// coordinate at a higher layer (e.g. quiesce ingest before
+	// running the sweep) — the db layer no longer arbitrates that
+	// race for AssumeNew batches.
+	allAssumeNew := true
 	for i := range items {
-		idx := stripeIndex(s.ID, items[i].Key)
-		if _, ok := seen[idx]; ok {
-			continue
+		if !items[i].AssumeNew {
+			allAssumeNew = false
+			break
 		}
-		seen[idx] = struct{}{}
-		locks = append(locks, held{idx: idx, mu: &d.rowLocks.m[idx]})
 	}
-	sort.Slice(locks, func(i, j int) bool { return locks[i].idx < locks[j].idx })
-	for i := range locks {
-		locks[i].mu.Lock()
-	}
-	defer func() {
+	if !allAssumeNew {
+		// Acquire row locks in stripe-index order. Dedup hash-
+		// collided PKs in this batch so we don't double-lock the
+		// same mutex (sync.Mutex is non-reentrant). Cardinality
+		// is bounded by min(len(items), stripeCount) so a small
+		// slice is fine.
+		type held struct {
+			idx uint32
+			mu  *sync.Mutex
+		}
+		locks := make([]held, 0, len(items))
+		seen := make(map[uint32]struct{}, len(items))
+		for i := range items {
+			idx := stripeIndex(s.ID, items[i].Key)
+			if _, ok := seen[idx]; ok {
+				continue
+			}
+			seen[idx] = struct{}{}
+			locks = append(locks, held{idx: idx, mu: &d.rowLocks.m[idx]})
+		}
+		sort.Slice(locks, func(i, j int) bool { return locks[i].idx < locks[j].idx })
 		for i := range locks {
-			locks[i].mu.Unlock()
+			locks[i].mu.Lock()
 		}
-	}()
+		defer func() {
+			for i := range locks {
+				locks[i].mu.Unlock()
+			}
+		}()
+	}
+	// dropped.Load is atomic and safe to read without holding any
+	// stripe lock; the AssumeNew skip does not change its
+	// correctness.
 	if s.dropped.Load() {
 		return ErrSetDropped
 	}
@@ -152,13 +194,13 @@ func (d *DB) PutBatch(set string, items []PutItem) error {
 	// is correct only when the caller can prove that either no row
 	// exists at this PK, or the row that exists has the same
 	// indexed value as the new row (so no orphan I/ entry can be
-	// created). AGI's ingest satisfies the contract because PKs
-	// embed the log-line byte offset and the parsed timestamp at a
-	// given offset is deterministic. Callers that violate the
-	// contract leak orphaned I/ entries that will surface as
-	// duplicate rows in indexed scans until age-out reclaims them;
-	// such callers must Open() with IndexCanHaveOrphans=true and
-	// accept the per-row Pebble Get penalty in indexScanIter.
+	// created). AGI's ingest satisfies the contract because PKs are
+	// XXH3-128 hashes of (cluster, node, log line) and the parsed
+	// timestamp embedded in a given log line is deterministic.
+	// Callers that violate the contract leak orphaned I/ entries
+	// that will surface as duplicate rows in indexed scans; such
+	// callers must Open() with IndexCanHaveOrphans=true and accept
+	// the per-row Pebble Get penalty in indexScanIter.
 
 	for i := range items {
 		item := &items[i]
@@ -274,10 +316,10 @@ func (d *DB) getFromSet(s *setSchema, key string, project []string) (Row, error)
 			if isNotFound(err) {
 				// Pointer says there should be a row at this I/
 				// key but it's gone. Treat as "not found": this
-				// can happen after a concurrent age-out wiped
-				// the I/ entry but a stale snapshot still has
-				// the D/ pointer. The pointer is harmless
-				// orphan state until the next overwrite.
+				// can happen if a stale snapshot still has the
+				// D/ pointer for an orphaned I/ entry that an
+				// overwrite already replaced. The pointer is
+				// harmless orphan state until the next overwrite.
 				return nil, nil
 			}
 			return nil, err

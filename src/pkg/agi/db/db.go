@@ -26,9 +26,6 @@ var (
 	// ErrSetDropped is returned when an in-flight operation's target
 	// set was concurrently dropped.
 	ErrSetDropped = errors.New("db: set dropped")
-	// ErrSetNotIndexed is returned by operations that require an
-	// indexed column on a set that has none.
-	ErrSetNotIndexed = errors.New("db: set is not indexed")
 	// ErrIteratorsOpen is returned from Close when iterators are
 	// still open; close them first, then Close again.
 	ErrIteratorsOpen = errors.New("db: cannot close with open iterators")
@@ -864,11 +861,20 @@ func (d *DB) lookupSet(name string) (*setSchema, bool) {
 	return s, true
 }
 
-// Striped row-lock table. 1024 shards keeps same-set same-stripe
-// collisions rare even under the expected 128-writer workload (~8 keys
-// per stripe on average at that concurrency).
-
-const stripeCount = 1024
+// Striped row-lock table. The table only matters for the locked write
+// paths (single-row Put, mixed-AssumeNew PutBatch, DropSet drain);
+// the AGI ingest hot path skips it entirely (see PutBatch). 8192
+// shards keeps same-set same-stripe collisions extremely rare under
+// the locked paths (label-set writes, schema bootstrap, tests) at a
+// trivial memory cost (~128 KiB of sync.Mutex array).
+//
+// Sized at 8x the legacy 1024 because (a) 1024 was already noted in
+// mutex.pprof as the dominant ingest contention point before the
+// AssumeNew skip was added, and (b) a larger pool is the right
+// long-term default for the locked paths so they continue to scale
+// without the AssumeNew skip having to mask any underlying
+// contention.
+const stripeCount = 8192
 
 type stripedLocks struct {
 	m [stripeCount]sync.Mutex

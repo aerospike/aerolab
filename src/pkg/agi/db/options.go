@@ -46,7 +46,7 @@ type Options struct {
 
 	// MaxConcurrentCompactions caps simultaneous compactions. Pebble
 	// defaults to 1, which on AGI's many-set workload becomes a
-	// bottleneck because age-out and ingest write to disjoint sets.
+	// bottleneck because ingest writes to many sets in parallel.
 	// Default 4: matches typical NVMe parallelism without starving the
 	// foreground I/O the indexed scans need.
 	MaxConcurrentCompactions int
