@@ -7,8 +7,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/pprof"
+	"strings"
 	"sync"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
@@ -240,6 +243,29 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 			return nil, fmt.Errorf("could not start CPU profiling: %s", err)
 		}
 		i.pprofRunning = true
+		// Arm the block + mutex profilers alongside the CPU
+		// profile. cpu.pprof only sees on-CPU work; off-CPU
+		// stalls (channel waits, mutex contention) are invisible
+		// there. AGI ingest pipelines are dominated by goroutines
+		// parked on resultsChan / per-shard channels / the
+		// progress mutex during EFS flushes — all silent in
+		// cpu.pprof. The block+mutex profiles plus a goroutine
+		// snapshot at Close are what locate those gates. We arm
+		// them here (rather than in cmdAgiCreate) so every entry
+		// point that sets CPUProfilingOutputFile (the CLI flag,
+		// AgiRetrigger, the LOGINGEST_CPUPROFILE_FILE env var)
+		// gets the full debug bundle from one switch.
+		//
+		// Block profile rate is in nanoseconds: events that block
+		// for >= rate ns are sampled. 1 means "every event" and
+		// produces a lot of noise from sub-microsecond channel
+		// ops; 1000 (1µs) keeps the long-tail signal we care
+		// about while keeping overhead bounded. Mutex fraction
+		// of 1 captures every contended unlock — volume is
+		// naturally bounded because uncontended unlocks are not
+		// sampled.
+		runtime.SetBlockProfileRate(1000)
+		runtime.SetMutexProfileFraction(1)
 	}
 	if err := i.loadProgress(); err != nil {
 		return nil, err
@@ -368,6 +394,18 @@ func (i *Ingest) Close() {
 			i.cpuProfile.Close()
 			i.cpuProfile = nil
 		}
+		// Drain the block / mutex / goroutine profiles into
+		// sibling files next to cpu.<...>.pprof. Done after
+		// StopCPUProfile so the final samples include any
+		// shutdown-time stalls (drainage of putBatcher, last
+		// saveProgress, db.Close). Errors here never fail the
+		// close — these are observability artefacts; the ingest
+		// itself succeeded if we got this far.
+		if i.config.CPUProfilingOutputFile != "" {
+			i.writeRuntimeProfiles(i.config.CPUProfilingOutputFile)
+			runtime.SetBlockProfileRate(0)
+			runtime.SetMutexProfileFraction(0)
+		}
 		if i.ownsDB && i.db != nil {
 			log.Printf("DEBUG: CLOSE: Closing db store")
 			if err := i.db.Close(); err != nil {
@@ -376,6 +414,66 @@ func (i *Ingest) Close() {
 			i.db = nil
 		}
 	})
+}
+
+// runtimeProfileSiblingPath derives the output path for a non-CPU
+// runtime profile (block / mutex / goroutine) next to the configured
+// CPU profile. The canonical AGI layout is "/opt/agi/cpu.ingest.pprof",
+// for which this returns "/opt/agi/<kind>.ingest.pprof". When the base
+// name does not start with "cpu." we fall back to "<stem>-<kind><ext>"
+// so operators using a non-default naming scheme still get
+// recognisable sibling files instead of a silent collision with the
+// CPU profile path.
+func runtimeProfileSiblingPath(cpuPath, kind string) string {
+	dir, base := filepath.Split(cpuPath)
+	if strings.HasPrefix(base, "cpu.") {
+		return filepath.Join(dir, kind+"."+strings.TrimPrefix(base, "cpu."))
+	}
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	return filepath.Join(dir, stem+"-"+kind+ext)
+}
+
+// writeRuntimeProfiles dumps the block, mutex, and goroutine profiles
+// into sibling files of cpuPath. Each profile is independent — a
+// failure on one does not abort the others — because the operator
+// usually wants whatever profiles did succeed even if one filesystem
+// op fails (e.g. EFS hiccup on the final write). The goroutine
+// profile uses debug=2 so the output is the human-readable goroutine
+// dump (every goroutine's full stack), which is what we actually
+// want for "what is everything parked on at shutdown?"; the block
+// and mutex profiles use debug=0 (binary pprof) so they round-trip
+// through `go tool pprof` directly.
+func (i *Ingest) writeRuntimeProfiles(cpuPath string) {
+	type profile struct {
+		kind  string
+		debug int
+	}
+	for _, p := range []profile{
+		{kind: "block", debug: 0},
+		{kind: "mutex", debug: 0},
+		{kind: "goroutine", debug: 2},
+	} {
+		path := runtimeProfileSiblingPath(cpuPath, p.kind)
+		f, err := os.Create(path)
+		if err != nil {
+			log.Printf("WARN: CLOSE: could not create %s profile %q: %s", p.kind, path, err)
+			continue
+		}
+		prof := pprof.Lookup(p.kind)
+		if prof == nil {
+			log.Printf("WARN: CLOSE: %s profile is not registered; skipping", p.kind)
+			f.Close()
+			continue
+		}
+		if werr := prof.WriteTo(f, p.debug); werr != nil {
+			log.Printf("WARN: CLOSE: could not write %s profile %q: %s", p.kind, path, werr)
+		}
+		if cerr := f.Close(); cerr != nil {
+			log.Printf("WARN: CLOSE: could not close %s profile %q: %s", p.kind, path, cerr)
+		}
+		log.Printf("DEBUG: CLOSE: wrote %s profile to %s", p.kind, path)
+	}
 }
 
 func (p *patterns) compile() error {
