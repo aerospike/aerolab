@@ -567,8 +567,22 @@ func (d *DB) Update(set, key string, fn func(old Row) (Row, bool)) error {
 // once for the whole batch) and Update (which must not re-ensure the
 // set mid-RMW).
 func (d *DB) prepareEntriesForSet(s *setSchema, row Row) ([]codecEntry, error) {
-	// Fast path under read lock: all columns exist with matching types.
+	// Fast path under read lock: build entries on the fly while
+	// validating that every column is already known with a matching
+	// type. The pre-merge form walked the row twice — once to
+	// validate ("allKnown"), then again to materialise entries —
+	// which on AGI's ingest profile cost 26.24s + 24.55s of map
+	// lookups against s.Columns for every fast-path row (the
+	// duplicated `s.Columns[name]` calls). Folding the two passes
+	// halves the lookups and removes a row-sized iteration.
+	//
+	// On a column miss / type mismatch we discard the partial
+	// entries slice, drop the read lock, and fall through to the
+	// slow path which re-walks the row under s.mu.Lock. The slow
+	// path's correctness is independent of any work the fast pass
+	// did, so the discarded slice is harmless.
 	s.mu.RLock()
+	entries := make([]codecEntry, 0, len(row))
 	allKnown := true
 	for name, v := range row {
 		if v.IsZero() {
@@ -580,17 +594,14 @@ func (d *DB) prepareEntriesForSet(s *setSchema, row Row) ([]codecEntry, error) {
 			allKnown = false
 			break
 		}
+		entries = append(entries, codecEntry{ColID: info.ID, Typ: info.Type, Val: v})
 	}
 	if allKnown {
-		entries := make([]codecEntry, 0, len(row))
-		for name, v := range row {
-			info := s.Columns[name]
-			entries = append(entries, codecEntry{ColID: info.ID, Typ: info.Type, Val: v})
-		}
 		s.mu.RUnlock()
 		return entries, nil
 	}
 	s.mu.RUnlock()
+	entries = nil
 
 	// Slow path: add unknown columns / detect type conflicts under
 	// s.mu exclusively. This only serializes writers to THIS set; other
@@ -602,7 +613,7 @@ func (d *DB) prepareEntriesForSet(s *setSchema, row Row) ([]codecEntry, error) {
 	}
 	cp := s.checkpoint()
 	changed := false
-	entries := make([]codecEntry, 0, len(row))
+	entries = make([]codecEntry, 0, len(row))
 	for name, v := range row {
 		if v.IsZero() {
 			s.restore(cp)

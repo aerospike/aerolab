@@ -293,18 +293,57 @@ type Config struct {
 	DefaultSetName       string `yaml:"defaultSetName" default:"default"`
 	LogFileRangesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
 	TimestampColumnName  string `yaml:"timestampColumnName" default:"timestamp"`
-	MaxPutThreads        int    `yaml:"maxPutThreads" default:"128"`
+	// MaxPutThreads is the size of the worker goroutine pool that
+	// drains resultsChan and forwards rows into the putBatcher
+	// shards. Workers do per-row label stamping, missing-bin
+	// probe, row materialisation, and submit. They do NOT write
+	// to Pebble themselves — that work happens on the batcher
+	// shards (see PutBatchShards). Workers are essentially
+	// row-prep + submit goroutines.
+	//
+	// 0 selects auto = clamp(GOMAXPROCS*2, 4, 32). Default 128 on
+	// the assumption that a deep pool insulates the upstream
+	// resultsChan against single-shard commit-window stalls (each
+	// parked worker effectively holds one extra row of in-flight
+	// buffer past resultsChan). The cost of the deeper pool is
+	// minimal: parked goroutines consume zero CPU, the wakeup
+	// path is O(1) regardless of pool size, and 128 stacks add
+	// ~256 KiB of resident memory.
+	//
+	// The auto branch (set this to 0 explicitly) is preserved for
+	// constrained deployments that genuinely benefit from a
+	// smaller pool — but it is NOT the default because the
+	// "deeper pool wastes CPU" hypothesis did not hold up under
+	// measurement: in head-to-head pprofs at the same throughput
+	// the 128-worker and 16-worker runs had indistinguishable CPU
+	// profiles, with the only observable difference being the
+	// 16-worker run's smaller resultsChan buffer (now decoupled,
+	// so the buffer side is no longer tied to this knob).
+	MaxPutThreads int `yaml:"maxPutThreads" default:"128"`
 	// PutBatchSize is the number of metric rows accumulated per set
 	// before the ingest hot path flushes via db.PutBatch. Larger
 	// batches amortise the Pebble.Batch commit overhead and the
 	// schema-resolution fast-path's lock churn at the cost of
 	// holding more rows in memory between flushes (each row is a
 	// few hundred bytes) and a longer worst-case end-to-end
-	// latency before a row is queryable. The default of 256 was
-	// picked from the AGI workload sweep: at 256 the per-batch
-	// overhead is amortised below the per-row cost, going larger
-	// shows diminishing returns.
-	PutBatchSize int `yaml:"putBatchSize" default:"256"`
+	// latency before a row is queryable.
+	//
+	// Default 1024. Was 256, raised after pprofs taken with the
+	// AssumeNew lock-skip in db.PutBatch showed the pipeline's
+	// new gate was per-shard putBatcher.submit blocking — workers
+	// stalled because each shard's commit window kept its inCh
+	// full. Quadrupling the batch size cuts the number of commit
+	// calls per row 4x and gives each shard a longer drain phase
+	// between commits, which directly widens the back-pressure
+	// window before submit blocks. Per-shard inCh capacity is
+	// flushSize*4 = 4096 entries at this default, so a single
+	// commit window has to outlast ~4 batches' worth of
+	// production before submit becomes the bottleneck.
+	//
+	// Memory cost at peak (16 shards × 4096 entries × ~150 B/row)
+	// is on the order of 10 MiB resident, which is trivial next
+	// to the 256 MiB Pebble memtable.
+	PutBatchSize int `yaml:"putBatchSize" default:"1024"`
 	// PutBatchFlushMs is the maximum age of an in-flight batch
 	// before the flusher commits it even if it is below
 	// PutBatchSize. Bounds the staleness window between log-line
@@ -334,7 +373,21 @@ type Config struct {
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`
 	Processor struct {
-		MaxConcurrentLogFiles int `yaml:"maxConcurrentLogFiles" default:"4"`
+		// MaxConcurrentLogFiles caps how many log files are
+		// parsed in parallel (one parser goroutine per file in
+		// flight). 0 selects auto = clamp(GOMAXPROCS, 4, 16);
+		// the resolution lives in processLogsFeed so the same
+		// formula applies whether the value comes from the yaml
+		// default, an envvar, or a CLI override. Cloud boxes
+		// with 16+ vCPU therefore parse 16 files in parallel by
+		// default; small Docker containers (and Docker
+		// Desktop's GOMAXPROCS-respected cgroup) get 4-8.
+		//
+		// 16 is the upper cap because past that the resultsChan
+		// buffer (128 slots) and the batcher fan-in saturate;
+		// adding more parsers just blocks them on chansend
+		// without raising throughput.
+		MaxConcurrentLogFiles int `yaml:"maxConcurrentLogFiles" default:"0"`
 		LogReadBufferSizeKb   int `yaml:"logReadBufferSizeKb" default:"1024"`
 	} `yaml:"processor"`
 	PreProcess struct {

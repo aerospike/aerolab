@@ -1,11 +1,12 @@
 package db
 
 import (
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 )
 
 // Wire format of an encoded row:
@@ -48,7 +49,13 @@ type codecEntry struct {
 // directly into `out` for those cases; string/bytes still alias the
 // caller's buffer (payload data is written straight into out).
 func encodeRow(entries []codecEntry) ([]byte, error) {
-	sort.Slice(entries, func(i, j int) bool { return entries[i].ColID < entries[j].ColID })
+	// slices.SortFunc avoids the reflection-based comparator
+	// dispatch sort.Slice goes through (sort.Slice was 117s cum,
+	// ~5.5% of total CPU on AGI ingest). Behaviour is identical:
+	// stable ascending order by ColID is what the wire format
+	// requires and what the decode side assumes for the
+	// "stop-once-past-maxWantID" short-circuit.
+	slices.SortFunc(entries, func(a, b codecEntry) int { return cmp.Compare(a.ColID, b.ColID) })
 	// Cheap upper-bound sizing.
 	est := binary.MaxVarintLen64
 	for _, e := range entries {

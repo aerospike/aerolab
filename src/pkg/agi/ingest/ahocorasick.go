@@ -21,11 +21,30 @@ import (
 // reachable via output(s) ∪ output(fail*(s)). FirstIndex can also
 // short-circuit once it has observed pattern index 0 since no smaller
 // index can exist.
+//
+// dense is the deterministic transition table. Entry dense[s*256+c]
+// holds the state to jump to from state s on input byte c, with the
+// fail-link chain already collapsed at build time. This turns the
+// query-side inner loop (the original `for { goto[s][c] || s = fail[s] }`
+// dance) into a single indexed load per input byte. The pre-collapse
+// form's `gotoFn[s][c]` map lookup was 201s cum (~9.5% of total CPU)
+// in production AGI ingest pprofs; the dense table eliminates the
+// map hash per byte plus the inner failure-chain walk on every miss.
+//
+// Memory: numStates * 256 * 4 bytes. AGI's compiled trie has on the
+// order of 10^3-10^4 states; the dense table is therefore ~1-10 MiB,
+// trivially small next to the rest of the ingest working set.
+//
+// gotoFn is preserved alongside dense because it carries the sparse
+// build-time edge structure (and is expected by tests / future build
+// logic). It is not consulted by FirstIndex / AnyIndices on the hot
+// path.
 type acMatcher struct {
-	gotoFn []map[byte]int // children per state
+	gotoFn []map[byte]int // children per state (sparse, build-time)
 	fail   []int          // failure links
 	output [][]int        // pattern indices ending at each state
 	minIdx []int          // memoised min pattern index reachable via output chain
+	dense  []int32        // dense[s*256+c] = next state (fail-chain collapsed); query-side hot path
 }
 
 // newACMatcher builds an Aho-Corasick automaton for the given needles.
@@ -122,6 +141,33 @@ func newACMatcher(needles []string) (*acMatcher, error) {
 		}
 		m.minIdx[s] = best
 	}
+	// 4) Collapse goto+fail into a dense transition table. For the
+	// root, missing edges self-loop at the root (matching the
+	// original FirstIndex's `if s == 0 { break }` after fail). For
+	// non-root states, missing edges resolve to dense[fail[s]][c]
+	// because fail[s] < s in BFS order, so dense is fully resolved
+	// for every parent of s by the time we fill row s. This is the
+	// textbook "deterministic AC" transformation.
+	numStates := len(m.gotoFn)
+	m.dense = make([]int32, numStates*256)
+	// Root row first, with self-loop on missing.
+	for c, next := range m.gotoFn[0] {
+		m.dense[int(c)] = int32(next)
+	}
+	// Walk states in BFS order so dense[fail[s]] is filled first.
+	for i := 1; i < len(bfs); i++ {
+		s := bfs[i]
+		f := m.fail[s]
+		base := s * 256
+		fbase := f * 256
+		// Default to the fail-link's row...
+		copy(m.dense[base:base+256], m.dense[fbase:fbase+256])
+		// ...then overlay this state's direct edges, which take
+		// precedence by definition (goto wins over fail).
+		for c, next := range m.gotoFn[s] {
+			m.dense[base+int(c)] = int32(next)
+		}
+	}
 	return m, nil
 }
 
@@ -132,22 +178,21 @@ func newACMatcher(needles []string) (*acMatcher, error) {
 //
 // Walks line in O(len(line)). Short-circuits when index 0 has been
 // observed since no smaller index exists.
+//
+// Implementation: one indexed load per input byte against the dense
+// transition table. The pre-collapse form did a `gotoFn[s][c]` map
+// lookup plus a fail-chain walk on every miss, which dominated the
+// parser CPU profile. The dense form has identical externally
+// observable behaviour because the table simply caches the same goto
+// + fail walk that the original loop would have performed.
 func (m *acMatcher) FirstIndex(line string) int {
-	s := 0
+	dense := m.dense
+	minIdx := m.minIdx
+	s := int32(0)
 	best := -1
 	for j := 0; j < len(line); j++ {
-		c := line[j]
-		for {
-			if next, ok := m.gotoFn[s][c]; ok {
-				s = next
-				break
-			}
-			if s == 0 {
-				break
-			}
-			s = m.fail[s]
-		}
-		if cand := m.minIdx[s]; cand != -1 {
+		s = dense[int(s)<<8|int(line[j])]
+		if cand := minIdx[s]; cand != -1 {
 			if best == -1 || cand < best {
 				best = cand
 				if best == 0 {
@@ -164,23 +209,17 @@ func (m *acMatcher) FirstIndex(line string) int {
 // needs to consider every candidate (currently unused; reserved for
 // future "try every match in order" semantics).
 func (m *acMatcher) AnyIndices(line string) []int {
-	s := 0
+	dense := m.dense
+	s := int32(0)
 	seen := map[int]struct{}{}
 	for j := 0; j < len(line); j++ {
-		c := line[j]
-		for {
-			if next, ok := m.gotoFn[s][c]; ok {
-				s = next
-				break
-			}
-			if s == 0 {
-				break
-			}
-			s = m.fail[s]
-		}
+		s = dense[int(s)<<8|int(line[j])]
 		// Walk the dictionary-suffix chain to collect every
 		// pattern that ends at any suffix-state reachable from s.
-		for t := s; t != 0; t = m.fail[t] {
+		// The dense table only encodes single-byte transitions;
+		// the suffix chain still lives on m.fail, which is the
+		// authoritative source for the dictionary closure.
+		for t := int(s); t != 0; t = m.fail[t] {
 			for _, pi := range m.output[t] {
 				seen[pi] = struct{}{}
 			}

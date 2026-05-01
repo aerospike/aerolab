@@ -71,7 +71,11 @@ type putReq struct {
 // adding scheduler churn for small boxes.
 func newPutBatcher(d *db.DB, flushSize, flushAgeMs, shardCount int, fallback func(string, string, db.Row) error) *putBatcher {
 	if flushSize <= 0 {
-		flushSize = 256
+		// Mirrors the yaml default on Config.PutBatchSize. Kept
+		// in sync there so the in-code fallback (callers that
+		// pass 0) and the config-file default produce identical
+		// behaviour.
+		flushSize = 1024
 	}
 	if flushAgeMs <= 0 {
 		flushAgeMs = 50
@@ -79,16 +83,27 @@ func newPutBatcher(d *db.DB, flushSize, flushAgeMs, shardCount int, fallback fun
 	if shardCount <= 0 {
 		// Auto: align with the GOMAXPROCS budget so the batcher
 		// can keep up with the parallel worker fan-in. Capped at
-		// 8 because db.PutBatch saturates Pebble's commit
-		// pipeline well before that on typical hardware, and
-		// additional shards beyond 8 mostly add scheduler
-		// overhead without raising throughput.
+		// 16 because beyond that Pebble's commit pipeline starts
+		// to serialise the prepare phase across writers and the
+		// scheduler cost of additional flusher goroutines stops
+		// paying for itself.
+		//
+		// The cap was 8 historically, sized when the upstream
+		// AssumeNew lock-skip in db.PutBatch had not yet landed
+		// and a single shard's commit window was several ms long.
+		// With the lock-skip shrinking the per-batch CPU cost,
+		// the batcher became the new pipeline gate (workers spent
+		// ~90% of wall time blocked on per-shard inCh sends in
+		// the post-AssumeNew block profile). Doubling the auto
+		// cap lets the batcher absorb the fan-in from the parser
+		// pool without back-pressuring all the way upstream on
+		// 16+ vCPU hosts.
 		shardCount = runtime.GOMAXPROCS(0)
 		if shardCount < 1 {
 			shardCount = 1
 		}
-		if shardCount > 8 {
-			shardCount = 8
+		if shardCount > 16 {
+			shardCount = 16
 		}
 	}
 	// Per-shard backlog mirrors the legacy single-shard depth

@@ -113,6 +113,12 @@ type AgiCreateCmd struct {
 	FeaturesFilePath flags.Filename `short:"f" long:"featurefile" description:"Features file to install, overriding the template's features file"`
 	IngestLogLevel   int            `long:"ingest-log-level" description:"Log level: 1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL" default:"4"`
 	IngestCpuProfile bool           `long:"ingest-cpu-profiling" description:"Enable CPU profiling for ingest"`
+	// Ingest pipeline tuning. Both default to 0 = use the
+	// embedded ingest-config defaults (which themselves auto-scale
+	// where appropriate; see pkg/agi/ingest/struct.go). Setting a
+	// positive value here pins the corresponding knob explicitly.
+	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
+	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
 	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
 	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
@@ -2310,18 +2316,34 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 	config.DB.EnableBloomFilter = pcfg.EnableBloomFilter
 	config.DB.PostIngestCompact = pcfg.PostIngestCompact
 
-	// Configure based on backend
-	config.MaxPutThreads = 128
-	if backendType == "docker" {
-		config.MaxPutThreads = 64
+	// MaxPutThreads: explicit CLI override takes precedence over
+	// every other source. Otherwise fall through to the embedded
+	// ingest-config default in pkg/agi/ingest/struct.go (currently
+	// 128). The historical Docker special-case of 64 was removed
+	// after head-to-head pprofs showed no measurable difference
+	// between 64 and 128 worker pools at the same throughput —
+	// parked workers consume zero CPU, so the deeper pool is free
+	// and survives single-shard commit-window stalls a little
+	// better. Anyone genuinely constrained can still pin a
+	// smaller value via --ingest-max-put-threads.
+	if c.IngestMaxPutThreads > 0 {
+		config.MaxPutThreads = c.IngestMaxPutThreads
 	}
 
 	// Pre-processor settings
 	config.PreProcess.FileThreads = 6
 	config.PreProcess.UnpackerFileThreads = 4
 
-	// Processor settings
-	config.Processor.MaxConcurrentLogFiles = 6
+	// MaxConcurrentLogFiles: same precedence rule. Default of 0
+	// in the ingest config selects the auto formula
+	// (clamp(GOMAXPROCS, 4, 16) — see processLogsFeed). The
+	// previous hard-coded value of 6 was removed because it
+	// silently undersized parser parallelism on 16+ vCPU cloud
+	// boxes (the agi pprofs had ~30% idle CPU even with the
+	// downstream lock-skip + 16-shard batcher fixes in place).
+	if c.IngestMaxConcurrentLogFiles > 0 {
+		config.Processor.MaxConcurrentLogFiles = c.IngestMaxConcurrentLogFiles
+	}
 
 	// Progress file settings
 	config.ProgressFile.DisableWrite = false

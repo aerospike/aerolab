@@ -222,26 +222,40 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// resultsChan is buffered so producers can push multiple rows
 	// without a per-row scheduler rendezvous against the receivers.
 	// The buffer is a smoothing window, not a parallelism
-	// multiplier; correctness is independent of the size. We size
-	// it to one slot per worker so the producer side is rarely
-	// the gate even when one or two workers are mid-PutBatch.
+	// multiplier; correctness is independent of the size.
+	//
+	// Its capacity is decoupled from the worker count: the buffer
+	// exists to absorb short bursts where parsers temporarily
+	// outrun workers (e.g. a worker mid-PutBatch on a slow
+	// per-shard commit), and the right size is "enough rows so a
+	// single batcher commit window does not propagate
+	// back-pressure all the way up to the parser goroutines",
+	// not "one slot per worker". Tying it to MaxPutThreads
+	// silently shrank this buffer 8x when the worker default was
+	// reduced from 128 -> GOMAXPROCS*2, which surfaced as more
+	// upstream chansend1 blocking in the parser path with no
+	// throughput improvement to justify it. 128 slots restores
+	// the historical buffer depth while keeping the smaller
+	// worker pool's CPU benefits.
+	const resultsChanBuf = 128
 	workers := i.config.MaxPutThreads
 	if workers <= 0 {
-		// Default that scales with the box. The pre-pool
-		// dispatcher used 128 as a hard-coded semaphore depth;
-		// keeping the same upper bound makes the upgrade
-		// behaviourally identical for users who never set the
-		// knob, while letting tiny boxes (GOMAXPROCS=1-2) avoid
-		// 128 idle goroutines parked on the channel.
-		workers = runtime.GOMAXPROCS(0) * 4
+		// Auto branch (opt-in via maxPutThreads: 0). Scales with
+		// the box's GOMAXPROCS for constrained deployments that
+		// genuinely benefit from a smaller pool. The default
+		// path bypasses this branch entirely (Config.MaxPutThreads
+		// defaults to 128); see struct.go for the rationale on
+		// why 128 was chosen as the default rather than this
+		// auto formula.
+		workers = runtime.GOMAXPROCS(0) * 2
 		if workers < 4 {
 			workers = 4
 		}
-		if workers > 128 {
-			workers = 128
+		if workers > 32 {
+			workers = 32
 		}
 	}
-	resultsChan := make(chan *processResult, workers)
+	resultsChan := make(chan *processResult, resultsChanBuf)
 	go i.processLogsFeed(foundLogs, resultsChan, shards)
 
 	// feed results to backend DB.
@@ -927,7 +941,22 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 		close(resultsChan)
 	}()
 	wg := new(sync.WaitGroup)
-	threads := make(chan bool, i.config.Processor.MaxConcurrentLogFiles)
+	// Resolve MaxConcurrentLogFiles. 0 means auto-scale with
+	// GOMAXPROCS (which respects cgroup CPU limits in Go 1.21+,
+	// so this works correctly inside both bare-metal and Docker
+	// AGI deployments). See struct.go for the rationale on the
+	// 4..16 clamp.
+	maxConcurrent := i.config.Processor.MaxConcurrentLogFiles
+	if maxConcurrent <= 0 {
+		maxConcurrent = runtime.GOMAXPROCS(0)
+		if maxConcurrent < 4 {
+			maxConcurrent = 4
+		}
+		if maxConcurrent > 16 {
+			maxConcurrent = 16
+		}
+	}
+	threads := make(chan bool, maxConcurrent)
 	for n, f := range foundLogs {
 		if f.Finished {
 			continue
