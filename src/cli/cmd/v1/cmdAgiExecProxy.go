@@ -64,7 +64,7 @@ type AgiExecProxyCmd struct {
 	EntryDir             string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser" yaml:"entryDir"`
 	MaxInactivity        time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable" yaml:"maxInactivity"`
 	MaxUptime            time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable" yaml:"maxUptime"`
-	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/usr/bin/systemctl stop aerospike; /usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached" yaml:"shutdownCommand"`
+	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached" yaml:"shutdownCommand"`
 	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token" yaml:"authType"`
 	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username" yaml:"basicAuthUser"`
 	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password" yaml:"basicAuthPass"`
@@ -216,22 +216,6 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 
 	// Build access details for Slack notifications
 	c.slackAccessDetails = fmt.Sprintf("Attach:\n  `aerolab agi attach -n %s`\nGet Web URL:\n  `aerolab agi list`\nGet Detailed Status:\n  `aerolab agi status -n %s`\nGet auth token:\n  `aerolab agi add-auth-token -n %s`\nChange Label:\n  `aerolab agi change-label -n %s -l \"new label\"`\nDestroy:\n  `aerolab agi destroy -f -n %s`\nDestroy and remove volume (AWS EFS only):\n  `aerolab agi delete -f -n %s`", c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName)
-
-	// Check if aerospike is running, start if not
-	plist, err := ps.Processes()
-	asdRunning := false
-	if err == nil {
-		for _, p := range plist {
-			if strings.HasSuffix(p.Executable(), "asd") {
-				asdRunning = true
-				break
-			}
-		}
-	}
-	if !asdRunning {
-		//nolint:errcheck
-		exec.Command("service", "aerospike", "start").CombinedOutput()
-	}
 
 	// Initialize internal state
 	c.shuttingDownMutex = new(sync.Mutex)
@@ -590,9 +574,7 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type logs struct {
-		AerospikeLogs  string
 		ProxyLogs      string
-		IngestLogs     string
 		PluginLogs     string
 		GrafanaFixLogs string
 		Dmesg          string
@@ -601,17 +583,13 @@ func (c *AgiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Check if running in Docker (uses /var/log/services/) or cloud (uses /var/log/agi-*.log with systemd)
 	if _, err := os.Stat("/var/log/services"); err == nil {
-		// Docker mode - read from /var/log/services/ (except aerospike which uses same path as cloud)
-		l.AerospikeLogs = c.getLogFile("/var/log/agi-aerospike.log")
+		// Docker mode - read from /var/log/services/
 		l.ProxyLogs = c.getLogFile("/var/log/services/agi-proxy.log")
-		l.IngestLogs = c.getLogFile("/var/log/services/agi-ingest.log")
 		l.GrafanaFixLogs = c.getLogFile("/var/log/services/agi-grafanafix.log")
 		l.PluginLogs = c.getLogFile("/var/log/services/agi-plugin.log")
 	} else {
 		// Cloud mode (AWS/GCP) - use systemd with journalctl fallback
-		l.AerospikeLogs = c.getLog("/var/log/agi-aerospike.log", "")
 		l.ProxyLogs = c.getLog("/var/log/agi-proxy.log", "agi-proxy")
-		l.IngestLogs = c.getLog("/var/log/agi-ingest.log", "agi-ingest")
 		l.GrafanaFixLogs = c.getLog("/var/log/agi-grafanafix.log", "agi-grafanafix")
 		l.PluginLogs = c.getLog("/var/log/agi-plugin.log", "agi-plugin")
 	}
@@ -1152,7 +1130,7 @@ func (c *AgiExecProxyCmd) spotMonitorAws() {
 
 // serviceMonitor monitors AGI service health and sends notifications
 func (c *AgiExecProxyCmd) serviceMonitor() {
-	servicesRunning := []bool{true, true, true, true}
+	servicesRunning := []bool{true, true, true}
 	for {
 		time.Sleep(time.Minute)
 		c.shuttingDownMutex.Lock()
@@ -1168,7 +1146,7 @@ func (c *AgiExecProxyCmd) serviceMonitor() {
 		}
 		notifyDown := false
 		notifyUp := false
-		for i, isStopped := range []bool{!stat.AerospikeRunning, !stat.GrafanaHelperRunning, !stat.PluginRunning, !stat.Ingest.Running && (!stat.Ingest.CompleteSteps.ProcessLogs || !stat.Ingest.CompleteSteps.ProcessCollectInfo)} {
+		for i, isStopped := range []bool{!stat.GrafanaHelperRunning, !stat.PluginRunning, !stat.Ingest.Running && (!stat.Ingest.CompleteSteps.ProcessLogs || !stat.Ingest.CompleteSteps.ProcessCollectInfo)} {
 			if isStopped && servicesRunning[i] {
 				notifyDown = true
 			} else if !isStopped && !servicesRunning[i] {

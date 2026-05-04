@@ -203,7 +203,7 @@ func (c *AgiStatusCmd) collectAllStatus(instances backends.InstanceList) agiColl
 set -e
 
 # Collect service status
-services="aerospike grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest"
+services="grafana-server agi-plugin agi-grafanafix agi-proxy"
 echo "SERVICES_START"
 for svc in $services; do
     # Try systemctl is-active first (works on AWS/GCP)
@@ -263,7 +263,7 @@ echo "INGEST_END"
 
 	if len(outputs) == 0 || outputs[0].Output.Err != nil {
 		// Return defaults if script failed
-		services := []string{"aerospike", "grafana-server", "agi-plugin", "agi-grafanafix", "agi-proxy", "agi-ingest"}
+		services := []string{"grafana-server", "agi-plugin", "agi-grafanafix", "agi-proxy"}
 		for _, svc := range services {
 			result.Services = append(result.Services, AgiServiceStatus{Name: svc, Status: "unknown", Active: false})
 		}

@@ -105,7 +105,7 @@ func (c *AgiStopCmd) StopAGI(system *System, inventory *backends.Inventory, logg
 	// Stop AGI services gracefully (unless forced)
 	if !c.Force {
 		logger.Info("Stopping AGI services gracefully")
-		script := `for service in agi-ingest agi-proxy agi-grafanafix agi-plugin grafana-server aerospike; do
+		script := `for service in agi-proxy agi-grafanafix agi-plugin grafana-server; do
     systemctl stop "$service" 2>/dev/null || true
 done
 sync

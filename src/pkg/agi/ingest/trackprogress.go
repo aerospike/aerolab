@@ -101,6 +101,29 @@ func (i *Ingest) saveProgressInterval() {
 }
 
 func (i *Ingest) saveProgress() error {
+	// Persist the bin list BEFORE writing the progress files. The
+	// crash-resume contract requires that the on-disk pair
+	// (BINLIST, progress) is consistent at every persisted
+	// checkpoint: progress must never advance past a row whose
+	// columns are not yet recorded in BINLIST, otherwise the read
+	// side would not know about a column whose data is already
+	// committed. The hot path no longer flushes BINLIST per row
+	// (see processlogs.go's lock-free addNames path); this is the
+	// single point at which BINLIST is durable. storeBinList()
+	// itself is a no-op when nothing changed, so the steady-state
+	// cost is one mutex lock + one bool check.
+	if err := i.storeBinList(); err != nil {
+		log.Printf("WARN: SAVE-PROGRESS could not store bin list: %s", err)
+		// Fall through: a stale BINLIST is better than a
+		// progress checkpoint that was suppressed by a
+		// transient db error. The next saveProgress will retry
+		// because storeBinList preserves changed=true on
+		// failure. The same best-effort semantics applied to
+		// the per-row storeBinList call this replaces — data
+		// rows already committed to Pebble are durable; BINLIST
+		// is a read-side catalog whose stale entries are
+		// recovered on the next successful flush.
+	}
 	i.progress.Lock()
 	defer i.progress.Unlock()
 	if i.progress.LogProcessor.LineErrors.isChanged() {

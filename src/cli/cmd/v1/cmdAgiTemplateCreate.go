@@ -36,7 +36,6 @@ import (
 // of software installation and image creation.
 //
 // The template includes:
-//   - Aerospike Server
 //   - Grafana OSS
 //   - ttyd (web terminal)
 //   - filebrowser
@@ -45,21 +44,21 @@ import (
 //   - Default directory structure
 //   - Default SSL certificates
 type AgiTemplateCreateCmd struct {
-	AerospikeVersion string         `short:"v" long:"aerospike-version" description:"Aerospike version to install (latest, 8.*, or specific version)" default:"latest"`
-	GrafanaVersion   string         `short:"g" long:"grafana-version" description:"Grafana version to install" default:"11.2.6"`
-	Distro           string         `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
-	DistroVersion    string         `short:"i" long:"distro-version" description:"Distribution version to use" default:"latest"`
-	Arch             string         `short:"a" long:"arch" description:"Architecture (amd64 or arm64)" default:"amd64"`
-	Timeout          int            `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"20"`
-	NoVacuum         bool           `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
-	DryRun           bool           `long:"dry-run" description:"Validate parameters only, don't create template"`
-	Owner            string         `short:"o" long:"owner" description:"Owner tag value for the template"`
-	DisablePublicIP  bool           `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
-	AerolabBinary    flags.Filename `short:"b" long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
-	WithEFS          bool           `short:"e" long:"with-efs" description:"AWS: Pre-install EFS utilities in template for faster AGI creation"`
-	MaxRetries       int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
-	RetrySleep       time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
-	Help             HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	GrafanaVersion  string         `short:"g" long:"grafana-version" description:"Grafana version to install" default:"11.2.6"`
+	ToolsVersion    string         `long:"tools-version" description:"Aerospike tools version to install ('latest' picks the newest)" default:"latest"`
+	Distro          string         `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
+	DistroVersion   string         `short:"i" long:"distro-version" description:"Distribution version to use" default:"latest"`
+	Arch            string         `short:"a" long:"arch" description:"Architecture (amd64 or arm64)" default:"amd64"`
+	Timeout         int            `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"20"`
+	NoVacuum        bool           `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
+	DryRun          bool           `long:"dry-run" description:"Validate parameters only, don't create template"`
+	Owner           string         `short:"o" long:"owner" description:"Owner tag value for the template"`
+	DisablePublicIP bool           `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
+	AerolabBinary   flags.Filename `short:"b" long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
+	WithEFS         bool           `short:"e" long:"with-efs" description:"AWS: Pre-install EFS utilities in template for faster AGI creation"`
+	MaxRetries      int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep      time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help            HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi template create.
@@ -143,69 +142,32 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 		logger.Info("No local aerolab binary specified, will download version: %s", currentAerolabVersion)
 	}
 
-	// Resolve Aerospike version
-	version, flavor, err := resolveAerospikeServerVersion(c.AerospikeVersion)
-	if err != nil {
-		return "", fmt.Errorf("could not resolve aerospike version: %w", err)
-	}
-	c.AerospikeVersion = version.Name
-	logger.Info("Resolved Aerospike version: %s (%s)", c.AerospikeVersion, flavor)
-
-	// Get the installer URL for Aerospike
-	files, err := aerospike.GetFiles(time.Second*10, *version)
-	if err != nil {
-		return "", fmt.Errorf("could not get aerospike files: %w", err)
-	}
-
-	arch := aerospike.ArchitectureTypeX86_64
-	if c.Arch == "arm64" {
-		arch = aerospike.ArchitectureTypeAARCH64
-	}
-	osName := aerospike.OSName(c.Distro)
+	// Resolve OS distro version (default to latest stable for the distro)
+	osName := strings.ToLower(c.Distro)
 	if osName == "rocky" {
 		osName = "centos"
 	}
 	osVersion := c.DistroVersion
-
-	// Determine the Aerospike install script
-	var aerospikeInstallScript []byte
-	if osVersion != "latest" {
-		aerospikeInstallScript, err = files.GetInstallScript(arch, osName, osVersion, system.logLevel >= 5, true, true, false)
-		if err != nil {
-			return "", fmt.Errorf("could not get aerospike install script: %w", err)
-		}
-	} else {
-		var versionList []string
+	if osVersion == "latest" {
 		switch osName {
 		case "ubuntu":
-			versionList = []string{"24.04", "22.04", "20.04", "18.04"}
+			osVersion = "24.04"
 		case "centos":
-			versionList = []string{"10", "9", "8", "7"}
+			osVersion = "10"
 		case "rocky":
-			versionList = []string{"10", "9", "8"}
+			osVersion = "10"
 		case "debian":
-			versionList = []string{"13", "12", "11", "10", "9", "8"}
+			osVersion = "13"
 		case "amazon":
-			versionList = []string{"2023", "2"}
+			osVersion = "2023"
 		default:
 			return "", fmt.Errorf("unsupported distro: %s", osName)
 		}
-		for _, ver := range versionList {
-			aerospikeInstallScript, err = files.GetInstallScript(arch, osName, ver, system.logLevel >= 5, true, true, false)
-			if err == nil {
-				osVersion = ver
-				break
-			}
-		}
-		if aerospikeInstallScript == nil {
-			return "", fmt.Errorf("could not find matching OS version and architecture for aerospike %s %s", flavor, c.AerospikeVersion)
-		}
 	}
 
-	// Check if the AGI template already exists (match by AGI version + arch, NOT aerospike/grafana version)
+	// Check if the AGI template already exists (match by AGI version + arch)
 	var backendArch backends.Architecture
-	err = backendArch.FromString(c.Arch)
-	if err != nil {
+	if err := backendArch.FromString(c.Arch); err != nil {
 		return "", fmt.Errorf("invalid architecture: %w", err)
 	}
 
@@ -273,7 +235,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 
 	// Build the install script combining all components
 	logger.Debug("Building install script with skipAerolabDownload=%t", useLocalBinary)
-	installScript, err := c.buildInstallScript(system, aerospikeInstallScript, useLocalBinary)
+	installScript, err := c.buildInstallScript(system, useLocalBinary)
 	if err != nil {
 		return "", fmt.Errorf("could not build install script: %w", err)
 	}
@@ -321,7 +283,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       guiInstanceType(awsInstanceType),
-			Disks:              []string{"type=gp2,size=30"},
+			Disks:              []string{"type=gp3,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			DisablePublicIP:    c.DisablePublicIP,
@@ -359,11 +321,10 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 
 	// Build version string for the image
 	_, _, _, aerolabVersion := GetAerolabVersion()
-	imageVersionString := fmt.Sprintf("agi-%s-%s-%d", c.AerospikeVersion, aerolabVersion, agi.AGIVersion)
+	imageVersionString := fmt.Sprintf("agi-%s-%d", aerolabVersion, agi.AGIVersion)
 
 	imageTags := []string{
 		fmt.Sprintf("aerolab.agi.version=%d", agi.AGIVersion),
-		fmt.Sprintf("aerolab.agi.aerospike=%s", c.AerospikeVersion),
 		fmt.Sprintf("aerolab.agi.grafana=%s", c.GrafanaVersion),
 		fmt.Sprintf("aerolab.agi.aerolab=%s", aerolabVersion),
 		"aerolab.is.official=true",
@@ -375,7 +336,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 
 	imagesCreate := &ImagesCreateCmd{
 		Name:         instName,
-		Description:  fmt.Sprintf("AGI Template v%d - Aerospike %s %s, Grafana %s, %s %s", agi.AGIVersion, c.AerospikeVersion, flavor, c.GrafanaVersion, c.Distro, osVersion),
+		Description:  fmt.Sprintf("AGI Template v%d - Grafana %s, %s %s", agi.AGIVersion, c.GrafanaVersion, c.Distro, osVersion),
 		InstanceName: instName,
 		SizeGiB:      30,
 		Owner:        c.Owner,
@@ -389,7 +350,6 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 
 	logger.Info("AGI Template Configuration:")
 	logger.Info("  AGI Version: %d", agi.AGIVersion)
-	logger.Info("  Aerospike Version: %s (%s)", c.AerospikeVersion, flavor)
 	logger.Info("  Grafana Version: %s", c.GrafanaVersion)
 	logger.Info("  Distro: %s %s", c.Distro, osVersion)
 	logger.Info("  Architecture: %s", c.Arch)
@@ -656,7 +616,7 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 // buildInstallScript creates the complete installation script for the AGI template.
 // This combines all software installations and configurations into a single script.
 // If skipAerolabDownload is true, the aerolab binary download is skipped (binary will be uploaded separately).
-func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, aerospikeInstallScript []byte, skipAerolabDownload bool) ([]byte, error) {
+func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, skipAerolabDownload bool) ([]byte, error) {
 	var script bytes.Buffer
 
 	// Script header
@@ -696,33 +656,6 @@ func (c *AgiTemplateCreateCmd) buildInstallScript(system *System, aerospikeInsta
 
 	script.WriteString("echo '=== Installing Base Tools ==='\n")
 	script.Write(baseToolsScript) //nolint:errcheck // bytes.Buffer.Write never fails
-	script.WriteString("\n")
-
-	// Install Aerospike
-	script.WriteString("echo '=== Installing Aerospike Server ==='\n")
-	script.Write(aerospikeInstallScript) //nolint:errcheck // bytes.Buffer.Write never fails
-	script.WriteString("\n")
-	script.WriteString("echo 'Stopping Aerospike after installation'\n")
-	script.WriteString("systemctl stop aerospike || true\n")
-	script.WriteString("systemctl disable aerospike || true\n")
-	script.WriteString("\n")
-
-	// Point /etc/aerospike/aerospike.conf at /opt/agi/aerospike.conf so that
-	// the AGI-specific config (with the `agi` namespace) is picked up by asd
-	// via its default config path, and so the config remains persisted on EFS
-	// when /opt/agi is mounted from an external volume. A previous iteration
-	// used a systemd drop-in with `--config-file /opt/agi/aerospike.conf`, but
-	// that override proved unreliable across distros/systemd versions - asd
-	// would silently fall back to the stock config and come up with only the
-	// default `test` namespace, producing "namespace 'agi' not found on node"
-	// warnings at runtime. A symlink at the default config path works
-	// regardless of which ExecStart systemd ends up using.
-	script.WriteString("echo '=== Pointing /etc/aerospike/aerospike.conf at /opt/agi/aerospike.conf ==='\n")
-	script.WriteString(`
-mkdir -p /etc/aerospike
-rm -f /etc/aerospike/aerospike.conf
-ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf
-`)
 	script.WriteString("\n")
 
 	// Install Grafana
@@ -773,11 +706,24 @@ ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf
 	script.WriteString("/usr/local/bin/aerolab config backend -t none\n")
 	script.WriteString("\n")
 
+	// Install aerospike-tools (asadm, aql, asinfo, …). The Aerospike
+	// server itself is intentionally NOT installed on AGI boxes —
+	// AGI ingests exported data, it doesn't run a local cluster —
+	// but operators still expect asadm/aql to be available for
+	// inspecting collected logs and connecting to remote clusters
+	// from the AGI shell. This was a feature regression when the
+	// Aerospike-server install step was removed; restore tools.
+	toolsScript, err := c.buildAerospikeToolsScript()
+	if err != nil {
+		return nil, fmt.Errorf("could not create aerospike-tools install script: %w", err)
+	}
+	script.WriteString("echo '=== Installing Aerospike tools ==='\n")
+	script.Write(toolsScript) //nolint:errcheck // bytes.Buffer.Write never fails
+	script.WriteString("\n")
+
 	// Create directory structure
 	script.WriteString("echo '=== Creating AGI Directory Structure ==='\n")
 	script.WriteString(`
-mkdir -p /opt/agi/aerospike/data
-mkdir -p /opt/agi/aerospike/smd
 mkdir -p /opt/agi/files/input
 mkdir -p /opt/agi/files/input/s3source
 mkdir -p /opt/agi/files/input/sftpsource
@@ -832,44 +778,35 @@ fi
 	// Create systemd service files
 	script.WriteString("echo '=== Creating systemd service files ==='\n")
 
-	// agi-plugin service
+	// agi-plugin service: runs the merged ingest+plugin service.
+	// The unit file name is kept as agi-plugin.service for
+	// backward compatibility with existing tooling (systemctl
+	// start/stop/status scripts, log readers, etc.) but the ExecStart
+	// now launches the unified "agi exec service" which shares a
+	// single Pebble DB handle between the ingest pipeline and the
+	// plugin HTTP server. Running them as separate processes caused
+	// the second process to fail to acquire Pebble's exclusive file
+	// lock on the shared data directory — hence this consolidation.
 	script.WriteString(`
 cat > /etc/systemd/system/agi-plugin.service << 'EOF'
 [Unit]
-Description=AGI Grafana Plugin Backend
-After=network.target aerospike.service
+Description=AGI Service (merged ingest + Grafana plugin backend)
+After=network.target
 
 [Service]
 Type=simple
 User=root
 Group=root
-ExecStart=/usr/local/bin/aerolab agi exec plugin
+ExecStart=/usr/local/bin/aerolab agi exec service
 Restart=always
 RestartSec=5
+# Give the service time to drain in-flight ingest work and flush
+# the Pebble memtable on shutdown. Default of 90s is not enough
+# for large log volumes; match the plugin's shutdownTimeout (60s)
+# plus a safety margin.
+TimeoutStopSec=120
 StandardOutput=append:/var/log/agi-plugin.log
 StandardError=append:/var/log/agi-plugin.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-`)
-
-	// agi-ingest service
-	script.WriteString(`
-cat > /etc/systemd/system/agi-ingest.service << 'EOF'
-[Unit]
-Description=AGI Log Ingest Service
-After=network.target aerospike.service
-
-[Service]
-Type=simple
-User=root
-Group=root
-ExecStart=/usr/local/bin/aerolab agi exec ingest
-Restart=on-failure
-RestartSec=30
-StandardOutput=append:/var/log/agi-ingest.log
-StandardError=append:/var/log/agi-ingest.log
 
 [Install]
 WantedBy=multi-user.target
@@ -1015,4 +952,99 @@ apt-get clean || yum clean all || true
 	fmt.Fprintf(&script, "echo 'AGI Version: %d'\n", agi.AGIVersion) //nolint:errcheck
 
 	return script.Bytes(), nil
+}
+
+// buildAerospikeToolsScript resolves the aerospike-tools artifact for
+// the template's distro/arch via the Aerospike artifacts API and
+// returns a self-contained bash snippet that downloads + installs
+// it on the temporary template instance.
+//
+// We resolve the artifact at build-time (on the operator's machine)
+// rather than baking the lookup into the script because:
+//   - The artifacts metadata API requires HTTP access and HTML
+//     scraping; doing this on the operator's host keeps the
+//     in-image dependency surface minimal (the script only needs
+//     curl + the tarball URL).
+//   - Failure modes (e.g. unsupported distro/version, network
+//     blackhole on the operator's host) surface during template
+//     creation with a clear error, instead of silently bricking the
+//     temporary instance partway through bash -e.
+//
+// The Aerospike server itself is deliberately NOT installed; AGI
+// ingests exported logs and never runs a local cluster.
+func (c *AgiTemplateCreateCmd) buildAerospikeToolsScript() ([]byte, error) {
+	// Map AGI's distro flag onto the OS names the artifacts API
+	// uses. Rocky doesn't have its own artifact line; it shares
+	// CentOS RPMs (matching cmdAgiTemplateCreate's earlier alias).
+	osName := strings.ToLower(c.Distro)
+	if osName == "rocky" {
+		osName = "centos"
+	}
+	osVersion := c.DistroVersion
+	if osVersion == "latest" {
+		switch osName {
+		case "ubuntu":
+			osVersion = "24.04"
+		case "centos":
+			osVersion = "10"
+		case "debian":
+			osVersion = "13"
+		case "amazon":
+			osVersion = "2023"
+		default:
+			return nil, fmt.Errorf("unsupported distro for aerospike-tools: %s", osName)
+		}
+	}
+
+	var arch aerospike.ArchitectureType
+	switch c.Arch {
+	case "amd64", "x86_64":
+		arch = aerospike.ArchitectureTypeX86_64
+	case "arm64", "aarch64":
+		arch = aerospike.ArchitectureTypeAARCH64
+	default:
+		return nil, fmt.Errorf("unsupported architecture for aerospike-tools: %s", c.Arch)
+	}
+
+	products, err := aerospike.GetProducts(30 * time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike products: %w", err)
+	}
+	prod := products.WithName("aerospike-tools")
+	if len(prod) == 0 {
+		return nil, fmt.Errorf("aerospike-tools product not found in artifacts feed")
+	}
+
+	versions, err := aerospike.GetVersions(30*time.Second, prod[0])
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike-tools versions: %w", err)
+	}
+	if c.ToolsVersion != "" && c.ToolsVersion != "latest" {
+		versions = versions.WithNamePrefix(c.ToolsVersion)
+	}
+	chosen := versions.Latest()
+	if chosen == nil {
+		return nil, fmt.Errorf("no aerospike-tools version matching %q", c.ToolsVersion)
+	}
+
+	files, err := aerospike.GetFiles(30*time.Second, *chosen)
+	if err != nil {
+		return nil, fmt.Errorf("fetch aerospike-tools files for %s: %w", chosen.Name, err)
+	}
+	// download=true, install=true, upgrade=true: the tools script
+	// fetches the tarball, unpacks it, runs the bundled installer,
+	// and replaces any existing installation. There is no existing
+	// install on a fresh template so upgrade=true is a no-op for
+	// the happy path.
+	installScript, err := files.GetInstallScript(arch, aerospike.OSName(osName), osVersion, false, true, true, true)
+	if err != nil {
+		return nil, fmt.Errorf("build aerospike-tools install script (arch=%s, os=%s/%s, version=%s): %w",
+			arch, osName, osVersion, chosen.Name, err)
+	}
+	// Prepend a small banner so the failure log identifies which
+	// version was attempted; this is invaluable when the artifacts
+	// API quietly publishes a new tools build that breaks one
+	// distro family.
+	header := fmt.Sprintf("echo 'Aerospike tools version: %s (arch=%s, os=%s/%s)'\n", chosen.Name, arch, osName, osVersion)
+	return append([]byte(header), installScript...), nil
 }

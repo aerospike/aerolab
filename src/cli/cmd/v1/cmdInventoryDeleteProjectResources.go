@@ -46,10 +46,13 @@ func (c *InventoryDeleteProjectResourcesCmd) DeleteProjectResources(system *Syst
 		projectName = "default"
 	}
 
-	// Get inventory and display what will be deleted
+	// Get inventory and display what will be deleted. Mirror the
+	// filters that backend.DeleteProjectResources actually applies,
+	// otherwise the summary shows resources that won't be touched
+	// (most notably already-terminated instances).
 	inv := system.Backend.GetInventory()
 	backendType := backends.BackendType(system.Opts.Config.Backend.Type)
-	instances := inv.Instances.WithBackendType(backendType).Describe()
+	instances := inv.Instances.WithBackendType(backendType).WithNotState(backends.LifeCycleStateTerminated).Describe()
 	volumes := inv.Volumes.WithBackendType(backendType).Describe()
 	firewalls := inv.Firewalls.WithBackendType(backendType).Describe()
 	images := inv.Images.WithBackendType(backendType).WithInAccount(true).Describe()

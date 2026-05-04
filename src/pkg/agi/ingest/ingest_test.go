@@ -3,73 +3,59 @@ package ingest
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
-func setupTest() error {
-	os.Remove("cpu.pprof")
-	os.RemoveAll("ingest")
-	os.Setenv("LOGINGEST_CPUPROFILE_FILE", "cpu.pprof")
-	os.Unsetenv("DOCKER_HOST")
-	out, err := exec.Command("aerolab", "config", "backend", "-t", "docker").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("err: %s out: %s", err, string(out))
+// tempIngestDirs returns a YAML fragment that points every ingest
+// directory at a subdirectory of root. Without this the tests
+// inherit the defaults ("ingest/files/logs" etc.) which are relative
+// to the process CWD and therefore (a) fail fast with "lstat
+// ingest/files/logs: no such file or directory" when the test is
+// run from a clean checkout and (b) leak state into the working
+// directory when they don't fail.
+func tempIngestDirs(t *testing.T, root string) string {
+	t.Helper()
+	for _, sub := range []string{"logs", "logs-cut", "collectinfo", "input", "other", "progress"} {
+		if err := os.MkdirAll(filepath.Join(root, sub), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %s", sub, err)
+		}
 	}
-	out, err = exec.Command("aerolab", "cluster", "create", "--name=ingest", "--expose-ports=3100:3100", "--aerospike-version=6.3.0.5", "--start=no", "--no-autoexpose").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("err: %s out: %s", err, string(out))
-	}
-	out, err = exec.Command("aerolab", "conf", "adjust", "--name=ingest", "set", "network.service.port", "3100").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("err: %s out: %s", err, string(out))
-	}
-	out, err = exec.Command("aerolab", "aerospike", "start", "--name=ingest").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("err: %s out: %s", err, string(out))
-	}
-	return nil
-}
-
-func teardownTest() error {
-	os.Unsetenv("DOCKER_HOST")
-	out, err := exec.Command("aerolab", "cluster", "destroy", "-f", "--name=ingest").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("err: %s out: %s", err, string(out))
-	}
-	return nil
+	return fmt.Sprintf(
+		"directories:\n  logs: %q\n  noStatOut: %q\n  collectInfo: %q\n  dirtyTemp: %q\n  otherFiles: %q\nprogressFile:\n  outputFilePath: %q\n",
+		filepath.Join(root, "logs"),
+		filepath.Join(root, "logs-cut"),
+		filepath.Join(root, "collectinfo"),
+		filepath.Join(root, "input"),
+		filepath.Join(root, "other"),
+		filepath.Join(root, "progress")+string(os.PathSeparator),
+	)
 }
 
 func TestAll(t *testing.T) {
-	t.Log("Tearing down")
-	_ = teardownTest()
-	t.Log("Sleep 5 sec")
-	time.Sleep(5 * time.Second)
-	t.Log("Setting up")
-	if err := setupTest(); err != nil {
-		t.Fatal(err)
-	}
+	os.Remove("cpu.pprof")
+	os.RemoveAll("ingest")
+	// t.Setenv is auto-restored at end of test; previous Setenv
+	// (without restore) leaked LOGINGEST_CPUPROFILE_FILE into
+	// TestPart, which then failed at "cpu profiling already in use"
+	// because TestAll's pprof was never stopped (its t.Fatal short-
+	// circuited Close).
+	t.Setenv("LOGINGEST_CPUPROFILE_FILE", "cpu.pprof")
 	t.Log("Setting up config")
-	os.Setenv("LOGINGEST_LOGLEVEL", "6")
-	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "false")
-	os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
-	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
-	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
-	//os.Setenv("LOGINGEST_S3SOURCE_KEYID", "") // set outside
-	//os.Setenv("LOGINGEST_S3SOURCE_SECRET", "") // set outside
-	os.Setenv("LOGINGEST_S3SOURCE_PATH", "logs/")
-	os.Setenv("LOGINGEST_S3SOURCE_REGEX", "^.*\\.tgz")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_HOST", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_USER", "") // set outside
-	//os.Setenv("LOGINGEST_SFTPSOURCE_PASSWORD", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
+	t.Setenv("LOGINGEST_LOGLEVEL", "6")
+	t.Setenv("LOGINGEST_S3SOURCE_ENABLED", "false")
+	t.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
+	t.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
+	t.Setenv("LOGINGEST_S3SOURCE_PATH", "logs/")
+	t.Setenv("LOGINGEST_S3SOURCE_REGEX", "^.*\\.tgz")
+	t.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
+	t.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
 	//os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
 	t.Log("Creating a config")
-	yamlConfig := "aerospike:\n  namespace: \"test\"\n  port: 3100"
+	root := t.TempDir()
+	yamlConfig := fmt.Sprintf("db:\n  path: %q\n%s", filepath.Join(root, "db"), tempIngestDirs(t, root))
 	config, err := MakeConfigReader(true, strings.NewReader(yamlConfig), true)
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +65,10 @@ func TestAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Always close so the CPU profiler is released, even on early
+	// failure — otherwise pprof remains "in use" and any subsequent
+	// test that turns CPU profiling on will fail.
+	defer i.Close()
 	t.Log("Download logs")
 	err = i.Download()
 	if err != nil {
@@ -129,23 +119,21 @@ func TestAll(t *testing.T) {
 
 func TestPart(t *testing.T) {
 	t.Log("Setting up config")
-	os.Setenv("LOGINGEST_LOGLEVEL", "6")
-	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
-	os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
-	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
-	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
-	//os.Setenv("LOGINGEST_S3SOURCE_KEYID", "") // set outside
-	//os.Setenv("LOGINGEST_S3SOURCE_SECRET", "") // set outside
-	os.Setenv("LOGINGEST_S3SOURCE_PATH", "logs/")
-	os.Setenv("LOGINGEST_S3SOURCE_REGEX", "^.*\\.tgz")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_HOST", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_USER", "") // set outside
-	//os.Setenv("LOGINGEST_SFTPSOURCE_PASSWORD", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
+	// Ensure CPU profiling is off for this test even if a previous
+	// test leaked the env var (TestAll uses t.Setenv now, but be
+	// defensive against `go test -run TestPart` ordering).
+	os.Unsetenv("LOGINGEST_CPUPROFILE_FILE")
+	t.Setenv("LOGINGEST_LOGLEVEL", "6")
+	t.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
+	t.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
+	t.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
+	t.Setenv("LOGINGEST_S3SOURCE_PATH", "logs/")
+	t.Setenv("LOGINGEST_S3SOURCE_REGEX", "^.*\\.tgz")
+	t.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
+	t.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
 	t.Log("Creating a config")
-	yamlConfig := "aerospike:\n  namespace: \"test\"\n  port: 3100"
+	root := t.TempDir()
+	yamlConfig := fmt.Sprintf("db:\n  path: %q\n%s", filepath.Join(root, "db"), tempIngestDirs(t, root))
 	config, err := MakeConfigReader(true, strings.NewReader(yamlConfig), true)
 	if err != nil {
 		t.Fatal(err)
@@ -155,6 +143,7 @@ func TestPart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer i.Close()
 	nerr := []error{}
 	wg := new(sync.WaitGroup)
 	wg.Add(2)

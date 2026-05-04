@@ -1009,41 +1009,90 @@ func (m *agiMonitor) handleCheckSizing(w http.ResponseWriter, r *http.Request, u
 	}
 }
 
+// computeRequiredRAMGB applies the post-budget-cap sizing formula:
+//
+//	required_RAM_GB = RAMFloorGB
+//	                 + CachePeakMultiplier * cache_target_GB
+//	                 + RAMThresMinFreeGB
+//
+//	cache_target_GB = clamp(CacheTargetPct/100 * logSize_GB,
+//	                         CacheMinGB, CacheMaxGB)
+//
+// Default RAMFloorGB=10, CachePeakMultiplier=4, RAMThresMinFreeGB=2.
+//
+// The CachePeakMultiplier=4 reflects the cmdAgiCreate budget split:
+// Pebble is hard-capped at 50% of total host RAM, of which roughly
+// half goes to the block cache. So for the cache to actually reach
+// `cache_target_GB`, the host needs at least 4 × cache_target_GB
+// just for the Pebble portion (block cache + matching peak memtable
+// RAM). RAMFloorGB on top of that covers the OS reservation
+// (matches agiOSReserveBytes) plus the merged process's non-Pebble
+// overhead (matches agiNonPebbleOverheadBytes); together they
+// guarantee that the predicted host has the headroom the create
+// path will actually use. Keep this in lockstep with cmdAgiCreate
+// or the monitor's pre-process sizing will mis-predict and either
+// upsize unnecessarily (formula too high) or fail the post-rotation
+// check because Pebble's cache fell short of cache_target (formula
+// too low).
+//
+// Defensive defaults: if CachePeakMultiplier is unset (0) we fall
+// back to the historical "1×" behaviour to keep the math defined,
+// which under-predicts but does not mis-behave.
+func (m *agiMonitor) computeRequiredRAMGB(logSizeBytes int64) int {
+	logSizeGB := float64(logSizeBytes) / (1024 * 1024 * 1024)
+
+	cacheTargetGB := float64(m.cmd.CacheTargetPct) / 100.0 * logSizeGB
+	if cacheTargetGB < float64(m.cmd.CacheMinGB) {
+		cacheTargetGB = float64(m.cmd.CacheMinGB)
+	}
+	if m.cmd.CacheMaxGB > 0 && cacheTargetGB > float64(m.cmd.CacheMaxGB) {
+		cacheTargetGB = float64(m.cmd.CacheMaxGB)
+	}
+
+	multiplier := float64(m.cmd.CachePeakMultiplier)
+	if multiplier <= 0 {
+		multiplier = 1.0
+	}
+
+	required := float64(m.cmd.RAMFloorGB) + multiplier*cacheTargetGB + float64(m.cmd.RAMThresMinFreeGB)
+	// Round up so we never under-provision by sub-GiB amounts.
+	return int(required + 0.5)
+}
+
 // checkRAMSizing determines if RAM sizing is needed.
+//
+// Post-Pebble model: there is no DIM/NoDIM split, so the legacy
+// IsDataInMemory branch and SizingNoDIMFirst behaviour have been
+// removed. The disableDim out-parameter is preserved for wire-format
+// compatibility with the sizing pipeline (handleSizingRAM) but is
+// always left false here.
 func (m *agiMonitor) checkRAMSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent, currentType string, zone string, newType *string, disableDim *bool) bool {
+	_ = disableDim // intentionally unused; kept for signature stability
+
 	switch event.Event {
 	case agi.AgiEventServiceDown:
-		if event.IngestStatus.AerospikeRunning && event.IngestStatus.PluginRunning {
-			// Ingest or grafana helper is down, do NOT size; only Plugin and Aerospike crashes should be sized
+		// Under the merged service (plugin + storage in the same
+		// process), PluginRunning=true implies the storage stack
+		// is healthy. Any service-down event in that state must
+		// therefore be a non-RAM-bound component (grafana-helper
+		// or a finished/failed ingest goroutine), so RAM resizing
+		// would not help — skip it.
+		if event.IngestStatus.PluginRunning {
 			return false
 		}
-		if event.IsDataInMemory && m.cmd.SizingNoDIMFirst {
-			*disableDim = true
-		} else {
-			instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)
-			if err != nil {
-				m.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
-				return false
-			}
-			*newType, err = m.sizeInstanceType(instanceTypes, currentType, int(itype.MemoryGiB+1))
-			if err != nil {
-				if !event.IsDataInMemory {
-					m.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
-					return false
-				}
-				*disableDim = true
-			}
+		instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)
+		if err != nil {
+			m.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
+			return false
+		}
+		*newType, err = m.sizeInstanceType(instanceTypes, currentType, int(itype.MemoryGiB+1))
+		if err != nil {
+			m.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
+			return false
 		}
 
 	case agi.AgiEventPreProcessComplete:
-		requiredRam := 0
-		dimRequiredMemory := int(float64(event.IngestStatus.Ingest.LogProcessorTotalSize)*m.cmd.DimMultiplier/1024/1024/1024) + m.cmd.RAMThresMinFreeGB + 2
-		noDimRequiredMemory := int(float64(event.IngestStatus.Ingest.LogProcessorTotalSize)*m.cmd.NoDimMultiplier/1024/1024/1024) + m.cmd.RAMThresMinFreeGB + 2
-		if event.IsDataInMemory {
-			requiredRam = dimRequiredMemory
-		} else {
-			requiredRam = noDimRequiredMemory
-		}
+		requiredRam := m.computeRequiredRAMGB(event.IngestStatus.Ingest.LogProcessorTotalSize)
 
 		instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)
 		if err != nil {
@@ -1055,58 +1104,39 @@ func (m *agiMonitor) checkRAMSizing(w http.ResponseWriter, r *http.Request, uuid
 			return false
 		}
 
-		if event.IsDataInMemory && m.cmd.SizingNoDIMFirst {
-			*disableDim = true
-			if itype.MemoryGiB < float64(noDimRequiredMemory) {
-				*newType, err = m.sizeInstanceType(instanceTypes, currentType, noDimRequiredMemory)
-				if err != nil {
-					m.log(uuid, "sizing", "WARNING: reached max sizing and will not have enough RAM anyways: "+err.Error())
-				}
+		*newType, err = m.sizeInstanceType(instanceTypes, currentType, requiredRam)
+		if err != nil {
+			if *newType == currentType {
+				m.respond(w, r, uuid, 500, "sizing: max reached and may still run out of memory", fmt.Sprintf("Sizing: reached max and will probably still run out of RAM: %s", err))
+				return false
 			}
-		} else if event.IsDataInMemory {
-			*newType, err = m.sizeInstanceType(instanceTypes, currentType, requiredRam)
-			if err != nil {
-				*disableDim = true
-			}
-		} else {
-			*newType, err = m.sizeInstanceType(instanceTypes, currentType, requiredRam)
-			if err != nil {
-				if *newType == currentType {
-					m.respond(w, r, uuid, 500, "sizing: max reached and may still run out of memory", fmt.Sprintf("Sizing: reached max and will probably still run out of RAM: %s", err))
-					return false
-				}
-				m.log(uuid, "sizing", "WARNING: reached max sizing and will not have enough RAM anyways: "+err.Error())
-			}
+			m.log(uuid, "sizing", "WARNING: reached max sizing and will not have enough RAM anyways: "+err.Error())
 		}
 
 	default:
-		// Use float64 division to preserve precision for threshold comparisons.
-		// For example, 7.5GB free should not be rounded down to 7GB.
+		// MemoryFreeBytes on the wire is sourced from /proc/meminfo's
+		// MemAvailable (see cmdAgiExecGetStatus_unix.go), so this
+		// already accounts for reclaimable page cache — exactly what
+		// we want in the Pebble model where the OS page cache is part
+		// of the working-set fast path.
 		memFreeGB := float64(event.IngestStatus.System.MemoryFreeBytes) / 1024 / 1024 / 1024
 		memUsedPct := float64(0)
 		if event.IngestStatus.System.MemoryTotalBytes > 0 && event.IngestStatus.System.MemoryFreeBytes > 0 {
 			memUsedPct = 1 - (float64(event.IngestStatus.System.MemoryFreeBytes) / float64(event.IngestStatus.System.MemoryTotalBytes))
 		}
 
-		if memFreeGB < float64(m.cmd.RAMThresMinFreeGB) || memUsedPct > float64(m.cmd.RAMThresUsedPct)/100 {
-			if event.IsDataInMemory && m.cmd.SizingNoDIMFirst {
-				*disableDim = true
-			} else {
-				instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)
-				if err != nil {
-					m.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
-					return false
-				}
-				*newType, err = m.sizeInstanceType(instanceTypes, currentType, int(itype.MemoryGiB+1))
-				if err != nil {
-					if !event.IsDataInMemory {
-						m.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
-						return false
-					}
-					*disableDim = true
-				}
-			}
-		} else {
+		if memFreeGB >= float64(m.cmd.RAMThresMinFreeGB) && memUsedPct <= float64(m.cmd.RAMThresUsedPct)/100 {
+			return false
+		}
+
+		instanceTypes, itype, err := m.getInstanceTypes(zone, currentType)
+		if err != nil {
+			m.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
+			return false
+		}
+		*newType, err = m.sizeInstanceType(instanceTypes, currentType, int(itype.MemoryGiB+1))
+		if err != nil {
+			m.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
 			return false
 		}
 	}
@@ -1408,6 +1438,14 @@ func (m *agiMonitor) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, n
 			InstanceTypeOverride: newType,
 			NoDIMOverride:        noDIMOverride,
 			OwnerOverride:        event.Owner,
+			// Force ingest.yaml/plugin.yaml to be regenerated from
+			// the new instance's memSize so Pebble's block cache and
+			// the plugin's concurrency limits scale with the larger
+			// (or smaller) RAM footprint we just rotated to. Without
+			// this the YAMLs from the previous instance would persist
+			// on the EFS/volume and the new instance would run with
+			// stale tuning, defeating the whole point of sizing.
+			RefreshEngineConfigs: true,
 		},
 	}
 

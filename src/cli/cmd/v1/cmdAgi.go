@@ -4,7 +4,7 @@ package cmd
 
 // AgiCmd is the main AGI (Aerospike Grafana Integration) command structure.
 // AGI provides a template-based approach where templates have all software pre-installed
-// (aerospike, grafana, plugin, proxy, ingest tools), enabling fast instance creation.
+// (grafana, the merged plugin+ingest service, and the web proxy), enabling fast instance creation.
 type AgiCmd struct {
 	Template  AgiTemplateCmd  `command:"template" subcommands-optional:"true" description:"AGI template management" webicon:"fas fa-file-image"`
 	Create    AgiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-plus" invwebforce:"true"`
@@ -16,6 +16,7 @@ type AgiCmd struct {
 	Destroy   AgiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash" invwebforce:"true"`
 	Delete    AgiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy instance and volume" webicon:"fas fa-trash-can" invwebforce:"true"`
 	Attach    AgiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to AGI shell" webicon:"fas fa-terminal"`
+	Query     AgiQueryCmd     `command:"query" subcommands-optional:"true" description:"Query the running AGI database (read-only debug)" webicon:"fas fa-database"`
 	Open      AgiOpenCmd      `command:"open" subcommands-optional:"true" description:"Open AGI in browser" webicon:"fas fa-globe"`
 	AddToken  AgiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add auth token" webicon:"fas fa-key"`
 	Relabel   AgiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change label" webicon:"fas fa-tag"`
@@ -64,9 +65,10 @@ func (c *AgiMonitorCmd) Execute(args []string) error {
 // AgiExecCmd is the hidden AGI exec subsystem command structure
 // These commands are run inside AGI instances, not by users directly
 type AgiExecCmd struct {
-	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend"`
+	Service      AgiExecServiceCmd      `command:"service" subcommands-optional:"true" description:"Run merged ingest+plugin service (recommended: uses one Pebble lock)"`
+	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend (legacy; conflicts with standalone ingest on shared DB)"`
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
-	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service"`
+	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service (legacy; conflicts with standalone plugin on shared DB)"`
 	Proxy        AgiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Run web proxy"`
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`

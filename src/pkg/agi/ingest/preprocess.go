@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -78,6 +80,27 @@ func (i *Ingest) PreProcess() error {
 		return fmt.Errorf("failed to enumerate files: %s", err)
 	}
 
+	// In read-only input mode the unpacker writes extracted contents into a
+	// peer "staging" directory rather than into DirtyTmp (the bind mount).
+	// Without enumerating staging here the pre-processor would only see the
+	// original archives on the bind mount (which are skipped as non-text /
+	// non-collectinfo), and nothing would ever reach Logs/ or CollectInfo/
+	// for the downstream processors.
+	if i.config.Directories.ReadOnlyInput {
+		stagingDir := filepath.Join(filepath.Dir(i.config.Directories.DirtyTmp), "staging")
+		if _, statErr := os.Stat(stagingDir); statErr == nil {
+			stagingFiles, enumErr := i.enumDir(stagingDir)
+			if enumErr != nil {
+				log.Printf("WARN: PreProcess: failed to enumerate staging directory %s: %s", stagingDir, enumErr)
+			} else {
+				log.Printf("DEBUG: PreProcess: merged %d files from staging directory %s", len(stagingFiles), stagingDir)
+				maps.Copy(files, stagingFiles)
+			}
+		} else if !os.IsNotExist(statErr) {
+			log.Printf("WARN: PreProcess: failed to stat staging directory %s: %s", stagingDir, statErr)
+		}
+	}
+
 	// dedup
 	if i.config.Dedup.Enabled {
 		log.Printf("DEBUG: Deduplicating")
@@ -129,7 +152,7 @@ func (i *Ingest) PreProcess() error {
 			}
 			continue
 		}
-		// deal with text files (could be aerospike log files)
+		// deal with text files (Aerospike server logs, mostly)
 		log.Printf("DETAIL: pre-process %s is a text file, processing", fn)
 		wg.Add(1)
 		threads <- true
@@ -221,8 +244,7 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
 			}
-			err = moveOrCopyFile(fna, outpath, readOnlyInput)
-			if err != nil {
+			if err := moveOrCopyFile(fna, outpath, readOnlyInput); err != nil {
 				return err
 			}
 			return nil

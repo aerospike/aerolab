@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
@@ -111,6 +113,12 @@ type AgiCreateCmd struct {
 	FeaturesFilePath flags.Filename `short:"f" long:"featurefile" description:"Features file to install, overriding the template's features file"`
 	IngestLogLevel   int            `long:"ingest-log-level" description:"Log level: 1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL" default:"4"`
 	IngestCpuProfile bool           `long:"ingest-cpu-profiling" description:"Enable CPU profiling for ingest"`
+	// Ingest pipeline tuning. Both default to 0 = use the
+	// embedded ingest-config defaults (which themselves auto-scale
+	// where appropriate; see pkg/agi/ingest/struct.go). Setting a
+	// positive value here pins the corresponding knob explicitly.
+	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
+	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
 	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
 	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
@@ -123,14 +131,20 @@ type AgiCreateCmd struct {
 	MonitorCertIgnore bool   `long:"monitor-ignore-cert" description:"Ignore invalid monitor SSL certificate"`
 
 	// Configuration options
-	NoConfigOverride bool   `long:"no-config-override" description:"Don't override existing config when restarting with EFS"`
-	Owner            string `long:"owner" description:"Owner tag value"`
+	NoConfigOverride bool `long:"no-config-override" description:"Don't override existing config when restarting with EFS"`
+	// RefreshEngineConfigs forces re-upload of engine-tuning configs
+	// (ingest.yaml, plugin.yaml) even when NoConfigOverride is set.
+	// Set by the monitor on sizing-driven reattach so that the new
+	// instance's larger memSize is reflected in Pebble's CacheBytes /
+	// MemTableSizeBytes and the plugin's concurrency knobs. Internal,
+	// not exposed on the CLI.
+	RefreshEngineConfigs bool   `json:"-"`
+	Owner                string `long:"owner" description:"Owner tag value"`
 
 	// Version options
-	AerospikeVersion string `short:"v" long:"aerospike-version" description:"Aerospike server version" default:"latest"`
-	GrafanaVersion   string `long:"grafana-version" description:"Grafana version" default:"11.2.6"`
-	Distro           string `short:"d" long:"distro" description:"Linux distribution" default:"ubuntu"`
-	DistroVersion    string `long:"distro-version" description:"Distribution version" default:"latest"`
+	GrafanaVersion string `long:"grafana-version" description:"Grafana version" default:"11.2.6"`
+	Distro         string `short:"d" long:"distro" description:"Linux distribution" default:"ubuntu"`
+	DistroVersion  string `long:"distro-version" description:"Distribution version" default:"latest"`
 
 	// Timeout
 	Timeout  int  `short:"t" long:"timeout" description:"Creation timeout in minutes" default:"30"`
@@ -164,7 +178,7 @@ type AgiCreateCmd struct {
 
 // AgiCreateCmdAws contains AWS-specific options for AGI instance creation.
 type AgiCreateCmdAws struct {
-	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 12GB RAM); empty=auto-select" webchoice:"method::List"`
+	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"Instance type (min 8GB RAM); empty=auto-select (m7i.xlarge / m6i.xlarge / m7g.xlarge by region+arch)" webchoice:"method::List"`
 	Ebs                 string          `short:"E" long:"ebs" description:"EBS volume size in GB" default:"40"`
 	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"Security group IDs (comma-separated)"`
 	SubnetID            string          `short:"U" long:"subnet-id" description:"Subnet ID or availability zone"`
@@ -185,8 +199,14 @@ type AgiCreateCmdAws struct {
 }
 
 // AgiCreateCmdGcp contains GCP-specific options for AGI instance creation.
+//
+// Default instance: c2d-standard-4 (16 GiB) post-Pebble. The previous
+// default (c2d-highmem-4, 32 GiB) was sized for an in-memory primary
+// index that no longer exists; the new sizing model needs floor + 10%
+// of log size + headroom, which fits comfortably in 16 GiB for log
+// bundles up to ~80 GiB. Larger workloads ladder up via the monitor.
 type AgiCreateCmdGcp struct {
-	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-highmem-4" webchoice:"method::List"`
+	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-standard-4" webchoice:"method::List"`
 	Disks               []string        `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
 	Zone                guiZone         `long:"zone" description:"GCP zone" webchoice:"method::List"`
 	Tags                []string        `long:"tag" description:"Network tags"`
@@ -354,6 +374,28 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		return nil, fmt.Errorf("bind mount (bind:/path) for --source-local is only supported on Docker backend")
 	}
 
+	// Bind mount source is incompatible with S3/SFTP sources because the
+	// downloader writes into DirtyTmp/{s3source,sftpsource}, which lives on
+	// the read-only bind mount and would fail to create files at download
+	// time.
+	if isBindMountSource(string(c.LocalSource)) && (c.S3Enable || c.SftpEnable) {
+		return nil, fmt.Errorf("bind mount (bind:/path) for --source-local cannot be combined with --source-s3-enable or --source-sftp-enable; the bind-mounted directory is read-only and cannot receive downloaded files")
+	}
+
+	// Resolve bind mount source to an absolute path; Docker rejects relative
+	// paths (interpreting them as named volumes).
+	if isBindMountSource(string(c.LocalSource)) {
+		bindPath := getBindMountPath(string(c.LocalSource))
+		absBindPath, err := filepath.Abs(bindPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve --source-local bind path %q to absolute: %w", bindPath, err)
+		}
+		if absBindPath != bindPath {
+			logger.Info("Resolved --source-local bind path %s -> %s", bindPath, absBindPath)
+		}
+		c.LocalSource = flags.Filename("bind:" + absBindPath)
+	}
+
 	// --bind-files-dir is only supported on Docker
 	if c.BindFilesDir != "" && backendType != "docker" {
 		return nil, fmt.Errorf("--bind-files-dir is only supported on Docker backend")
@@ -361,6 +403,16 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 
 	// Validate --bind-files-dir directory exists
 	if c.BindFilesDir != "" {
+		// Resolve to absolute path for the same Docker reason as above.
+		absBindFilesDir, err := filepath.Abs(string(c.BindFilesDir))
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve --bind-files-dir %q to absolute: %w", c.BindFilesDir, err)
+		}
+		if absBindFilesDir != string(c.BindFilesDir) {
+			logger.Info("Resolved --bind-files-dir %s -> %s", c.BindFilesDir, absBindFilesDir)
+		}
+		c.BindFilesDir = flags.Filename(absBindFilesDir)
+
 		info, err := os.Stat(string(c.BindFilesDir))
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("--bind-files-dir directory not found: %s", c.BindFilesDir)
@@ -521,15 +573,15 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	}
 
 	// Get available memory on the instance
-	memSize, err := c.getAvailableMemory(instance, backendType)
+	totalMem, memSize, err := c.getAvailableMemory(instance, backendType)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Available memory for Aerospike: %d GB", memSize/1024/1024/1024)
+	logger.Info("Available memory: %d GB total, %d GB after OS reserve", totalMem/1024/1024/1024, memSize/1024/1024/1024)
 
 	// Generate configuration files
 	logger.Info("Generating AGI configuration files")
-	configs, err := c.generateConfigs(system, memSize, backendType)
+	configs, err := c.generateConfigs(system, totalMem, memSize, backendType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate configs: %w", err)
 	}
@@ -555,12 +607,6 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 		if err := c.uploadAerolabBinary(instance, logger); err != nil {
 			return nil, fmt.Errorf("failed to upload aerolab binary: %w", err)
 		}
-	}
-
-	// Generate and upload aerospike.conf
-	logger.Info("Configuring Aerospike")
-	if err := c.configureAerospike(instance, memSize, backendType, logger); err != nil {
-		return nil, fmt.Errorf("failed to configure Aerospike: %w", err)
 	}
 
 	// Start AGI services
@@ -883,12 +929,6 @@ func (c *AgiCreateCmd) checkAndRestoreVolumeSettings(system *System, inventory *
 	logger.Info("Found existing volume %s, restoring settings", volumeName)
 
 	// Restore settings from volume tags (only for direct agi create, not reattach)
-	// Check for empty or default "latest" - if user specified a specific version, keep it
-	if c.AerospikeVersion == "" || c.AerospikeVersion == "latest" {
-		if v, ok := vol.Tags["aerolab7agiav"]; ok && v != "" {
-			c.AerospikeVersion = v
-		}
-	}
 	if backendType == "aws" && c.AWS.InstanceType == "" {
 		if v, ok := vol.Tags["agiinstance"]; ok && v != "" {
 			c.AWS.InstanceType = guiInstanceType(v)
@@ -951,17 +991,16 @@ func (c *AgiCreateCmd) resolveTemplate(system *System, inventory *backends.Inven
 	withEFS := system.Opts.Config.Backend.Type == "aws"
 
 	templateCreate := &AgiTemplateCreateCmd{
-		AerospikeVersion: c.AerospikeVersion,
-		GrafanaVersion:   c.GrafanaVersion,
-		Distro:           c.Distro,
-		DistroVersion:    c.DistroVersion,
-		Arch:             arch.String(),
-		Timeout:          c.Timeout,
-		NoVacuum:         c.NoVacuum,
-		Owner:            c.Owner,
-		DisablePublicIP:  c.AWS.DisablePublicIP,
-		AerolabBinary:    c.AerolabBinary,
-		WithEFS:          withEFS,
+		GrafanaVersion:  c.GrafanaVersion,
+		Distro:          c.Distro,
+		DistroVersion:   c.DistroVersion,
+		Arch:            arch.String(),
+		Timeout:         c.Timeout,
+		NoVacuum:        c.NoVacuum,
+		Owner:           c.Owner,
+		DisablePublicIP: c.AWS.DisablePublicIP,
+		AerolabBinary:   c.AerolabBinary,
+		WithEFS:         withEFS,
 	}
 
 	templateName, err := templateCreate.CreateTemplate(system, inventory, logger.WithPrefix("[template] "), args)
@@ -1067,7 +1106,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.AWS.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.AWS.SpotInstance),
-				fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
+				"aerolab.agi.volume=true",
 				fmt.Sprintf("agifips=%t", c.AWS.EFSFips),
 				fmt.Sprintf("agisubnet=%s", c.AWS.SubnetID),
 				fmt.Sprintf("agisecgroup=%s", c.AWS.SecurityGroupID),
@@ -1124,19 +1163,19 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update EFS tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   string(c.AWS.InstanceType),
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.AWS.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.AWS.EFSFips),
-				"agisubnet":     c.AWS.SubnetID,
-				"agisecgroup":   c.AWS.SecurityGroupID,
-				"agiefsexpire":  c.AWS.EFSExpires.String(),
-				"agiLabel":      agiLabelB64,
-				"agiSrcLocal":   sourceStringLocalB64,
-				"agiSrcSftp":    sourceStringSftpB64,
-				"agiSrcS3":      sourceStringS3B64,
+				"agiinstance":        string(c.AWS.InstanceType),
+				"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":          fmt.Sprintf("%t", c.AWS.TerminateOnPoweroff),
+				"isspot":             fmt.Sprintf("%t", c.AWS.SpotInstance),
+				"aerolab.agi.volume": "true",
+				"agifips":            fmt.Sprintf("%t", c.AWS.EFSFips),
+				"agisubnet":          c.AWS.SubnetID,
+				"agisecgroup":        c.AWS.SecurityGroupID,
+				"agiefsexpire":       c.AWS.EFSExpires.String(),
+				"agiLabel":           agiLabelB64,
+				"agiSrcLocal":        sourceStringLocalB64,
+				"agiSrcSftp":         sourceStringSftpB64,
+				"agiSrcS3":           sourceStringS3B64,
 			}
 			if err := vol.AddTags(newTags, 5*time.Minute); err != nil {
 				logger.Warn("Failed to update EFS volume tags: %s", err)
@@ -1156,7 +1195,7 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 				fmt.Sprintf("aginodim=%t", c.NoDIM),
 				fmt.Sprintf("termonpow=%t", c.GCP.TerminateOnPoweroff),
 				fmt.Sprintf("isspot=%t", c.GCP.SpotInstance),
-				fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
+				"aerolab.agi.volume=true",
 				fmt.Sprintf("agifips=%t", c.GCP.VolFips),
 				fmt.Sprintf("agizone=%s", c.GCP.Zone),
 				fmt.Sprintf("agivolexpire=%s", c.GCP.VolExpires.String()),
@@ -1210,18 +1249,18 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			// Update GCP volume tags with current instance settings
 			// This ensures tags reflect the latest settings (important for monitor sizing and reattach)
 			newTags := map[string]string{
-				"agiinstance":   string(c.GCP.InstanceType),
-				"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-				"termonpow":     fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
-				"isspot":        fmt.Sprintf("%t", c.GCP.SpotInstance),
-				"aerolab7agiav": c.AerospikeVersion,
-				"agifips":       fmt.Sprintf("%t", c.GCP.VolFips),
-				"agizone":       string(c.GCP.Zone),
-				"agivolexpire":  c.GCP.VolExpires.String(),
-				"agiLabel":      agiLabelB64,
-				"agiSrcLocal":   sourceStringLocalB64,
-				"agiSrcSftp":    sourceStringSftpB64,
-				"agiSrcS3":      sourceStringS3B64,
+				"agiinstance":        string(c.GCP.InstanceType),
+				"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+				"termonpow":          fmt.Sprintf("%t", c.GCP.TerminateOnPoweroff),
+				"isspot":             fmt.Sprintf("%t", c.GCP.SpotInstance),
+				"aerolab.agi.volume": "true",
+				"agifips":            fmt.Sprintf("%t", c.GCP.VolFips),
+				"agizone":            string(c.GCP.Zone),
+				"agivolexpire":       c.GCP.VolExpires.String(),
+				"agiLabel":           agiLabelB64,
+				"agiSrcLocal":        sourceStringLocalB64,
+				"agiSrcSftp":         sourceStringSftpB64,
+				"agiSrcS3":           sourceStringS3B64,
 			}
 			if err := vol.AddTags(newTags, 5*time.Minute); err != nil {
 				logger.Warn("Failed to update GCP volume tags: %s", err)
@@ -1237,15 +1276,22 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 	case "aws":
 		awsInstanceType = string(c.AWS.InstanceType)
 		if awsInstanceType == "" {
+			// Post-Pebble defaults: drop from the r-family
+			// (memory-optimized, 32 GiB at xlarge) to the m-family
+			// (general-purpose, 16 GiB at xlarge). The new sizing
+			// model needs ~10% of log size + a small floor; 16 GiB
+			// fits log bundles up to ~80 GiB without scaling.
+			// Larger workloads ladder up via the monitor's
+			// pre-process completion callback.
 			if arch.String() == "arm64" {
-				awsInstanceType = "r7g.xlarge"
+				awsInstanceType = "m7g.xlarge"
 			} else {
 				switch system.Opts.Config.Backend.Region {
 				case "af-south-1", "ap-east-1", "ca-west-1", "cn-north-1", "cn-northwest-1", "eu-central-2", "il-central-1", "me-south-1", "me-central-1":
-					// change the default instance family for regions that don't support the r7 yet
-					awsInstanceType = "r6i.xlarge"
+					// change the default instance family for regions that don't support the m7 yet
+					awsInstanceType = "m6i.xlarge"
 				default:
-					awsInstanceType = "r7i.xlarge"
+					awsInstanceType = "m7i.xlarge"
 				}
 			}
 		}
@@ -1274,7 +1320,6 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		fmt.Sprintf("agiSrcLocal=%s", sourceStringLocalB64),
 		fmt.Sprintf("agiSrcSftp=%s", sourceStringSftpB64),
 		fmt.Sprintf("agiSrcS3=%s", sourceStringS3B64),
-		fmt.Sprintf("aerolab7agiav=%s", c.AerospikeVersion),
 	}
 	// Add Route53 tags if configured
 	if c.AWS.Route53ZoneId != "" && c.AWS.Route53DomainName != "" {
@@ -1311,14 +1356,14 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		TerminateOnStop:    terminateOnStop,
 		ParallelSSHThreads: 1,
 		ImageType:          "agi",
-		ImageVersion:       fmt.Sprintf("agi-%s-%s-%d", c.AerospikeVersion, "latest", agi.AGIVersion),
+		ImageVersion:       fmt.Sprintf("agi-%d", agi.AGIVersion),
 		Arch:               arch.String(),
 		AWS: InstancesCreateCmdAws{
 			ImageID:          templateName,
 			Expire:           c.AWS.Expires,
 			NetworkPlacement: system.Opts.Config.Backend.Region,
 			InstanceType:     guiInstanceType(awsInstanceType),
-			Disks:            []string{fmt.Sprintf("type=gp2,size=%s", c.AWS.Ebs)},
+			Disks:            []string{fmt.Sprintf("type=gp3,size=%s", c.AWS.Ebs)},
 			Firewalls:        []string{agiFirewallName},
 			SpotInstance:     c.AWS.SpotInstance,
 			DisablePublicIP:  c.AWS.DisablePublicIP,
@@ -1519,8 +1564,8 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 	// Build comprehensive tag set with all values needed for reattach
 	tags := map[string]string{
 		// Core instance settings (now with resolved values)
-		"aginodim":      fmt.Sprintf("%t", c.NoDIM),
-		"aerolab7agiav": c.AerospikeVersion,
+		"aginodim":           fmt.Sprintf("%t", c.NoDIM),
+		"aerolab.agi.volume": "true",
 
 		// Template and architecture for consistent reattach
 		"agitemplate": templateName,
@@ -1588,7 +1633,14 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 }
 
 // getAvailableMemory gets the available memory on the instance.
-func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backendType string) (int64, error) {
+//
+// Returns the total host RAM (totalMem, as reported by /proc/meminfo
+// MemTotal) and the post-reservation budget (memSize = totalMem -
+// reserved). Both are exposed because the Pebble sizing helpers cap
+// against totalMem (the OOM guardrail is a fraction of the *whole*
+// host) while the rest of the pipeline budgets against memSize (the
+// portion AGI may safely allocate after carving out the OS reserve).
+func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backendType string) (totalMem int64, memSize int64, err error) {
 	var lastErr error
 	var lastStdout, lastStderr string
 
@@ -1633,47 +1685,106 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 		// Success - parse the memory value
 		fields := strings.Fields(lines[1])
 		if len(fields) < 2 {
-			return 0, fmt.Errorf("malformed memory line: %q", lines[1])
+			return 0, 0, fmt.Errorf("malformed memory line: %q", lines[1])
 		}
 
-		totalMem, err := strconv.ParseInt(fields[1], 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse memory: %w", err)
+		total, perr := strconv.ParseInt(fields[1], 10, 64)
+		if perr != nil {
+			return 0, 0, fmt.Errorf("failed to parse memory: %w", perr)
 		}
 
 		// Reserve memory: 6GB for cloud, 3GB for docker
-		var reserved int64
+		reserved := agiOSReserveBytes(backendType)
+		mSize := total - reserved
+		// Minimum viable memSize differs by deployment:
+		//   - Cloud uses the 50%-of-host Pebble budget cap and the
+		//     full ingest/plugin concurrency; below 5 GiB memSize
+		//     the generated config pegs at 100% memory and OOMs.
+		//   - Docker uses the legacy "memSize/2" Pebble heuristic
+		//     and lower concurrency (MaxPutThreads halved); the
+		//     classic 1 GiB floor still works.
+		var minViable int64
 		if backendType == "docker" {
-			reserved = 3 * 1024 * 1024 * 1024
+			minViable = int64(1) << 30
 		} else {
-			reserved = 6 * 1024 * 1024 * 1024
+			minViable = agiNonPebbleOverheadBytes + (int64(1) << 30)
+		}
+		if mSize < minViable {
+			return 0, 0, fmt.Errorf("not enough RAM after %d GiB OS reserve: have %d GiB, need at least %d GiB",
+				reserved/(1<<30), mSize/(1<<30), minViable/(1<<30))
 		}
 
-		memSize := totalMem - reserved
-		if memSize < 1024*1024*1024 {
-			return 0, fmt.Errorf("not enough RAM (min 1GB after reservation)")
-		}
-
-		return memSize, nil
+		return total, mSize, nil
 	}
 
 	// All retries failed
-	return 0, fmt.Errorf("failed to get memory info after 10 attempts: %w (stdout=%q stderr=%q)", lastErr, lastStdout, lastStderr)
+	return 0, 0, fmt.Errorf("failed to get memory info after 10 attempts: %w (stdout=%q stderr=%q)", lastErr, lastStdout, lastStderr)
+}
+
+// pebbleConfig collects the Pebble DB tuning values that get embedded
+// into both ingest.yaml and plugin.yaml. They MUST agree across both
+// configs because the merged service (cmdAgiExecService) opens one
+// shared Pebble handle and applies whichever set of options the
+// caller built first; mismatched yaml lets one half silently win.
+type pebbleConfig struct {
+	CacheBytes            int64
+	MemTableBytes         uint64
+	MaxCompactions        int
+	StopWritesThreshold   int
+	BlockSize             int
+	Compression           string
+	TargetFileSizeL0      int64
+	BytesPerSync          int
+	LBaseMaxBytes         int64
+	L0StopWritesThreshold int
+	EnableBloomFilter     bool
+	// PostIngestCompact only flows into ingest.yaml; the plugin
+	// never ingests so this knob has no meaning there. Kept in the
+	// shared struct so generateConfigs has one place to derive every
+	// per-deployment Pebble decision before fanning out to the two
+	// generators.
+	PostIngestCompact bool
 }
 
 // generateConfigs generates all AGI configuration files.
-func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendType string) (map[string][]byte, error) {
+func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, backendType string) (map[string][]byte, error) {
 	configs := make(map[string][]byte)
 
+	// Compute Pebble DB tuning from the instance's memory profile and
+	// storage shape. totalMem is the host's total RAM (used for the
+	// 50%-of-host guardrail); memSize is the post-reservation budget
+	// (used for the per-process budget that ingest+plugin+Go also
+	// share); backendType picks the EFS-/NFS-tuned vs local-FS tuned
+	// branch for every helper that has one.
+	pcfg := pebbleConfig{
+		CacheBytes:            computePebbleCacheBytes(totalMem, memSize, backendType),
+		MemTableBytes:         computePebbleMemTableBytes(totalMem, memSize, backendType),
+		MaxCompactions:        computePebbleMaxConcurrentCompactions(backendType),
+		BlockSize:             computePebbleBlockSize(backendType),
+		Compression:           computePebbleCompression(backendType),
+		TargetFileSizeL0:      computePebbleTargetFileSizeL0(backendType),
+		BytesPerSync:          computePebbleBytesPerSync(backendType),
+		LBaseMaxBytes:         0, // set below — depends on MemTableBytes
+		L0StopWritesThreshold: computePebbleL0StopWritesThreshold(backendType),
+		EnableBloomFilter:     computePebbleEnableBloomFilter(backendType),
+		PostIngestCompact:     computePebblePostIngestCompact(backendType),
+	}
+	pcfg.StopWritesThreshold = computePebbleStopWritesThreshold(totalMem, memSize, pcfg.MemTableBytes, backendType)
+	// LBaseMaxBytes scales with the memtable size we picked so that
+	// LBase always has room for several flushes before triggering
+	// the LBase→L1 compaction cascade. Must come after MemTableBytes
+	// is set; see computePebbleLBaseMaxBytes for the ratio rationale.
+	pcfg.LBaseMaxBytes = computePebbleLBaseMaxBytes(backendType, pcfg.MemTableBytes)
+
 	// Generate ingest.yaml
-	ingestConfig, err := c.generateIngestConfig(backendType)
+	ingestConfig, err := c.generateIngestConfig(backendType, pcfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate ingest config: %w", err)
 	}
 	configs["/opt/agi/ingest.yaml"] = ingestConfig
 
 	// Generate plugin.yaml
-	pluginConfig := c.generatePluginConfig(backendType)
+	pluginConfig := c.generatePluginConfig(backendType, pcfg)
 	configs["/opt/agi/plugin.yaml"] = pluginConfig
 
 	// Generate grafanafix.yaml
@@ -1708,26 +1819,531 @@ func (c *AgiCreateCmd) generateConfigs(system *System, memSize int64, backendTyp
 	return configs, nil
 }
 
+// agiNonPebbleOverheadBytes is the amount of memSize that AGI sets
+// aside for non-Pebble process needs: the ingest pipeline (PutBatch
+// shards × batch size × row size, scanner read buffers, decompressors),
+// the plugin pipeline (in-flight queries' decoded rows + result
+// buffers), the Go runtime (heap + goroutine stacks + GC overhead),
+// and the in-process Grafana / grafanafix bits. Empirically ~4 GiB at
+// the configured concurrency limits. Pebble's budget is computed as
+// memSize - this constant so all three layers fit at peak load.
+const agiNonPebbleOverheadBytes = int64(4) << 30
+
+// agiOSReserveBytes is the OS / system reserve carved out of the
+// host's total RAM before AGI may allocate. It is mirrored in
+// getAvailableMemory and the AGI monitor sizing formula; keep all
+// three in lockstep or instances generated here will fail the
+// monitor's pre-process sizing check.
+func agiOSReserveBytes(backendType string) int64 {
+	if backendType == "docker" {
+		return int64(3) << 30
+	}
+	return int64(6) << 30
+}
+
+// computePebbleTotalBudget returns the maximum number of host RAM
+// bytes Pebble may consume across its block cache and memtables
+// combined. It is the joint constraint of two limits:
+//
+//  1. **50% of total host RAM** — a hard guardrail against OOM under
+//     sudden plugin-query load, regardless of memSize. The remaining
+//     50% covers the OS reserve, ingest/plugin pipeline buffers, the
+//     Go runtime, Grafana, and the OS page cache that itself helps
+//     Pebble's L1+ reads.
+//  2. **memSize − agiNonPebbleOverheadBytes** — leaves at least
+//     agiNonPebbleOverheadBytes inside the post-reservation budget
+//     for the merged process's non-Pebble parts.
+//
+// On Docker the original "half of memSize" heuristic is preserved so
+// the existing dev path is unchanged.
+func computePebbleTotalBudget(totalMem, memSize int64, backendType string) int64 {
+	if backendType == "docker" {
+		return memSize / 2
+	}
+	halfHost := totalMem / 2
+	afterOverhead := memSize - agiNonPebbleOverheadBytes
+	if afterOverhead < 0 {
+		afterOverhead = 0
+	}
+	budget := halfHost
+	if afterOverhead < budget {
+		budget = afterOverhead
+	}
+	// Floor: even on very small cloud hosts (which AGI is not
+	// targeted at, but which we should not crash on at config
+	// generation), keep enough room for a minimal cache + a couple
+	// of memtables so the LSM remains functional.
+	const minBudget = int64(512) << 20
+	if budget < minBudget {
+		budget = minBudget
+	}
+	return budget
+}
+
+// computePebbleCacheBytes returns the recommended Pebble block cache
+// size.
+//
+// Cloud (AWS/GCP): half of the Pebble budget (see
+// computePebbleTotalBudget) goes to the explicit block cache; the
+// other half is reserved for peak memtable RAM. The value is
+// floored at 256 MiB and capped at 16 GiB — beyond 16 GiB, marginal
+// value drops sharply because the OS page cache is just as
+// effective for cold reads and cheaper to evict during compaction.
+// When the cache cap binds, the unused portion of the budget flows
+// to memtables (see computePebbleMemTableBytes).
+//
+// Docker: keeps the original "half of memSize" heuristic. Docker
+// AGIs use small fixed-size memtables (64–256 MiB × default 4
+// threshold) whose peak RAM is well under 1 GiB, so the cache and
+// memtable budgets do not need to share a pool — the original
+// formula is unchanged from the pre-budget-cap behaviour.
+func computePebbleCacheBytes(totalMem, memSize int64, backendType string) int64 {
+	const floor = int64(256) << 20
+	const cap = int64(16) << 30
+	var cache int64
+	if backendType == "docker" {
+		cache = memSize / 2
+	} else {
+		cache = computePebbleTotalBudget(totalMem, memSize, backendType) / 2
+	}
+	if cache < floor {
+		cache = floor
+	}
+	if cache > cap {
+		cache = cap
+	}
+	return cache
+}
+
+// computePebbleMemTableBytes returns the recommended per-memtable
+// size (Pebble's write buffer). On cloud (AWS/GCP, EFS-backed) the
+// size is auto-picked so that the EFS-jitter buffer floor of 8
+// memtables fits in the half of the Pebble budget reserved for
+// memtables — i.e. 8 × memTableBytes ≤ memtableBudget.
+//
+// Docker AGIs run on local FS where SSTable creation is sub-
+// millisecond; the original tuning (256 MiB on >=6 GiB hosts,
+// 64 MiB below) is throughput-bound on the actual write rather
+// than file metadata, so we leave it alone.
+//
+// Cloud rationale: each memtable flush on EFS opens a new SSTable
+// (O_CREAT → write → fsync → atomic rename → MANIFEST update + sync),
+// each metadata step costing 20–100 ms (vs <1 ms on NVMe). The
+// dominant ingest cost is therefore the *number* of flushes, not the
+// bytes-per-flush. Larger memtables linearly reduce flush count, so
+// we pick the largest size that still lets 8 memtables fit in the
+// memtable budget, capped at 1 GiB (beyond which a single flush
+// duration starts producing user-visible PutBatch stalls when the
+// stop-writes queue overruns during a slow EFS moment).
+//
+// Choice ladder on cloud (per-memtable budget = memtableBudget / 8):
+//
+//	≥ 1024 MiB → 1 GiB      // r7a.2xlarge and bigger
+//	≥  512 MiB → 512 MiB    // mid-size hosts
+//	≥  256 MiB → 256 MiB    // m7i.xlarge / 16 GiB cloud
+//	≥  128 MiB → 128 MiB    // tight hosts
+//	otherwise   → 64 MiB    // floor
+func computePebbleMemTableBytes(totalMem, memSize int64, backendType string) uint64 {
+	if backendType == "docker" {
+		if memSize >= int64(6)<<30 {
+			return uint64(256) << 20
+		}
+		return uint64(64) << 20
+	}
+	cacheBytes := computePebbleCacheBytes(totalMem, memSize, backendType)
+	pebbleBudget := computePebbleTotalBudget(totalMem, memSize, backendType)
+	memtableBudget := pebbleBudget - cacheBytes
+	if memtableBudget < int64(64)<<20 {
+		return uint64(64) << 20
+	}
+	const target = int64(8) // EFS-jitter floor — match computePebbleStopWritesThreshold
+	per := memtableBudget / target
+	switch {
+	case per >= int64(1)<<30:
+		return uint64(1) << 30
+	case per >= int64(512)<<20:
+		return uint64(512) << 20
+	case per >= int64(256)<<20:
+		return uint64(256) << 20
+	case per >= int64(128)<<20:
+		return uint64(128) << 20
+	default:
+		return uint64(64) << 20
+	}
+}
+
+// computePebbleMaxConcurrentCompactions returns the upper bound on
+// concurrent Pebble compactions for the deployment.
+//
+// Docker AGIs use local FS where parallel compactions saturate
+// disk bandwidth and serialize harmlessly behind it; we return 0
+// so the db package's 4-way default applies (db.DefaultOptions).
+//
+// Cloud AGIs back /opt/agi with EFS. We allow exactly two
+// concurrent compactions: one memtable flush pipelining with one
+// L0→Lbase compaction. The earlier "1" choice was made when the
+// rest of the LSM was un-tuned (small SSTables, default
+// BytesPerSync, default LBaseMaxBytes) and parallel compactions
+// thrashed the MANIFEST + directory inode metadata path. After
+// the BlockSize / TargetFileSize / BytesPerSync=disabled /
+// LBaseMaxBytes=4×memTable changes, each compaction produces far
+// fewer, much larger SSTables, so the metadata-RTT cost is
+// amortised across enough bytes that two streams of fsync round-
+// trips can pipeline at the EFS server in parallel without
+// over-subscribing the per-NFS-client cap. The expected win is
+// flush-while-compacting overlap, removing the "memtable
+// stalls until compaction drains" dead time that "1" forces.
+// Higher values (4-6) regressed in earlier testing because the
+// LSM was not yet shaped to absorb them; if a future change moves
+// the ingest off EFS the budget should be re-evaluated. Operators
+// that observe write stalls can override via the
+// maxConcurrentCompactions yaml key.
+func computePebbleMaxConcurrentCompactions(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default = 4
+	}
+	return 2
+}
+
+// computePebbleStopWritesThreshold returns the upper bound on the
+// number of memtables Pebble keeps alive (active + queued +
+// flushing) before blocking incoming PutBatch calls.
+//
+// Docker AGIs run on local FS where memtable flushes are fast and
+// the writer rarely backs up; we return 0 so the db package's
+// default of 4 applies (db.DefaultOptions). Worst-case memtable
+// RAM at default Docker memtable sizes is well under 1 GiB.
+//
+// Cloud AGIs back /opt/agi with EFS, where a single memtable flush
+// can take 30+ seconds (EFS bandwidth + metadata RTTs). Any
+// transient EFS slowdown stalls the writer the moment the queue
+// hits the default of 4 — we therefore set a floor of 8 to absorb
+// short EFS hiccups without leaking flushes back to the foreground
+// put path. On bigger hosts where the memtable budget exceeds
+// 8 × memTableBytes the threshold scales with the budget up to a
+// ceiling of 32 (beyond which the post-EFS-recovery flush queue
+// takes pathologically long to drain).
+//
+// computePebbleMemTableBytes already auto-picks memTableBytes so
+// that 8 × memTableBytes ≤ memtableBudget, so the floor of 8 is
+// always satisfiable on cloud — no danger of peak memtable RAM
+// blowing the budget on small hosts.
+//
+// Worked examples (cloud only, with the auto-picked memTableBytes):
+//
+//	 16 GiB host: memtableBudget=3 GiB, memTableBytes=256 MiB → 12 → floor=8 wins (peak 2 GiB)
+//	 32 GiB host: memtableBudget=8 GiB, memTableBytes=1 GiB   → 8  → floor=8 wins (peak 8 GiB)
+//	 64 GiB host: memtableBudget=16 GiB, memTableBytes=1 GiB  → 16 → budget wins  (peak 16 GiB)
+//	128 GiB host: memtableBudget=32+ GiB, memTableBytes=1 GiB → 32 → ceiling wins (peak 32 GiB)
+func computePebbleStopWritesThreshold(totalMem, memSize int64, memTableBytes uint64, backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default = 4
+	}
+	if memTableBytes == 0 {
+		return 8
+	}
+	cacheBytes := computePebbleCacheBytes(totalMem, memSize, backendType)
+	pebbleBudget := computePebbleTotalBudget(totalMem, memSize, backendType)
+	memtableBudget := pebbleBudget - cacheBytes
+	if memtableBudget < 0 {
+		memtableBudget = 0
+	}
+	const floor = 8
+	const ceiling = 32
+	n := int(uint64(memtableBudget) / memTableBytes)
+	if n < floor {
+		n = floor
+	}
+	if n > ceiling {
+		n = ceiling
+	}
+	return n
+}
+
+// computePebbleBlockSize returns the SSTable data-block size for the
+// deployment.
+//
+// Docker AGIs use local FS where read amplification on point Gets
+// dominates the trade-off; we return 0 so the db package leaves
+// Pebble's default of 4 KiB in place.
+//
+// Cloud AGIs back /opt/agi with EFS. Every block-sized write to an
+// SSTable is one NFS WRITE RPC; EFS bills "≥4 KiB per request" and
+// each request pays a fixed ~2.7 ms write latency. A 128 KiB block
+// pays the same per-RPC overhead as a 32 KiB block while moving 4×
+// the bytes per round-trip, so the streaming write rate scales
+// roughly linearly with BlockSize until the per-NFS-client byte
+// cap (500 MiBps on One Zone) becomes the next ceiling. We're
+// nowhere near that ceiling at AGI's measured ~24 MiB/s, so
+// bigger blocks should translate fairly directly into ingest
+// wall-clock savings.
+//
+// On the read side: AGI's hot path is timestamp-range scans where
+// successive iterator reads land in the same block; bigger blocks
+// are nearly free because the same prefetched bytes serve more
+// rows. Cold point Gets decompress 4× more bytes per call than at
+// 32 KiB, but the plugin is scan-heavy and the extra Snappy/Zstd
+// CPU per cold block is sub-millisecond at modern instance sizes.
+//
+// The compounding effect with "balanced" compression (Snappy /
+// MinLZ on upper levels, Zstd1 on the bottom 1-2 levels) is where
+// the bulk of the on-disk savings come from for the int-heavy AGI
+// metric workload — bigger blocks give the codec more
+// cross-row redundancy to fold out.
+func computePebbleBlockSize(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default → pebble default = 4 KiB
+	}
+	return 128 << 10 // 128 KiB
+}
+
+// computePebbleCompression returns the SSTable compression profile
+// for the deployment.
+//
+// Docker AGIs use local FS where Snappy is already the right
+// trade-off (cheap CPU, quick flushes, low write amplification);
+// we return "" so the db package leaves Pebble's uniform-Snappy
+// default in place.
+//
+// Cloud AGIs back /opt/agi with EFS, where on-disk byte volume is
+// the bottleneck and CPU has slack on the deployed instance shapes.
+// "balanced" maps to Pebble's DBCompressionBalanced: cheap codecs
+// (FastestCompression — MinLZ on x86_64 / Snappy on arm64) on the
+// upper LSM levels so flushes and minor compactions stay on the
+// hot path, plus Zstd level 1 on the bottom 1-2 levels where the
+// bulk of bytes settle. This concentrates Zstd CPU on the level
+// where it amortises best (data is rewritten there once and
+// stays) while never adding Zstd cost to the foreground writer.
+//
+// On the AGI metric workload (varint-encoded integer columns,
+// repeated colID/type tag bytes per row, timestamp-clustered
+// blocks) the realistic on-disk improvement vs uniform Snappy is
+// roughly 25-40%, which translates almost linearly into ingest
+// wall-clock when EFS-bandwidth-bound.
+func computePebbleCompression(backendType string) string {
+	if backendType == "docker" {
+		return "" // db default → pebble default = uniform Snappy
+	}
+	return "balanced"
+}
+
+// computePebbleTargetFileSizeL0 returns the target SSTable size at L0.
+// All higher levels double from this value (Pebble cascades the
+// chain in options.go::EnsureDefaults: TargetFileSizes[i] =
+// TargetFileSizes[i-1] * 2 for any unset entry).
+//
+// Docker AGIs use local FS where SSTable creation is sub-millisecond;
+// Pebble's default 2 MiB L0 target is fine and we return 0 to leave it
+// alone.
+//
+// Cloud AGIs back /opt/agi with EFS, where each new SSTable costs 2-3
+// metadata RTTs (~60-90 ms) for the open / close / atomic-rename +
+// MANIFEST update path. With Pebble's default 2 MiB target, a 1 GiB
+// memtable flush splits into ~500 files, paying tens of seconds of
+// pure metadata cost per flush. We previously bumped to 32 MiB
+// (~32 files per flush); 64 MiB halves that again to ~16 files
+// per flush. Combined with the 128 KiB BlockSize change, each of
+// those files is also written in 4× larger NFS RPCs.
+//
+// The cascaded chain at 64 MiB L0 looks like:
+//
+//	L0 = 64 MiB         (memtable flush output)
+//	L1 = 128 MiB        (LBase compaction target)
+//	L2 = 256 MiB
+//	L3 = 512 MiB
+//	L4 = 1 GiB
+//	L5 = 2 GiB
+//	L6 = 4 GiB
+//
+// All of these still fit inside LBaseMaxBytes (4 × memTableBytes ≈
+// 4 GiB on the typical AGI shape), so L0→Lbase compaction never
+// has to split across multiple LBase files for size reasons —
+// keeping the per-compaction MANIFEST update count to one. Read-
+// side: indexed range scans (the plugin's hot path) prefer fewer,
+// larger files because each open() is one NFS round-trip; cold
+// Gets pay the same per-block decompression cost regardless of
+// file size.
+func computePebbleTargetFileSizeL0(backendType string) int64 {
+	if backendType == "docker" {
+		return 0 // db default → pebble default 2 MiB
+	}
+	return int64(64) << 20 // 64 MiB
+}
+
+// computePebbleBytesPerSync returns the periodic-sync cadence in
+// bytes for SSTable writes.
+//
+// Docker AGIs use local FS where Pebble's default 512 KiB cadence
+// "smooths writes" by issuing sync_file_range to bound the dirty
+// page-cache window per file. We return 0 (db default → pebble
+// default) so Docker stays unchanged.
+//
+// Cloud AGIs back /opt/agi with EFS, where each sync_file_range call
+// becomes a synchronous NFS COMMIT (~30 ms each). Default cadence
+// fires one COMMIT per 512 KiB of SSTable data — thousands of round
+// trips per ingest run, all of them inline on the writer goroutine.
+// We return db.BytesPerSyncDisabled to set Pebble's BytesPerSync to 0,
+// disabling the periodic sync entirely. This is durability-neutral
+// for AGI: the WAL is already off (re-ingest from source on crash)
+// and close() still flushes the file.
+func computePebbleBytesPerSync(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default → pebble default 512 KiB
+	}
+	return db.BytesPerSyncDisabled
+}
+
+// computePebbleLBaseMaxBytes returns the max size of LBase, the
+// level into which L0 compacts. **Critical**: this MUST be larger
+// than the memtable size, ideally several times larger.
+//
+// Why: a memtable flush dumps `memTableBytes` of data into L0. If
+// LBase < memTableBytes, every single flush overflows LBase the
+// moment its L0 sublevel compacts down — which immediately fires
+// an LBase→L1 compaction, which fires L1→L2, etc. Each step in
+// that cascade is more file create / rename / MANIFEST RTTs on
+// EFS, exactly what we are trying to avoid.
+//
+// Pebble's defaults reflect the right design: 4 MiB memtable +
+// 64 MiB LBase = 16× ratio, so several flushes land before
+// triggering cascade. We mirror that: LBase = 4 × memTableBytes
+// on cloud. Concrete numbers (cloud only):
+//
+//	memTable=64 MiB   → LBase=256 MiB
+//	memTable=128 MiB  → LBase=512 MiB
+//	memTable=256 MiB  → LBase=1 GiB
+//	memTable=512 MiB  → LBase=2 GiB
+//	memTable=1 GiB    → LBase=4 GiB
+//
+// 4× balances three things:
+//   1. Big enough that 4 flushes land before LBase fills (so
+//      cascade fires once per ~4 flushes, not per flush);
+//   2. Small enough that LBase compactions still run in bounded
+//      time and bounded memory;
+//   3. For typical AGI ingest sizes (10-50 GiB), the cascade
+//      fires only a handful of times across the whole run
+//      instead of after every flush.
+//
+// Docker AGIs use local FS where the cascade is cheap (compactions
+// are quick), and the default 64 MiB ÷ 64-256 MiB memtable ratio
+// is already fine. We return 0 to leave Pebble's default in place.
+func computePebbleLBaseMaxBytes(backendType string, memTableBytes uint64) int64 {
+	if backendType == "docker" {
+		return 0 // db default → pebble default 64 MiB
+	}
+	const ratio = 4
+	return int64(memTableBytes) * ratio
+}
+
+// computePebbleL0StopWritesThreshold returns the L0-sublevel count
+// at which Pebble stalls foreground writers (the L0 analogue of
+// MemTableStopWritesThreshold).
+//
+// Docker AGIs use local FS where compactions drain L0 quickly; the
+// default 12 is plenty. We return 0 to leave it alone.
+//
+// Cloud AGIs back /opt/agi with EFS and run with
+// MaxConcurrentCompactions=1 (serialized to keep EFS metadata RTTs
+// from amplifying), so the L0 sublevel queue can spike during slow
+// EFS moments. Stopping at 12 sublevels would stall the ingest
+// pipeline whenever EFS hiccups; 36 absorbs the spike. This is the
+// L0 counterpart to the 8-32 EFS-jitter buffer we apply at the
+// memtable layer.
+func computePebbleL0StopWritesThreshold(backendType string) int {
+	if backendType == "docker" {
+		return 0 // db default → pebble default 12
+	}
+	return 36
+}
+
+// computePebbleEnableBloomFilter returns whether to install a
+// 10-bits-per-key bloom filter on every level.
+//
+// Bloom filters are pure write-side tax: each key is hashed and
+// folded into the per-SSTable filter bytes during flush /
+// compaction (extra CPU on the writer goroutine), the filter
+// itself adds ~1.25 % to the on-disk byte count (extra EFS
+// bandwidth on every flush and compaction), and there is *no*
+// write-path benefit. The payoff is read-only — negative point
+// lookups skip the block fetch — and AGI's plugin reads on the
+// post-Pebble path are already 3× the legacy system, so we
+// optimise for ingest throughput here and leave bloom filters
+// off everywhere by default. Operators with a read-heavy cold
+// query pattern can flip enableBloomFilter: true in the yaml.
+func computePebbleEnableBloomFilter(backendType string) bool {
+	_ = backendType
+	return false
+}
+
+// computePebblePostIngestCompact returns whether to trigger a
+// synchronous full-keyspace db.Compact() at the end of ProcessLogs.
+//
+// Always false. Post-ingest compaction is disabled for every
+// backend (Docker, AWS, GCP) because the synchronous Compact()
+// stalls the "ingest finished" signal for an unbounded amount of
+// time on EFS-backed DBs and has been observed to wedge the
+// service on large runs. The yaml field (db.postIngestCompact)
+// and the ProcessLogs implementation are retained so an operator
+// can still flip it on by hand for a one-off run, but the create
+// command never opts in.
+func computePebblePostIngestCompact(backendType string) bool {
+	_ = backendType
+	return false
+}
+
 // generateIngestConfig generates the ingest.yaml configuration.
-func (c *AgiCreateCmd) generateIngestConfig(backendType string) ([]byte, error) {
+func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfig) ([]byte, error) {
 	config, err := ingest.MakeConfigReader(true, nil, false)
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure based on backend
-	config.Aerospike.MaxPutThreads = 128
-	if backendType == "docker" {
-		config.Aerospike.MaxPutThreads = 64
+	// Pebble DB tuning. The merged service (cmdAgiExecService) opens
+	// one Pebble handle and shares it between ingest and plugin; both
+	// YAML files must therefore declare the same settings or the
+	// operator-set value from one would silently lose to the other
+	// depending on which call site builds the options first.
+	config.DB.CacheBytes = pcfg.CacheBytes
+	config.DB.MemTableSizeBytes = pcfg.MemTableBytes
+	config.DB.MaxConcurrentCompactions = pcfg.MaxCompactions
+	config.DB.MemTableStopWritesThreshold = pcfg.StopWritesThreshold
+	config.DB.BlockSize = pcfg.BlockSize
+	config.DB.Compression = pcfg.Compression
+	config.DB.TargetFileSizeL0 = pcfg.TargetFileSizeL0
+	config.DB.BytesPerSync = pcfg.BytesPerSync
+	config.DB.LBaseMaxBytes = pcfg.LBaseMaxBytes
+	config.DB.L0StopWritesThreshold = pcfg.L0StopWritesThreshold
+	config.DB.EnableBloomFilter = pcfg.EnableBloomFilter
+	config.DB.PostIngestCompact = pcfg.PostIngestCompact
+
+	// MaxPutThreads: explicit CLI override takes precedence over
+	// every other source. Otherwise fall through to the embedded
+	// ingest-config default in pkg/agi/ingest/struct.go (currently
+	// 128). The historical Docker special-case of 64 was removed
+	// after head-to-head pprofs showed no measurable difference
+	// between 64 and 128 worker pools at the same throughput —
+	// parked workers consume zero CPU, so the deeper pool is free
+	// and survives single-shard commit-window stalls a little
+	// better. Anyone genuinely constrained can still pin a
+	// smaller value via --ingest-max-put-threads.
+	if c.IngestMaxPutThreads > 0 {
+		config.MaxPutThreads = c.IngestMaxPutThreads
 	}
-	config.Aerospike.WaitForSindexes = true
 
 	// Pre-processor settings
 	config.PreProcess.FileThreads = 6
 	config.PreProcess.UnpackerFileThreads = 4
 
-	// Processor settings
-	config.Processor.MaxConcurrentLogFiles = 6
+	// MaxConcurrentLogFiles: same precedence rule. Default of 0
+	// in the ingest config selects the auto formula
+	// (clamp(GOMAXPROCS, 4, 16) — see processLogsFeed). The
+	// previous hard-coded value of 6 was removed because it
+	// silently undersized parser parallelism on 16+ vCPU cloud
+	// boxes (the agi pprofs had ~30% idle CPU even with the
+	// downstream lock-skip + 16-shard batcher fixes in place).
+	if c.IngestMaxConcurrentLogFiles > 0 {
+		config.Processor.MaxConcurrentLogFiles = c.IngestMaxConcurrentLogFiles
+	}
 
 	// Progress file settings
 	config.ProgressFile.DisableWrite = false
@@ -1834,10 +2450,23 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string) ([]byte, error) 
 }
 
 // generatePluginConfig generates the plugin.yaml configuration.
-func (c *AgiCreateCmd) generatePluginConfig(backendType string) []byte {
+func (c *AgiCreateCmd) generatePluginConfig(backendType string, pcfg pebbleConfig) []byte {
 	maxDp := 34560000
 	if backendType == "docker" {
 		maxDp = maxDp / 2
+	}
+
+	// Plugin concurrency: the post-Pebble plugin path is snapshot-
+	// isolated, so multiple in-flight queries no longer compete for an
+	// in-memory primary index. Bump the default fan-out so a Grafana
+	// dashboard refresh with several panels is not serialized by the
+	// 4-deep semaphore. On Docker the box is typically tiny — keep
+	// the upstream defaults there.
+	maxRequests := 16
+	maxJobs := 8
+	if backendType == "docker" {
+		maxRequests = 4
+		maxJobs = 4
 	}
 
 	cpuProfiling := ""
@@ -1846,6 +2475,8 @@ func (c *AgiCreateCmd) generatePluginConfig(backendType string) []byte {
 	}
 
 	config := fmt.Sprintf(`maxDataPointsReceived: %d
+maxConcurrentRequests: %d
+maxConcurrentJobs: %d
 logLevel: %d
 addNoneToLabels:
   - Histogram
@@ -1853,7 +2484,24 @@ addNoneToLabels:
   - HistogramUs
   - HistogramSize
   - HistogramCount
-%s`, maxDp, c.PluginLogLevel, cpuProfiling)
+db:
+  cacheBytes: %d
+  memTableSizeBytes: %d
+  maxConcurrentCompactions: %d
+  memTableStopWritesThreshold: %d
+  blockSize: %d
+  compression: %q
+  targetFileSizeL0: %d
+  bytesPerSync: %d
+  lBaseMaxBytes: %d
+  l0StopWritesThreshold: %d
+  enableBloomFilter: %t
+%s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel,
+		pcfg.CacheBytes, pcfg.MemTableBytes, pcfg.MaxCompactions, pcfg.StopWritesThreshold,
+		pcfg.BlockSize, pcfg.Compression,
+		pcfg.TargetFileSizeL0, pcfg.BytesPerSync, pcfg.LBaseMaxBytes, pcfg.L0StopWritesThreshold,
+		pcfg.EnableBloomFilter,
+		cpuProfiling)
 
 	return []byte(config)
 }
@@ -1898,7 +2546,7 @@ func (c *AgiCreateCmd) generateProxyConfig(backendType string) []byte {
 	https := true
 	certFile := "/opt/agi/proxy.cert"
 	keyFile := "/opt/agi/proxy.key"
-	shutdownCmd := "/usr/bin/systemctl stop aerospike; /usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff"
+	shutdownCmd := "/usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff"
 
 	if c.ProxyDisableSSL {
 		listenPort = 80
@@ -1909,7 +2557,7 @@ func (c *AgiCreateCmd) generateProxyConfig(backendType string) []byte {
 
 	if backendType == "docker" {
 		// Docker doesn't need poweroff
-		shutdownCmd = "/usr/bin/systemctl stop aerospike; /usr/bin/sync"
+		shutdownCmd = "/usr/bin/sync"
 	}
 
 	proxyConfig := map[string]any{
@@ -2019,7 +2667,7 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 		}
 		defer cli.Close()
 
-		// Create directories - including aerospike data/smd which are needed when EFS/volume is mounted
+		// Create AGI working directories (created here so they exist when EFS/volume is mounted)
 		dirs := []string{
 			"/opt/agi/files/input",
 			"/opt/agi/files/input/s3source",
@@ -2030,11 +2678,22 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 			"/opt/agi/files/no-stat",
 			"/opt/agi/ingest",
 			"/opt/agi/tokens",
-			"/opt/agi/aerospike/data",
-			"/opt/agi/aerospike/smd",
 		}
 		for _, dir := range dirs {
 			_ = cli.RawClient().MkdirAll(dir)
+		}
+
+		// engineTuningConfigs are configs whose contents depend on the
+		// instance's available memory (memSize) and on memSize-derived
+		// concurrency defaults. When the monitor reattaches the volume
+		// to a different instance type for sizing, these MUST be
+		// refreshed even though NoConfigOverride is set, otherwise the
+		// new (larger) instance keeps running with the old (smaller)
+		// instance's Pebble cache size and plugin concurrency limits,
+		// leaving the extra RAM unused.
+		engineTuningConfigs := map[string]bool{
+			"/opt/agi/ingest.yaml": true,
+			"/opt/agi/plugin.yaml": true,
 		}
 
 		// Upload each config file
@@ -2042,8 +2701,12 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 			// Check if we should skip due to NoConfigOverride
 			if c.NoConfigOverride {
 				if cli.IsExists(path) {
-					logger.Debug("Skipping existing config: %s", path)
-					continue
+					if c.RefreshEngineConfigs && engineTuningConfigs[path] {
+						logger.Info("Refreshing memSize-derived config: %s", path)
+					} else {
+						logger.Debug("Skipping existing config: %s", path)
+						continue
+					}
 				}
 			}
 
@@ -2222,242 +2885,12 @@ func (c *AgiCreateCmd) uploadLocalSource(instance backends.InstanceList, logger 
 	return nil
 }
 
-// configureAerospike generates and uploads the aerospike.conf file.
-func (c *AgiCreateCmd) configureAerospike(instance backends.InstanceList, memSize int64, backendType string, logger *logger.Logger) error {
-	// Calculate storage parameters
-	memSizeGB := memSize / (1024 * 1024 * 1024)
-	var memSizeStr, storEngine, dataSizeStr, rpcStr, wbs, maxWriteCache string
-	var fileSizeInt int64
-
-	// Parse Aerospike version to determine config format
-	// Default to version 8 (latest) since "latest" resolves to newest version
-	// and newer versions don't support memory-size
-	majorVersion := 8
-	versionParts := strings.Split(c.AerospikeVersion, ".")
-	if len(versionParts) > 0 {
-		if v, err := strconv.Atoi(versionParts[0]); err == nil {
-			majorVersion = v
-		}
-	}
-	logger.Info("Aerospike version: %s (major: %d)", c.AerospikeVersion, majorVersion)
-
-	if c.NoDIM {
-		// No data-in-memory mode - use storage-engine device
-		storEngine = "device"
-		if c.NoDIMFileSize != 0 {
-			fileSizeInt = int64(c.NoDIMFileSize)
-		} else {
-			fileSizeInt = 2000
-		}
-		rpcStr = "read-page-cache true"
-		if majorVersion < 7 || (majorVersion == 7 && len(versionParts) > 1 && versionParts[1] == "0") {
-			wbs = "write-block-size 8M"
-		}
-	} else {
-		// Data-in-memory mode
-		if majorVersion >= 7 {
-			// Aerospike 7+: use storage-engine memory with NO memory-size or data-size
-			// Memory is managed automatically
-			storEngine = "memory"
-			fileSizeInt = int64(float64(memSizeGB) / 1.25)
-		} else {
-			// Aerospike < 7: use storage-engine device with memory-size and data-in-memory
-			storEngine = "device"
-			memSizeStr = fmt.Sprintf("memory-size %dG", memSizeGB)
-			dataSizeStr = fmt.Sprintf("data-in-memory %t", true)
-			fileSizeInt = memSizeGB
-			wbs = "write-block-size 8M"
-		}
-	}
-
-	if backendType != "docker" {
-		maxWriteCache = "max-write-cache 1024M"
-	}
-
-	// Get SFTP config first - we need to check for features file before building the config
-	confs, err := instance.GetSftpConfig("root")
-	if err != nil {
-		return fmt.Errorf("could not get SFTP config: %w", err)
-	}
-
-	for _, conf := range confs {
-		conf.MaxRetries = c.MaxRetries
-		conf.RetrySleep = c.RetrySleep
-		cli, err := sshexec.NewSftp(conf)
-		if err != nil {
-			return fmt.Errorf("could not create SFTP client: %w", err)
-		}
-		defer cli.Close()
-
-		// Ensure features file exists before building config
-		// This handles the case where EFS/volume mount overwrites template content
-		hasFeatureFile := false
-
-		// Ensure /opt/agi/aerospike/ directory exists
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike")
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike/data")
-		_ = cli.RawClient().MkdirAll("/opt/agi/aerospike/smd")
-
-		// If user provided a features file, upload it
-		if c.FeaturesFilePath != "" {
-			featuresContent, err := os.ReadFile(string(c.FeaturesFilePath))
-			if err != nil {
-				return fmt.Errorf("could not read features file %s: %w", c.FeaturesFilePath, err)
-			}
-			err = cli.WriteFile(true, &sshexec.FileWriter{
-				DestPath:    "/opt/agi/aerospike/features.conf",
-				Source:      bytes.NewReader(featuresContent),
-				Permissions: 0644,
-			})
-			if err != nil {
-				return fmt.Errorf("could not upload features file: %w", err)
-			}
-			hasFeatureFile = true
-			logger.Info("Uploaded custom features file from %s", c.FeaturesFilePath)
-		} else if cli.IsExists("/opt/agi/aerospike/features.conf") {
-			// Check if features.conf already exists in /opt/agi/aerospike/
-			hasFeatureFile = true
-		} else {
-			// Try to copy from /etc/aerospike/
-			outputs := instance.Exec(&backends.ExecInput{
-				ExecDetail: sshexec.ExecDetail{
-					Command:        []string{"cp", "-n", "/etc/aerospike/features.conf", "/opt/agi/aerospike/features.conf"},
-					SessionTimeout: time.Minute,
-				},
-				Username:        "root",
-				ConnectTimeout:  30 * time.Second,
-				ParallelThreads: 1,
-				MaxRetries:      c.MaxRetries,
-				RetrySleep:      c.RetrySleep,
-			})
-
-			// Check if copy succeeded
-			copyFailed := false
-			if len(outputs) > 0 && outputs[0].Output.Err != nil {
-				copyFailed = true
-			}
-
-			// Re-check if file exists now
-			if !copyFailed && cli.IsExists("/opt/agi/aerospike/features.conf") {
-				hasFeatureFile = true
-			} else {
-				logger.Warn("No features file found at /opt/agi/aerospike/features.conf or /etc/aerospike/features.conf")
-				logger.Warn("Aerospike will start without a feature-key-file directive.")
-				logger.Warn("  - Aerospike Community Edition 6.1+ works without a features file")
-				logger.Warn("  - Aerospike Enterprise requires a valid features file to start")
-			}
-		}
-
-		// Build aerospike.conf with conditional feature-key-file directive
-		var aerospikeConf bytes.Buffer
-		aerospikeConf.WriteString("service {\n")
-		aerospikeConf.WriteString("    proto-fd-max 15000\n")
-		aerospikeConf.WriteString("    work-directory /opt/agi/aerospike\n")
-		aerospikeConf.WriteString("    cluster-name agi\n")
-		if hasFeatureFile {
-			aerospikeConf.WriteString("    feature-key-file /opt/agi/aerospike/features.conf\n")
-		}
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("logging {\n")
-		aerospikeConf.WriteString("    file /var/log/agi-aerospike.log {\n")
-		aerospikeConf.WriteString("        context any info\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("network {\n")
-		aerospikeConf.WriteString("    service {\n")
-		aerospikeConf.WriteString("        address any\n")
-		aerospikeConf.WriteString("        port 3000\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    heartbeat {\n")
-		aerospikeConf.WriteString("        interval 150\n")
-		aerospikeConf.WriteString("        mode mesh\n")
-		aerospikeConf.WriteString("        port 3002\n")
-		aerospikeConf.WriteString("        timeout 10\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    fabric {\n")
-		aerospikeConf.WriteString("        port 3001\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("    info {\n")
-		aerospikeConf.WriteString("        port 3003\n")
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n\n")
-
-		aerospikeConf.WriteString("namespace agi {\n")
-		aerospikeConf.WriteString("    default-ttl 0\n")
-		if memSizeStr != "" {
-			// Aerospike < 7: memory-size at namespace level
-			fmt.Fprintf(&aerospikeConf, "    %s\n", memSizeStr) //nolint:errcheck
-		}
-		aerospikeConf.WriteString("    replication-factor 2\n")
-		fmt.Fprintf(&aerospikeConf, "    storage-engine %s {\n", storEngine) //nolint:errcheck
-		aerospikeConf.WriteString("        file /opt/agi/aerospike/data/agi.dat\n")
-		fmt.Fprintf(&aerospikeConf, "        filesize %dG\n", fileSizeInt) //nolint:errcheck
-		if dataSizeStr != "" {
-			// Aerospike < 7: data-in-memory inside storage-engine device
-			fmt.Fprintf(&aerospikeConf, "        %s\n", dataSizeStr) //nolint:errcheck
-		}
-		if rpcStr != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", rpcStr) //nolint:errcheck
-		}
-		if wbs != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", wbs) //nolint:errcheck
-		}
-		if maxWriteCache != "" {
-			fmt.Fprintf(&aerospikeConf, "        %s\n", maxWriteCache) //nolint:errcheck
-		}
-		aerospikeConf.WriteString("    }\n")
-		aerospikeConf.WriteString("}\n")
-
-		// Upload aerospike.conf to /opt/agi so it can be persisted on EFS
-		err = cli.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/opt/agi/aerospike.conf",
-			Source:      bytes.NewReader(aerospikeConf.Bytes()),
-			Permissions: 0644,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to upload aerospike.conf: %w", err)
-		}
-	}
-
-	// Make sure /etc/aerospike/aerospike.conf points at our patched config.
-	// The Aerospike server package ships a default /etc/aerospike/aerospike.conf
-	// with only a `test` namespace. The AGI template installs a systemd drop-in
-	// that tells asd to read /opt/agi/aerospike.conf instead, but that override
-	// has proven unreliable across distros/versions (in practice asd ends up
-	// reading the stock config and the `agi` namespace is missing, which
-	// manifests as "namespace 'agi' not found on node" warnings in the server
-	// log). Replacing /etc/aerospike/aerospike.conf with a symlink to the AGI
-	// config guarantees asd picks up our config regardless of which code path
-	// systemd actually uses to launch it, and works with pre-existing templates
-	// without requiring a rebuild.
-	linkOutputs := instance.Exec(&backends.ExecInput{
-		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "mkdir -p /etc/aerospike && rm -f /etc/aerospike/aerospike.conf && ln -s /opt/agi/aerospike.conf /etc/aerospike/aerospike.conf"},
-			SessionTimeout: time.Minute,
-		},
-		Username:        "root",
-		ConnectTimeout:  30 * time.Second,
-		ParallelThreads: 1,
-		MaxRetries:      c.MaxRetries,
-		RetrySleep:      c.RetrySleep,
-	})
-	for _, o := range linkOutputs {
-		if o.Output.Err != nil {
-			return fmt.Errorf("failed to link /etc/aerospike/aerospike.conf -> /opt/agi/aerospike.conf: %v (stderr: %s)", o.Output.Err, o.Output.Stderr)
-		}
-	}
-
-	return nil
-}
-
 // startServices starts all AGI services.
 func (c *AgiCreateCmd) startServices(instance backends.InstanceList, logger *logger.Logger) error {
 	logger.Debug("Enabling and starting all AGI services")
 
 	script := `ERRORS=""
-for service in aerospike grafana-server agi-plugin agi-grafanafix agi-proxy agi-ingest; do
+for service in grafana-server agi-plugin agi-grafanafix agi-proxy; do
     if ! systemctl start "$service"; then
         ERRORS="$ERRORS $service"
     fi

@@ -7,17 +7,58 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
-	ps "github.com/mitchellh/go-ps"
 	"golang.org/x/sys/unix"
 )
+
+// pidAlive reports whether pidFile names a PID file containing a
+// numeric PID for a process the kernel still knows about. Returns
+// false on any error (missing file, garbage contents, dead pid). The
+// caller treats the boolean as "the daemon associated with this pid
+// file is up" and never inspects the underlying error — matching the
+// pre-migration behaviour where every per-daemon pid check did the
+// same os.ReadFile / Atoi / FindProcess sequence inline.
+//
+// Note: os.FindProcess on Unix is documented to always succeed, so
+// "still knows about" is enforced by sending signal 0; on platforms
+// where FindProcess is the only check available the helper degrades
+// to "pid file exists and is a number".
+func pidAlive(pidFile string) bool {
+	pidBytes, err := os.ReadFile(pidFile)
+	if err != nil {
+		return false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if err != nil || pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	// Signal 0 doesn't deliver but does the kernel-level liveness
+	// check; an ESRCH/EPERM error means "no such process" or "not
+	// ours, but exists". The latter still counts as alive.
+	if err := proc.Signal(syscall.Signal(0)); err != nil {
+		// If errno is EPERM the process exists under a different
+		// uid; treat that as alive. Anything else (ESRCH, etc.)
+		// means the pid is stale.
+		if errors.Is(err, syscall.EPERM) {
+			return true
+		}
+		return false
+	}
+	return true
+}
 
 // GetAgiStatus retrieves comprehensive system and ingest status from an AGI instance.
 // This function is platform-specific and uses Unix syscalls for system information.
@@ -68,52 +109,32 @@ func GetAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 	}
 
-	// Check process status via ps.Processes()
-	plist, err := ps.Processes()
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range plist {
-		if strings.HasSuffix(p.Executable(), "asd") {
-			status.AerospikeRunning = true
-			break
-		}
-	}
-
-	// Check ingest process via PID file
-	pidf, err := os.ReadFile("/opt/agi/ingest.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.Ingest.Running = true
-			}
-		}
+	// Ingest.Running tracks the ingest *pipeline*, not the host
+	// process. In the merged service (cmdAgiExecService) the ingest
+	// pipeline is a goroutine inside the long-lived plugin process;
+	// AgiExecIngestCmd.run writes /opt/agi/ingest.pid on entry and
+	// removes it via defer when the pipeline finishes (success or
+	// fail), so the file's presence is the canonical "ingest is
+	// currently doing work" signal in BOTH the legacy two-process
+	// and the merged-service worlds. Falling back to service.pid
+	// would pin Ingest.Running=true forever once ingest completes —
+	// breaking the "Ingest Finished" indicator in the UI/monitor
+	// listeners that distinguish finished vs still-running by this
+	// flag flipping false alongside all CompleteSteps being true.
+	if pidAlive("/opt/agi/ingest.pid") {
+		status.Ingest.Running = true
 	}
 
-	// Check plugin process via PID file
-	pidf, err = os.ReadFile("/opt/agi/plugin.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.PluginRunning = true
-			}
-		}
+	// PluginRunning, in contrast, tracks "is the Grafana plugin
+	// HTTP server up to answer queries". Under the merged service
+	// the plugin lives inside service.pid, so either pid file
+	// presence is a valid signal.
+	if pidAlive("/opt/agi/plugin.pid") || pidAlive("/opt/agi/service.pid") {
+		status.PluginRunning = true
 	}
 
-	// Check grafanafix process via PID file
-	pidf, err = os.ReadFile("/opt/agi/grafanafix.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.GrafanaHelperRunning = true
-			}
-		}
+	if pidAlive("/opt/agi/grafanafix.pid") {
+		status.GrafanaHelperRunning = true
 	}
 
 	// Read ingest steps from /opt/agi/ingest/steps.json

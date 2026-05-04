@@ -53,14 +53,14 @@ aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*'
 ```bash
 aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-disk type=gp3,size=100,count=3 \
   --aws-expire=8h
 ```
 
 **AWS Options:**
 - `-I, --instance-type` - Instance type (e.g., `t3a.xlarge`)
-- `--aws-disk` - Disk specification: `type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5]`
+- `--aws-disk` - Disk specification: `type={gp3|gp2|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5]`
 - `--aws-expire` - Expiry time (e.g., `8h`, `30m`, `2h30m`)
 - `-U, --subnet-id` - Subnet ID or availability zone
 - `-L, --public-ip` - Enable public IP
@@ -97,7 +97,7 @@ aerolab cluster create -c 2 -d ubuntu -i 24.04 -v '8.*' \
 ```bash
 aerolab cluster create -n production -c 3 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=24h
 ```
 
@@ -140,7 +140,7 @@ All options from `cluster create` are available, but the cluster must already ex
 ```bash
 aerolab cluster grow -n mydc -c 2 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -173,7 +173,7 @@ This will:
 ```bash
 aerolab cluster apply -c 5 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -181,7 +181,7 @@ aerolab cluster apply -c 5 -d ubuntu -i 24.04 -v '8.*' \
 ```bash
 aerolab cluster apply -c 3 -d ubuntu -i 24.04 -v '8.*' --force \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 
@@ -474,7 +474,7 @@ This imports the SSH public key to allow access to cluster nodes.
 # 1. Create cluster
 aerolab cluster create -n production -c 5 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-disk type=gp3,size=100,count=3 \
   --aws-expire=24h
 
@@ -506,13 +506,13 @@ aerolab aerospike is-stable -n production -w
 # Scale up to 10 nodes
 aerolab cluster apply -n mydc -c 10 -d ubuntu -i 24.04 -v '8.*' \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 
 # Scale down to 5 nodes
 aerolab cluster apply -n mydc -c 5 -d ubuntu -i 24.04 -v '8.*' --force \
   -I t3a.xlarge \
-  --aws-disk type=gp2,size=20 \
+  --aws-disk type=gp3,size=20 \
   --aws-expire=8h
 ```
 

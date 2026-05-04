@@ -48,6 +48,7 @@ Each AGI instance includes:
 
 - **[Quick Start Guide](quick-start.md)** - Get started with AGI in minutes
 - **[Configuration Reference](configuration.md)** - Detailed command options and configuration
+- **[Database Query Tool](query.md)** - Read-only debugging access to the live AGI database
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
 
 ## Quick Example
@@ -125,6 +126,7 @@ aerolab agi list
 | Command | Description |
 |---------|-------------|
 | `agi attach` | Attach to AGI shell |
+| `agi query` | Query the live AGI database (read-only debug; see [query.md](query.md)) |
 | `agi add-auth-token` | Manage authentication tokens |
 | `agi change-label` | Change instance label |
 | `agi run-ingest` | Retrigger log ingestion |

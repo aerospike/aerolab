@@ -243,8 +243,51 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 
 var errNoTimestamp = errors.New("timestamp not found")
 
+// coerceStringInts mutates m in place, converting any string value
+// that parses as a base-10 integer into an int. Called by lineProcess
+// at emission time so the downstream worker (ProcessLogs) and the
+// aggregator pipeline both observe already-typed scalars and the
+// per-row "results := make(map[string]any)" copy that used to live in
+// processLogFile is no longer needed.
+//
+// Only the non-aggregator emission and the new-aggregator storage call
+// this; the aggregator-update branch writes int directly and the
+// aggregator-flushed branch reuses an already-coerced map. Histogram
+// padding is applied before this call so the synthetic "tail" /
+// "<bucket>plus" int values remain ints (they were never strings).
+func coerceStringInts(m map[string]any) {
+	for k, v := range m {
+		if vt, ok := v.(string); ok {
+			if vint, err := strconv.Atoi(vt); err == nil {
+				m[k] = vint
+			}
+		}
+	}
+}
+
 func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
-	for _, p := range s.patterns.Defs[s.defId].Patterns {
+	def := s.patterns.Defs[s.defId]
+	// Replace the linear `for _, p := range Patterns { if
+	// !strings.Contains(line, p.Search) continue }` scan with one
+	// Aho-Corasick lookup that returns the smallest pattern index
+	// whose `search` substring appears in the line. First-match-
+	// wins semantic is preserved exactly: FirstIndex returns the
+	// smallest pattern index, just like the linear loop did. The
+	// inner regex / RegexAdvanced extraction below is untouched —
+	// AC only narrows the candidate from N patterns to 1.
+	//
+	// Tests / patterns built without compile() (matcher == nil)
+	// fall through to the original linear behavior so this file
+	// remains usable in isolation.
+	patterns := def.Patterns
+	if def.matcher != nil {
+		idx := def.matcher.FirstIndex(line)
+		if idx < 0 {
+			return nil, errNotMatched
+		}
+		patterns = def.Patterns[idx : idx+1]
+	}
+	for _, p := range patterns {
 		if !strings.Contains(line, p.Search) {
 			continue
 		}
@@ -373,6 +416,16 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 				}
 				uniq := nMeta[p.Aggregate.On].(string)
 				if _, ok := s.aggregateItems[uniq]; !ok {
+					// Coerce string-int values to int now,
+					// once, so the aggregator stores the
+					// already-typed shape and processLogFile
+					// no longer has to allocate a per-row map
+					// and copy fields just to perform the same
+					// coercion. Subsequent updates of this
+					// aggregator's Field are written as int
+					// directly (see else branch), preserving
+					// the column type.
+					coerceStringInts(nRes)
 					s.aggregateItems[uniq] = &aggregator{
 						stat:      newVal,
 						startTime: timestamp,
@@ -391,6 +444,11 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 				}
 				return ret, nil
 			}
+			// Coerce string-int values once at emission time
+			// (bonus: the per-row map allocation in
+			// processLogFile is gone now that nRes carries the
+			// final types).
+			coerceStringInts(nRes)
 			ret = append(ret, &logStreamOutput{
 				Data:     nRes,
 				Metadata: nMeta,

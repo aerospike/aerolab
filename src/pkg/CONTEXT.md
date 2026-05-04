@@ -42,7 +42,10 @@ The Aerolab `pkg/` directory contains 8 main packages that provide different asp
 - Concurrent processing of logs and collectinfo
 
 #### `agi/plugin`
-**Purpose**: Grafana datasource plugin backend for querying processed log data.
+**Purpose**: Grafana datasource plugin backend for querying processed log
+data. Backed by the embedded `pkg/agi/db` (Pebble LSM) store; the plugin
+opens its own on-disk DB at `Config.DB.Path` and serves queries directly
+from it. No external database daemon is involved.
 
 **Key Exported Functions**:
 - `Init(config *Config) (*Plugin, error)` - Initialize plugin system
@@ -50,10 +53,14 @@ The Aerolab `pkg/` directory contains 8 main packages that provide different asp
 - `MakeConfigReader(setDefaults bool, configYaml io.Reader, parseEnv bool) (*Config, error)` - Create config from reader
 
 **Key Features**:
-- Grafana datasource backend
-- Query processing and caching
-- Metrics and timeseries handling
-- Concurrent request management
+- Grafana datasource backend (JSON-over-HTTP, SimpleJson-style).
+- Query processing and caching: set names, bin list (from `labels/BINLIST`),
+  and per-label dictionaries are refreshed on `CacheRefreshInterval`.
+- Timeseries queries use `db.Query(...).Between("timestamp", lo, hi)` for
+  a primary-index range scan; pushdown filters are built with
+  `db.And / Or / Eq / In / Exists / Not`.
+- Client cancellation is propagated via `r.Context()` into the db iterator.
+- Concurrent request management via `MaxConcurrentRequests` / `MaxConcurrentJobs`.
 
 #### `agi/grafanafix`
 **Purpose**: Grafana setup, dashboard management, and configuration optimization.

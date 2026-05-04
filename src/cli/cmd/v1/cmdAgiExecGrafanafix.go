@@ -135,9 +135,14 @@ func (c *AgiExecGrafanaFixCmd) Execute(args []string) error {
 		}
 	}
 
-	// Run grafanafix (this function runs indefinitely)
+	// Run grafanafix. Under normal operation this blocks indefinitely in the
+	// save-annotations loop and only returns when Grafana fails to become
+	// ready within the readiness timeout, in which case we surface the
+	// error so systemd (Restart=always) restarts us with a fresh attempt.
 	log.Print("Running grafanafix")
-	grafanafix.Run(conf)
+	if err := grafanafix.Run(conf); err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	// This should never be reached under normal operation
 	system.Logger.Info("Done")

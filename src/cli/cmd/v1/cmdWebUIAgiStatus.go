@@ -243,8 +243,6 @@ func mapIngestStatus(s *ingest.IngestStatusStruct) string {
 
 	var statusMsg string
 	switch {
-	case !s.AerospikeRunning:
-		statusMsg = "ERR: ASD DOWN"
 	case !s.GrafanaHelperRunning:
 		statusMsg = "ERR: GRAFANAFIX DOWN"
 	case !s.PluginRunning:

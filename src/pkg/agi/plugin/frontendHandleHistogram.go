@@ -9,10 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	//"github.com/HdrHistogram/hdrhistogram-go"
 	"log"
 
-	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/rglonek/sbs"
 )
 
@@ -51,63 +50,93 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Failed to unmarshal body json (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
+	// Histogram queries do real db.Query work just like the timeseries
+	// path; gate them on the jobs semaphore (in addition to requests)
+	// so a burst of histogram requests cannot saturate p.requests and
+	// starve handleQuery callers. Acquire jobs AFTER body parsing so
+	// malformed requests don't waste a job slot.
+	log.Printf("INFO: QUERY ALLOCATE_JOB (type:histogram) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	jtime := time.Now()
+	p.jobs <- true
+	defer func() {
+		<-p.jobs
+	}()
+	log.Printf("INFO: QUERY DO_JOB (type:histogram) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.jobs), r.RemoteAddr, time.Since(jtime).String())
 
+	// Resolve metric-name and cluster-name indices under the cache
+	// RLock, then release immediately. Holding RLock across the
+	// whole db.Query iteration below would make a concurrent
+	// cacheMetadataList WLock wait for the iterator to drain on
+	// slow scans, serializing histogram responses against every
+	// cache refresh. Copying the two slices we need (the metric
+	// target's Entries and ClusterName's Entries) is O(entries)
+	// but each is at most a few hundred strings and we only do it
+	// once per request.
 	p.cache.lock.RLock()
-	defer p.cache.lock.RUnlock()
-	if _, ok := p.cache.metadata[req.Metric.Target]; !ok {
+	targetMeta := p.cache.metadata[req.Metric.Target]
+	clusterMeta := p.cache.metadata[ClusterNameLabel]
+	p.cache.lock.RUnlock()
+	if targetMeta == nil {
 		log.Printf("WARN: Query target %s does not exist (remote:%s)", req.Metric.Target, r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
 		//nolint:errcheck
 		w.Write([]byte("[]"))
 		return
 	}
-
-	// Find the index of the metric name in the target
-	idxval := slices.Index(p.cache.metadata[req.Metric.Target].Entries, req.Metric.Name)
+	idxval := slices.Index(targetMeta.Entries, req.Metric.Name)
 	if idxval == -1 {
 		responseError(w, http.StatusBadRequest, "Metric %s does not exist in target %s (remote:%s)", req.Metric.Name, req.Metric.Target, r.RemoteAddr)
 		return
 	}
-
-	// Build the filter expression for the metric
-	filter := aerospike.ExpEq(aerospike.ExpIntBin(req.Metric.Target), aerospike.ExpIntVal(int64(idxval)))
-
-	// Filter by cluster
-	idxval = slices.Index(p.cache.metadata["ClusterName"].Entries, req.Cluster)
-	if idxval == -1 {
+	if clusterMeta == nil {
+		responseError(w, http.StatusInternalServerError, "ClusterName metadata missing (remote:%s)", r.RemoteAddr)
+		return
+	}
+	clusterIdx := slices.Index(clusterMeta.Entries, req.Cluster)
+	if clusterIdx == -1 {
 		responseError(w, http.StatusBadRequest, "Cluster %s does not exist (remote:%s)", req.Cluster, r.RemoteAddr)
 		return
 	}
-	clusterfilter := aerospike.ExpAnd(filter, aerospike.ExpEq(aerospike.ExpIntBin("ClusterName"), aerospike.ExpIntVal(int64(idxval))))
 
-	// Aerospike query setup
-	binList := []string{"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"}
-	stmt := aerospike.NewStatement(p.config.Aerospike.Namespace, req.Metric.Set, binList...)
-	dateFilter := aerospike.NewRangeFilter(p.config.Aerospike.TimestampBinName, req.Range.From.UnixMilli(), req.Range.To.UnixMilli())
-	aerr := stmt.SetFilter(dateFilter)
-	if aerr != nil {
-		responseError(w, http.StatusInternalServerError, "Failed to set Aerospike filter: %s", aerr)
-		return
-	}
-	qp := p.queryPolicy()
-	qp.FilterExpression = aerospike.ExpAnd(filter, clusterfilter)
-	//qp.FilterExpression = clusterfilter
-	recset, aerr := p.db.Query(qp, stmt)
-	if aerr != nil {
-		responseError(w, http.StatusInternalServerError, "Aerospike query error: %s", aerr)
-		return
-	}
+	// Buckets "00".."24" map to powers-of-two latency boundaries;
+	// "tail" is the >=8388608 bucket. Every column we want to read
+	// MUST be in the projection, including "tail" — otherwise the
+	// db won't return it. The order doesn't matter to the iterator,
+	// but the switch below MUST handle every column the projection
+	// asks for, and the default case MUST skip unknown columns
+	// rather than aliasing them onto whatever bucket happened to be
+	// last in map iteration order.
+	binList := []string{"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "tail"}
+	filterExpr := db.And(
+		db.Eq(req.Metric.Target, db.Int(int64(idxval))),
+		db.Eq(ClusterNameLabel, db.Int(int64(clusterIdx))),
+	)
+	it := p.db.Query(req.Metric.Set).
+		Between(p.config.TimestampBinName,
+			db.Int(req.Range.From.UnixMilli()),
+			db.Int(req.Range.To.UnixMilli())).
+		Where(filterExpr).
+		Project(binList...).
+		Run(r.Context())
+	defer it.Close()
 
 	response := make(map[int64]int64)
 
 	// TODO: group by node identifier
-	for rec := range recset.Results() {
-		if rec.Err != nil {
-			log.Printf("ERROR: Aerospike record error: %s", rec.Err)
-			continue
-		}
-		key := int64(0)
-		for k, v := range rec.Record.Bins {
+	for it.Next() {
+		_, row := it.Record()
+		// `key` is declared per-column on purpose. An earlier
+		// version hoisted `key` outside this loop, and when the
+		// switch fell through (unknown bucket name) it silently
+		// re-used the previous iteration's `key`, double-counting
+		// one bucket and dropping another. Because Go map iteration
+		// is randomized, the corruption was non-deterministic and
+		// never surfaced consistently in tests. This rewrite scopes
+		// `key` per-iteration AND adds the explicit `default:
+		// continue` below, which together fix the bug. Do not move
+		// `var key int64` outside the inner loop.
+		for k, v := range row {
+			var key int64
 			switch k {
 			case "00":
 				key = 0
@@ -157,8 +186,16 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 				key = 2097152
 			case "23":
 				key = 4194304
-			case "tail":
+			case "24":
 				key = 8388608
+			case "tail":
+				key = 16777216
+			default:
+				// Unknown column (shouldn't happen given the
+				// projection above, but a pattern emitting an
+				// extra bin would otherwise corrupt the
+				// histogram). Drop it rather than aliasing.
+				continue
 			}
 
 			val, err := toInt64(v)
@@ -166,11 +203,12 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 				responseError(w, http.StatusInternalServerError, "Invalid value for key %s: %s", k, err)
 				return
 			}
-			if _, ok := response[key]; !ok {
-				response[key] = 0
-			}
 			response[key] += val
 		}
+	}
+	if err := it.Err(); err != nil {
+		responseError(w, http.StatusInternalServerError, "query iterator: %s", err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -178,26 +216,21 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// toInt64 converts various numeric types to int64
-func toInt64(v any) (int64, error) {
-	switch t := v.(type) {
-	case int:
-		return int64(t), nil
-	case int64:
-		return t, nil
-	case float64:
-		return int64(t), nil
-	case float32:
-		return int64(t), nil
-	case uint64:
-		return int64(t), nil
-	case uint32:
-		return int64(t), nil
-	case uint:
-		return int64(t), nil
-	case string:
-		return strconv.ParseInt(t, 10, 64)
+// toInt64 coerces a db.Value to an int64. TypeInt64 passes through,
+// TypeFloat64 is truncated, TypeString is parsed, and any other type is
+// an error.
+func toInt64(v db.Value) (int64, error) {
+	switch v.Type() {
+	case db.TypeInt64:
+		iv, _ := v.AsInt()
+		return iv, nil
+	case db.TypeFloat64:
+		fv, _ := v.AsFloat()
+		return int64(fv), nil
+	case db.TypeString:
+		sv, _ := v.AsString()
+		return strconv.ParseInt(sv, 10, 64)
 	default:
-		return 0, fmt.Errorf("unsupported type: %T", v)
+		return 0, fmt.Errorf("unsupported type: %s", v.Type())
 	}
 }

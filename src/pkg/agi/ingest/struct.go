@@ -7,9 +7,10 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -19,17 +20,166 @@ type Ingest struct {
 	cpuProfile   *os.File
 	pprofRunning bool
 	progress     *Progress
-	db           *aerospike.Client
-	wp           *aerospike.WritePolicy
-	end          bool
-	endLock      *sync.Mutex
-	binList      *binList
+	db           *db.DB
+	// ownsDB is true when this Ingest opened the db handle itself via
+	// Init(); Close() is then responsible for db.Close. When ownsDB is
+	// false (handle was injected via InitWithDB from a caller that
+	// co-owns the db with the plugin), Close() does NOT close the db —
+	// the caller does.
+	ownsDB  bool
+	end     bool
+	endLock *sync.Mutex
+	binList *binList
+	// bg tracks saveProgressInterval and printProgressInterval so
+	// Close() can Wait for them. They don't touch the db themselves
+	// (they write the progress file) but leaving them alive past
+	// Close() leaks goroutines in tests that spawn many Ingests and
+	// masks lifecycle bugs in longer-running deployments.
+	bg        sync.WaitGroup
+	closeOnce sync.Once
+
+	// putBatcher accumulates per-set metric rows on the
+	// ProcessLogs hot path and flushes them in db.PutBatch chunks
+	// with AssumeNew=true. Initialised in finalizeInit (so both
+	// Init and InitWithDB get one) and closed by Ingest.Close
+	// after the per-row workers have drained. nil only between
+	// newIngest and finalizeInit; the hot path always sees a
+	// non-nil batcher.
+	putBatcher *putBatcher
 }
 
+// binList is the catalog of every column ever produced by ingest.
+// It is published two ways:
+//
+//   - BinNames: the canonical, ordered slice that is JSON-serialised
+//     into the BINLIST row of the labels set. Mutated only under
+//     lock.
+//   - snapshot: an atomic.Pointer to an immutable presence-set map.
+//     The ProcessLogs hot path reads this with NO lock; rare
+//     additions take lock and publish a copy-on-written replacement.
+//
+// The two views are kept in step: a single mutator goroutine takes
+// lock, appends to BinNames, builds a new map = old map ∪ new keys,
+// atomically swaps snapshot, sets changed=true, releases lock.
+//
+// Persistence is decoupled from the hot path. storeBinList() is
+// invoked (a) at the head of every saveProgress() so the on-disk
+// (BINLIST, progress) pair is consistent at every persisted
+// checkpoint — the crash-resume contract relies on this — and (b)
+// at the end of ProcessLogs as a clean-shutdown final flush.
 type binList struct {
 	lock     sync.Mutex
 	BinNames []string `json:"binNames"`
+	// snapshot holds the read-only presence map used by the
+	// lock-free hot path. The pointed-at map is treated as
+	// immutable: writers always allocate a fresh map and atomic
+	// Store, never mutate the existing one. Concurrent readers
+	// holding a stale pointer keep working safely against the old
+	// map until they reload.
+	snapshot atomic.Pointer[map[string]struct{}]
 	changed  bool
+}
+
+// loadSnapshot returns the current immutable presence map; nil only
+// before seedSnapshot has been called (i.e. only in tests that
+// bypass newIngest / finalizeInit).
+func (b *binList) loadSnapshot() *map[string]struct{} {
+	return b.snapshot.Load()
+}
+
+// seedSnapshot publishes a snapshot built from BinNames. Called at
+// the end of newIngest and finalizeInit so the very first hot-path
+// read sees a non-nil map. Caller must hold b.lock or be running
+// during single-threaded init.
+func (b *binList) seedSnapshot() {
+	m := make(map[string]struct{}, len(b.BinNames))
+	for _, n := range b.BinNames {
+		m[n] = struct{}{}
+	}
+	b.snapshot.Store(&m)
+}
+
+// missingNames returns the subset of keys in data that are not
+// present in the current snapshot. Lock-free; safe to call from any
+// goroutine. The returned slice is freshly allocated only when at
+// least one key is missing (the steady-state hot path returns nil).
+func (b *binList) missingNames(data map[string]any) []string {
+	snap := b.snapshot.Load()
+	if snap == nil {
+		out := make([]string, 0, len(data))
+		for k := range data {
+			out = append(out, k)
+		}
+		return out
+	}
+	var out []string
+	m := *snap
+	for k := range data {
+		if _, present := m[k]; !present {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// containsName is the single-key probe used by the upsertMetaEntry
+// first-sighting path. Lock-free.
+func (b *binList) containsName(k string) bool {
+	snap := b.snapshot.Load()
+	if snap == nil {
+		return false
+	}
+	_, ok := (*snap)[k]
+	return ok
+}
+
+// addNames appends every key from `keys` that is not already in the
+// snapshot. Returns the slice of names actually added (so callers
+// can log or react). Acquires b.lock for the duration of the COW;
+// the lock is held for microseconds (one map copy + one slice
+// append) and is uncontested in steady state because the hot path
+// never enters this branch after the first ~thousand rows.
+//
+// addNames re-checks presence under the lock to absorb races where
+// two goroutines saw the same missing key in their own snapshot
+// reads.
+func (b *binList) addNames(keys []string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	cur := b.snapshot.Load()
+	var base map[string]struct{}
+	if cur != nil {
+		base = *cur
+	}
+	var added []string
+	var nextMap map[string]struct{}
+	for _, k := range keys {
+		if _, present := base[k]; present {
+			continue
+		}
+		if nextMap != nil {
+			if _, present := nextMap[k]; present {
+				continue
+			}
+		}
+		if nextMap == nil {
+			nextMap = make(map[string]struct{}, len(base)+len(keys))
+			for kk := range base {
+				nextMap[kk] = struct{}{}
+			}
+		}
+		nextMap[k] = struct{}{}
+		b.BinNames = append(b.BinNames, k)
+		added = append(added, k)
+	}
+	if len(added) > 0 {
+		b.snapshot.Store(&nextMap)
+		b.changed = true
+	}
+	return added
 }
 
 type lineErrors struct {
@@ -86,47 +236,158 @@ func (l *lineErrors) UnmarshalJSON(v []byte) error {
 }
 
 type Config struct {
-	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
-	Aerospike struct {
-		WaitForSindexes     bool   `yaml:"waitForSindexes" default:"true"`
-		Host                string `yaml:"host" default:"127.0.0.1"`
-		Port                int    `yaml:"port" default:"3000"`
-		Namespace           string `yaml:"namespace" default:"agi"`
-		DefaultSetName      string `yaml:"defaultSetName" default:"default"`
-		LogFileRagesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
-		TimestampBinName    string `yaml:"timestampBinName" default:"timestamp"`
-		TimestampIndexName  string `yaml:"timestampIndexName" default:"timestamp_idx"`
-		Timeouts            struct {
-			Connect time.Duration `yaml:"connect" default:"10s"`
-			Idle    time.Duration `yaml:"idle" default:"0"`
-			Socket  time.Duration `yaml:"socket" default:"10s"`
-			Total   time.Duration `yaml:"timeout" default:"30s"`
-		} `yaml:"timeouts"`
-		Retries struct {
-			Connect      int           `yaml:"connect" default:"-1"` // set to -1 to retry forever
-			ConnectSleep time.Duration `yaml:"connectSleep" default:"1s"`
-			Read         int           `yaml:"read" default:"50"`
-			Write        int           `yaml:"write" default:"50"`
-		} `yaml:"retries"`
-		MaxPutThreads int `yaml:"maxPutThreads" default:"128"`
-		Security      struct {
-			Username         string `yaml:"username" envconfig:"LOGINGEST_AEROSPIKE_USER"`
-			Password         string `yaml:"password" envconfig:"LOGINGEST_AEROSPIKE_PASSWORD"`
-			AuthModeExternal bool   `yaml:"authModeExternal"`
-		} `yaml:"security"`
-		TLS struct {
-			CaFile     string `yaml:"caFile"`
-			CertFile   string `yaml:"certFile"`
-			KeyFile    string `yaml:"keyFile"`
-			ServerName string `yaml:"serverName"`
-		} `yaml:"tls"`
-	} `yaml:"aerospike"`
-	Dedup struct {
+	LogLevel int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
+	// DB holds embedded-db tuning knobs only. Pipeline knobs that used
+	// to live here (DefaultSetName, LogFileRangesSetName,
+	// TimestampColumnName, MaxPutThreads) were moved to top-level
+	// fields below — they are not properties of the storage engine.
+	DB struct {
+		// Path is the on-disk directory Pebble writes to. The default
+		// is db.DefaultPath; keep ingest and plugin in lockstep or
+		// they will open separate stores and never see each other's
+		// data.
+		Path                        string `yaml:"path" default:"/opt/agi/db" envconfig:"LOGINGEST_DB_PATH"`
+		CacheBytes                  int64  `yaml:"cacheBytes" default:"0"`                  // 0 -> db default
+		MemTableSizeBytes           uint64 `yaml:"memTableSizeBytes" default:"0"`           // 0 -> db default
+		MemTableStopWritesThreshold int    `yaml:"memTableStopWritesThreshold" default:"0"` // 0 -> db default
+		MaxConcurrentCompactions    int    `yaml:"maxConcurrentCompactions" default:"0"`    // 0 -> db default
+		MaxOpenFiles                int    `yaml:"maxOpenFiles" default:"0"`
+		BlockSize                   int    `yaml:"blockSize" default:"0"`     // 0 -> db default (Pebble default = 4 KiB)
+		Compression                 string `yaml:"compression" default:""`    // "" -> db default (Pebble default = uniform Snappy); see db.Options.Compression for valid values
+		// EFS / NFS-shape Pebble tuning knobs. See db.Options docs
+		// for full semantics. 0 = leave Pebble's default for every
+		// numeric field here (consistent with the rest of this
+		// struct). BytesPerSync also accepts a negative value
+		// (db.BytesPerSyncDisabled) to explicitly disable the
+		// periodic sync_file_range cadence, which is the
+		// EFS-friendly setting.
+		TargetFileSizeL0      int64 `yaml:"targetFileSizeL0" default:"0"`      // 0 -> Pebble default 2 MiB
+		BytesPerSync          int   `yaml:"bytesPerSync" default:"0"`          // 0 -> Pebble default 512 KiB; <0 -> disabled (EFS-friendly)
+		LBaseMaxBytes         int64 `yaml:"lBaseMaxBytes" default:"0"`         // 0 -> Pebble default 64 MiB
+		L0StopWritesThreshold int   `yaml:"l0StopWritesThreshold" default:"0"` // 0 -> Pebble default 12
+		EnableBloomFilter     bool  `yaml:"enableBloomFilter" default:"false"` // false -> Pebble default (no bloom)
+		EnableWAL             bool  `yaml:"enableWAL" default:"false"`
+		SyncWrites            bool  `yaml:"syncWrites" default:"false"`
+		// PostIngestCompact, when true, triggers a synchronous
+		// full-keyspace db.Compact() at the end of ProcessLogs
+		// (just before LogProcessor.Finished is set). The
+		// compaction collapses L0 sublevel overlap, GC's
+		// tombstones, and re-encodes the LSM under the bottom-
+		// level compression profile — typically shrinking the
+		// on-disk DB by 30-50% and making subsequent indexed
+		// range scans (the plugin's hot path) noticeably faster
+		// because they touch a single dense level instead of
+		// merging across L0/L1/L2. The cost is a one-time
+		// post-ingest pause whose duration is bounded by total
+		// DB bytes ÷ EFS bandwidth (typically a few minutes on
+		// AGI-shaped runs). Default false to preserve the legacy
+		// "ingest finished == LogProcessor.Finished == queryable"
+		// timing; cmdAgiCreate flips this on for cloud
+		// (AWS / GCP) deploys where the post-compaction layout
+		// pays for itself immediately on the first plugin query.
+		PostIngestCompact bool `yaml:"postIngestCompact" default:"false"`
+	} `yaml:"db"`
+	// Pipeline tuning. These were under `db:` in earlier versions; they
+	// are not engine-level knobs and were moved here for clarity. AGI
+	// instances are short-lived and not migrated, so the rename is safe.
+	DefaultSetName       string `yaml:"defaultSetName" default:"default"`
+	LogFileRangesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
+	TimestampColumnName  string `yaml:"timestampColumnName" default:"timestamp"`
+	// MaxPutThreads is the size of the worker goroutine pool that
+	// drains resultsChan and forwards rows into the putBatcher
+	// shards. Workers do per-row label stamping, missing-bin
+	// probe, row materialisation, and submit. They do NOT write
+	// to Pebble themselves — that work happens on the batcher
+	// shards (see PutBatchShards). Workers are essentially
+	// row-prep + submit goroutines.
+	//
+	// 0 selects auto = clamp(GOMAXPROCS*2, 4, 32). Default 128 on
+	// the assumption that a deep pool insulates the upstream
+	// resultsChan against single-shard commit-window stalls (each
+	// parked worker effectively holds one extra row of in-flight
+	// buffer past resultsChan). The cost of the deeper pool is
+	// minimal: parked goroutines consume zero CPU, the wakeup
+	// path is O(1) regardless of pool size, and 128 stacks add
+	// ~256 KiB of resident memory.
+	//
+	// The auto branch (set this to 0 explicitly) is preserved for
+	// constrained deployments that genuinely benefit from a
+	// smaller pool — but it is NOT the default because the
+	// "deeper pool wastes CPU" hypothesis did not hold up under
+	// measurement: in head-to-head pprofs at the same throughput
+	// the 128-worker and 16-worker runs had indistinguishable CPU
+	// profiles, with the only observable difference being the
+	// 16-worker run's smaller resultsChan buffer (now decoupled,
+	// so the buffer side is no longer tied to this knob).
+	MaxPutThreads int `yaml:"maxPutThreads" default:"128"`
+	// PutBatchSize is the number of metric rows accumulated per set
+	// before the ingest hot path flushes via db.PutBatch. Larger
+	// batches amortise the Pebble.Batch commit overhead and the
+	// schema-resolution fast-path's lock churn at the cost of
+	// holding more rows in memory between flushes (each row is a
+	// few hundred bytes) and a longer worst-case end-to-end
+	// latency before a row is queryable.
+	//
+	// Default 1024. Was 256, raised after pprofs taken with the
+	// AssumeNew lock-skip in db.PutBatch showed the pipeline's
+	// new gate was per-shard putBatcher.submit blocking — workers
+	// stalled because each shard's commit window kept its inCh
+	// full. Quadrupling the batch size cuts the number of commit
+	// calls per row 4x and gives each shard a longer drain phase
+	// between commits, which directly widens the back-pressure
+	// window before submit blocks. Per-shard inCh capacity is
+	// flushSize*4 = 4096 entries at this default, so a single
+	// commit window has to outlast ~4 batches' worth of
+	// production before submit becomes the bottleneck.
+	//
+	// Memory cost at peak (16 shards × 4096 entries × ~150 B/row)
+	// is on the order of 10 MiB resident, which is trivial next
+	// to the 256 MiB Pebble memtable.
+	PutBatchSize int `yaml:"putBatchSize" default:"1024"`
+	// PutBatchFlushMs is the maximum age of an in-flight batch
+	// before the flusher commits it even if it is below
+	// PutBatchSize. Bounds the staleness window between log-line
+	// arrival and queryability; 50ms keeps the staleness lower
+	// than a typical Grafana refresh interval. Set to 0 to use the
+	// 50ms default; very small values (<5ms) defeat the batching
+	// benefit because the flusher trips before any meaningful
+	// number of rows accumulate.
+	PutBatchFlushMs int `yaml:"putBatchFlushMs" default:"50"`
+	// PutBatchShards is the number of parallel flusher goroutines
+	// behind putBatcher. The pre-sharded batcher used a single
+	// flusher whose db.PutBatch throughput became the ingest
+	// pipeline's hard ceiling once the upstream metaLock was
+	// removed; sharding by maphash(key) lets independent batches
+	// commit through Pebble in parallel because db.PutBatch is
+	// concurrency-safe and stripedLocks never collide across
+	// shards.
+	//
+	// 0 selects auto = min(GOMAXPROCS, 8). The upper cap reflects
+	// that Pebble's commit pipeline saturates well before 8 active
+	// writers on typical AGI hardware; raising this knob beyond
+	// the available cores adds scheduler churn without raising
+	// throughput.
+	PutBatchShards int `yaml:"putBatchShards" default:"0"`
+	Dedup          struct {
 		Enabled   bool `yaml:"enabled" default:"true"`
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`
 	Processor struct {
-		MaxConcurrentLogFiles int `yaml:"maxConcurrentLogFiles" default:"4"`
+		// MaxConcurrentLogFiles caps how many log files are
+		// parsed in parallel (one parser goroutine per file in
+		// flight). 0 selects auto = clamp(GOMAXPROCS, 4, 16);
+		// the resolution lives in processLogsFeed so the same
+		// formula applies whether the value comes from the yaml
+		// default, an envvar, or a CLI override. Cloud boxes
+		// with 16+ vCPU therefore parse 16 files in parallel by
+		// default; small Docker containers (and Docker
+		// Desktop's GOMAXPROCS-respected cgroup) get 4-8.
+		//
+		// 16 is the upper cap because past that the resultsChan
+		// buffer (128 slots) and the batcher fan-in saturate;
+		// adding more parsers just blocks them on chansend
+		// without raising throughput.
+		MaxConcurrentLogFiles int `yaml:"maxConcurrentLogFiles" default:"0"`
 		LogReadBufferSizeKb   int `yaml:"logReadBufferSizeKb" default:"1024"`
 	} `yaml:"processor"`
 	PreProcess struct {
@@ -261,6 +522,13 @@ type patterns struct {
 				Increment bool          `yaml:"increment"` // increment the field value counts by 1 as part of aggregation; this is for lines that have (repeated:X) where the repeated stat does not contain the first argument, only repeat counts
 			} `yaml:"aggregate"`
 		} `yaml:"patterns"`
+		// matcher is the Aho-Corasick automaton over every
+		// Patterns[i].Search string for this Defs entry. Built
+		// once in (*patterns).compile() and used by lineProcess to
+		// pick the first matching pattern in O(len(line)) instead
+		// of N strings.Contains scans. Lower-case name => yaml
+		// decoder skips it.
+		matcher *acMatcher
 	} `yaml:"defs"`
 }
 
@@ -401,7 +669,6 @@ type IngestStatusStruct struct {
 		Errors                   []string
 		ErrorCount               int
 	}
-	AerospikeRunning     bool
 	PluginRunning        bool
 	GrafanaHelperRunning bool
 	System               struct {

@@ -208,9 +208,7 @@
                                 <li class="nav-item dropdown">
                                     <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">Instance</a>
                                     <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsasd">Aerospike Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsproxy">Proxy Logs</a></li>
-                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsingest">Ingest Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsplugin">Plugin Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsgfix">Grafanafix Logs</a></li>
                                         <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#dmesg">Dmesg</a></li>
@@ -328,14 +326,8 @@
                             <div class="tab-pane" id="ingestwarns">
                                 <p class=" card-text"><i class="fa-solid fa-spinner fa-spin"></i></p>
                             </div>
-                            <div class="tab-pane" id="logsasd">
-                                <p class=" card-text" id="logsasdp"><i class="fa-solid fa-spinner fa-spin"></i></p>
-                            </div>
                             <div class="tab-pane" id="logsproxy">
                                 <p class=" card-text" id="logsproxyp"><i class="fa-solid fa-spinner fa-spin"></i></p>
-                            </div>
-                            <div class="tab-pane" id="logsingest">
-                                <p class=" card-text" id="logsingestp"><i class="fa-solid fa-spinner fa-spin"></i></p>
                             </div>
                             <div class="tab-pane" id="logsplugin">
                                 <p class=" card-text" id="logspluginp"><i class="fa-solid fa-spinner fa-spin"></i></p>
@@ -510,10 +502,6 @@
                     shorten = "?shorten=1000";
                 }
                 $.getJSON("/agi/api/status"+shorten, function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated) ?shorten=1000
-                    var asdStatus = "<font color=red>Aerospike NOT Running</font>";
-                    if (data["AerospikeRunning"]) {
-                        asdStatus = "<font color=green>Aerospike Running</font>";
-                    }
                     var pluginStatus = "<font color=red>Grafana Plugin NOT Running</font>";
                     if (data["PluginRunning"]) {
                         pluginStatus = "<font color=green>Grafana Plugin Running</font>";
@@ -583,7 +571,6 @@
                     $('#statusMsg').html($(document.createElement('div'))
                         .css("text-align","left")
                         .append($(document.createElement('ul'))
-                            .append($(document.createElement('li')).html(asdStatus))
                             .append($(document.createElement('li')).html(pluginStatus))
                             .append($(document.createElement('li')).html(gfixStatus))
                             .append($(document.createElement('li')).html(ingestStatus))
@@ -952,9 +939,7 @@
             // AGI logs - up to last 20KiB or 200 lines per log
             function getAgiLogs() {
                 $.getJSON("/agi/api/logs", function(data){
-                    $("#logsasdp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["AerospikeLogs"])));
                     $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
-                    $("#logsingestp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["IngestLogs"])));
                     $("#logspluginp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["PluginLogs"])));
                     $("#logsgfixp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["GrafanaFixLogs"])));
                     $("#dmesgp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["Dmesg"])));
@@ -965,9 +950,7 @@
                         body = "Connection Error";
                     }
                     body = data.statusText+": "+body;
-                    $("#logsasdp").css("text-align","left").text("ERROR: "+body);
                     $("#logsproxyp").css("text-align","left").text("ERROR: "+body);
-                    $("#logsingestp").css("text-align","left").text("ERROR: "+body);
                     $("#logspluginp").css("text-align","left").text("ERROR: "+body);
                     $("#logsgfixp").css("text-align","left").text("ERROR: "+body);
                     $("#dmesgp").css("text-align","left").text("ERROR: "+body);

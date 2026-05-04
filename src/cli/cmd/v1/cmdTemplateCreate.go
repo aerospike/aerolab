@@ -340,7 +340,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			Expire:             TypeExpiry(20 * time.Minute),
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       guiInstanceType(awsInstanceType),
-			Disks:              []string{"type=gp2,size=20"},
+			Disks:              []string{"type=gp3,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			DisablePublicIP:    c.DisablePublicIP,
