@@ -208,42 +208,13 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 	}()
 
-	// SIGUSR1: flush+rotate the plugin CPU profile without restarting
-	// the service. Go's runtime/pprof buffers the entire profile in
-	// memory until StopCPUProfile is called, so the only way for an
-	// operator to obtain a populated cpu.plugin.pprof short of a full
-	// service stop is to ask the running process to rotate. Each
-	// rotation produces a timestamped, fully-formed pprof file next
-	// to the configured output path; the configured path itself
-	// always points at the live (in-memory, 0-byte on disk) profile.
-	// Repeatable: the goroutine drains the channel in a loop and
-	// only exits when usrCh is closed via defer at the end of
-	// Execute. SIGUSR2 is intentionally left unbound so future
-	// "reload config" or similar can claim it without disturbing
-	// the rotate handler.
-	usrCh := make(chan os.Signal, 1)
-	signal.Notify(usrCh, syscall.SIGUSR1)
-	defer func() {
-		signal.Stop(usrCh)
-		close(usrCh)
-	}()
-	go func() {
-		for range usrCh {
-			if p == nil {
-				continue
-			}
-			rotated, err := p.RotateCPUProfile()
-			if err != nil {
-				system.Logger.Warn("plugin CPU profile rotate failed: %s", err)
-				continue
-			}
-			if rotated != "" {
-				system.Logger.Info("plugin CPU profile rotated to %s", rotated)
-			} else {
-				system.Logger.Info("plugin CPU profile started (no prior profile to flush)")
-			}
-		}
-	}()
+	// SIGUSR1 (unix only): flush+rotate the plugin CPU profile without
+	// restarting the service. See cmdAgiExecService_cpuprofile_unix.go
+	// for the full rationale. On Windows this is a no-op because
+	// SIGUSR1 does not exist; operators on Windows must restart the
+	// service to obtain a fully-formed pprof file.
+	stopCPURotate := installCPUProfileRotateHandler(p, system)
+	defer stopCPURotate()
 
 	// Kick off ingest in a goroutine so the plugin can start serving
 	// queries immediately (on cached/partial data if the pipeline is
