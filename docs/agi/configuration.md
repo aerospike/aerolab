@@ -199,10 +199,16 @@ live profile (without rotation) before exit.
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-v, --aerospike-version` | Aerospike server version | `latest` |
 | `--grafana-version` | Grafana version | `11.2.6` |
 | `-d, --distro` | Linux distribution | `ubuntu` |
 | `--distro-version` | Distribution version | `latest` |
+
+**Note:** AGI no longer ships an embedded Aerospike server — log data is
+stored in an embedded Pebble (LSM) DB owned by the `agi-plugin` process.
+There is therefore no `--aerospike-version` flag on `agi create`. The
+Aerospike client tools (`asadm`, `asinfo`) used for source-cluster
+collection are baked into the template; their version is pinned by
+`agi template create --tools-version`.
 
 **Note:** Architecture is automatically detected based on the backend:
 - **Docker**: Uses the host system's architecture
@@ -516,7 +522,7 @@ aerolab agi status [options]
 
 ### Output Includes
 
-- Service status (aerospike, grafana, plugin, ingest, proxy, etc.)
+- Service status (`grafana-server`, `agi-plugin`, `agi-grafanafix`, `agi-proxy`)
 - System resources (memory, disk)
 - Ingest step status
 
@@ -748,16 +754,23 @@ aerolab agi template create [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-v, --aerospike-version` | Aerospike version | `latest` |
-| `--grafana-version` | Grafana version | `11.2.6` |
+| `--tools-version` | Aerospike client tools version (`asadm`, `asinfo`) baked into the template | `latest` |
+| `-g, --grafana-version` | Grafana version | `11.2.6` |
 | `-d, --distro` | Linux distribution | `ubuntu` |
-| `--distro-version` | Distribution version | `latest` |
+| `-i, --distro-version` | Distribution version | `latest` |
 | `-a, --arch` | Architecture (amd64/arm64) | `amd64` |
 | `-t, --timeout` | Timeout in minutes | `20` |
-| `--no-vacuum` | Don't cleanup on failure | |
+| `-n, --no-vacuum` | Don't cleanup on failure | |
 | `--dry-run` | Validate only | |
-| `--owner` | Owner tag | |
+| `-o, --owner` | Owner tag | |
+| `-p, --disable-public-ip` | AWS: don't assign a public IP to the build instance | |
+| `-e, --with-efs` | AWS: pre-install EFS utilities for faster AGI creation | |
 | `-b, --aerolab-binary` | Path to custom aerolab binary (required for unofficial builds) | |
+
+**Note:** AGI templates no longer install an Aerospike server (the embedded
+LSM store is Pebble, linked into the `agi-plugin` binary), so there is no
+`--aerospike-version` flag here. `--tools-version` only governs the
+`asadm` / `asinfo` CLI tools used when collecting from a source cluster.
 
 **Note on Unofficial Builds:**
 

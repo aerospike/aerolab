@@ -6,7 +6,7 @@ AGI (Aerospike Grafana Integration) is a powerful log analysis and visualization
 
 AGI provides:
 - **Log Ingestion** - Import logs from local files, SFTP, S3, or directly from running clusters
-- **Log Processing** - Parse and store log data in an embedded Aerospike database for fast querying
+- **Log Processing** - Parse and store log data in an embedded Pebble (LSM) database for fast querying
 - **Visualization** - Pre-built Grafana dashboards for analyzing log patterns, errors, and performance
 - **Collect Info Analysis** - Process and visualize Aerospike collect info bundles
 - **Web Access** - Browser-based access to dashboards, terminal, and file browser
@@ -28,11 +28,12 @@ This architecture provides:
 ### Components
 
 Each AGI instance includes:
-- **Aerospike Database** - Stores parsed log data for fast querying
+- **AGI DB (Pebble)** - Embedded LSM key/value store that holds parsed log data; opened in-process by the plugin (no separate DB service)
 - **Grafana** - Visualization platform with pre-configured dashboards
-- **AGI Plugin** - Custom Grafana datasource for querying log data
-- **AGI Ingest** - Log parsing and ingestion pipeline
-- **AGI Proxy** - Web proxy with authentication and activity monitoring
+- **AGI Plugin** - Custom Grafana datasource that owns the Pebble handle and runs the ingest pipeline in the same process (`agi-plugin` systemd unit)
+- **AGI Proxy** - Web proxy with authentication and activity monitoring (`agi-proxy`)
+- **AGI Grafanafix** - Reconciles Grafana provisioning on boot (`agi-grafanafix`)
+- **Aerospike tools** - `asadm` / `asinfo` are pre-installed in the template for ad-hoc inspection of source clusters and collectinfo bundles
 - **ttyd** - Web-based terminal for shell access
 - **Filebrowser** - Web-based file manager
 

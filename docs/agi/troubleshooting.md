@@ -93,8 +93,9 @@ aerolab instances destroy -n <instance-name> --force
 **Symptom:** `agi details` shows ingest stuck at initialization.
 
 **Possible Causes:**
-1. Aerospike not running
-2. Configuration error
+1. `agi-plugin` service not running (the plugin owns both the Pebble DB and the ingest pipeline)
+2. Configuration error in `/opt/agi/ingest.yaml` or `/opt/agi/plugin.yaml`
+3. Pebble DB failed to open (stale lock, permission issue, or storage-version mismatch)
 
 **Solutions:**
 ```bash
@@ -266,23 +267,34 @@ aerolab agi attach -n myagi -- tail -100 /var/log/agi-proxy.log
 
 ## Service Status Problems
 
-### Aerospike Not Starting
+### AGI Plugin Not Starting
 
-**Symptom:** Aerospike service is inactive.
+**Symptom:** `agi-plugin` service is inactive or restart-looping. The plugin process owns the embedded Pebble DB and runs the ingest pipeline, so when it fails to start nothing else works either (Grafana loads but every panel returns "No data").
 
 **Solutions:**
 ```bash
-# Check aerospike logs
-aerolab agi attach -n myagi -- journalctl -u aerospike -n 100
+# Check plugin logs (process logs + systemd journal)
+aerolab agi attach -n myagi -- tail -200 /var/log/agi-plugin.log
+aerolab agi attach -n myagi -- journalctl -u agi-plugin -n 200
 
 # Check configuration
-aerolab agi attach -n myagi -- cat /etc/aerospike/aerospike.conf
+aerolab agi attach -n myagi -- cat /opt/agi/plugin.yaml
+aerolab agi attach -n myagi -- cat /opt/agi/ingest.yaml
 
-# Try manual start
-aerolab agi attach -n myagi -- systemctl start aerospike
+# Inspect the Pebble DB directory (default /opt/agi/db)
+aerolab agi attach -n myagi -- ls -la /opt/agi/db/
+
+# Try a manual restart
+aerolab agi attach -n myagi -- systemctl restart agi-plugin
 
 # Check disk space
 aerolab agi attach -n myagi -- df -h
+```
+
+**Storage-version mismatch:** if the journal shows `ErrStorageVersionMismatch`, the on-disk DB was written by an incompatible build. Wipe and re-ingest:
+```bash
+aerolab agi attach -n myagi -- bash -c \
+  'systemctl stop agi-plugin && rm -rf /opt/agi/db /opt/agi/ingest/steps.json && systemctl start agi-plugin'
 ```
 
 ### Grafana Not Accessible
@@ -313,8 +325,8 @@ aerolab agi attach -n myagi -- systemctl status agi-plugin
 # Check plugin logs
 aerolab agi attach -n myagi -- tail -100 /var/log/agi-plugin.log
 
-# Verify aerospike connection
-aerolab agi attach -n myagi -- asinfo -v status
+# Inspect the embedded AGI database directly (read-only)
+aerolab agi query -n myagi --info
 ```
 
 ---
@@ -569,9 +581,9 @@ aerolab agi attach -n myagi -- top -bn1 | head -20
 # Network
 aerolab agi attach -n myagi -- ss -tlnp
 
-# Aerospike status
-aerolab agi attach -n myagi -- asinfo -v status
-aerolab agi attach -n myagi -- asadm -e info
+# AGI database status (size, set count, storage version)
+aerolab agi query -n myagi --info
+aerolab agi query -n myagi --list-sets
 ```
 
 ### File System Check
@@ -598,9 +610,6 @@ aerolab agi attach -n myagi -- cat /opt/agi/ingest.yaml
 
 # Plugin config
 aerolab agi attach -n myagi -- cat /opt/agi/plugin.yaml
-
-# Aerospike config
-aerolab agi attach -n myagi -- cat /etc/aerospike/aerospike.conf
 ```
 
 ---
