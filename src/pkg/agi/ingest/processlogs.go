@@ -258,99 +258,11 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	resultsChan := make(chan *processResult, resultsChanBuf)
 	go i.processLogsFeed(foundLogs, resultsChan, shards)
 
-	// feed results to backend DB.
-	//
-	// Pre-pool design spawned one goroutine per row from a single
-	// dispatcher loop, gated by a 128-slot semaphore. At AGI's
-	// typical throughput of ~1M rows/s the per-row goroutine
-	// creation (~1-3µs each) saturated the dispatcher's single
-	// goroutine and capped the entire pipeline at ~2 cores busy
-	// regardless of how parallel the producers, batcher, or worker
-	// body actually were. The fixed worker pool below removes
-	// that ceiling: N persistent goroutines pull directly from
-	// resultsChan with no per-row spawn and no semaphore.
-	//
-	// Label resolution USED to live inside the worker body too —
-	// each worker resolved every meta key per row via
-	// shards.getOrCreate + upsertMetaEntry, holding metaEntries.mu
-	// each time. Labels with low cardinality (ClusterName,
-	// NodeIdent) had a single mutex shared by every one of the 128
-	// workers; the resulting contention serialised the pipeline
-	// onto roughly the cardinality of the labels (~10 effective
-	// parallel workers) regardless of how many goroutines or cores
-	// were available, and showed up as ~50% idle CPU on 8-vCPU
-	// boxes with throughput stuck around 27 MiB/s on EFS / EBS /
-	// RAMdisk alike (the bottleneck was in-process mutex
-	// contention, not storage). Resolution now happens parser-side
-	// in processLogFile via a per-file resolveCache: the contended
-	// metaEntries.mu path runs O(distinct values per file) instead
-	// of O(rows), and only the 6 parser goroutines (not 128
-	// workers) ever take it. The worker body below is reduced to
-	// stamping pre-resolved indices into rowData.
-	wg := new(sync.WaitGroup)
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
-		go func() {
-			defer wg.Done()
-			for data := range resultsChan {
-				if data.Error != nil {
-					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
-				}
-				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
-					continue
-				}
-				rowData := data.Data
-				fn := data.FileName
-				logLine := data.LogLine
-				setName := data.SetName
-				nodeIdentifier := data.UniqNodeString
-				// Stamp pre-resolved label indices. The parser-side
-				// processLogFile already paid the metaShards /
-				// metaEntries.mu cost (typically once per (file,
-				// key, value) combination via the per-file
-				// resolveCache), so this loop is pure map writes.
-				// Keys absent from data.Resolved are keys that
-				// resolveLabelsCached refused (non-string value or
-				// upsertMetaEntry persist failure) — the row goes
-				// through with one less label rather than dumping
-				// every other label too, matching the legacy
-				// per-key error semantics.
-				for k, idx := range data.Resolved {
-					rowData[k] = idx
-				}
-				// Hot path: lock-free probe against the bin-list
-				// snapshot. After warmup every column is already
-				// known and missingNames returns nil with zero
-				// allocations; the rare miss takes b.lock once
-				// and publishes a copy-on-written replacement.
-				// We deliberately do NOT call storeBinList here.
-				// Persistence is folded into saveProgress (see
-				// trackprogress.go) so the on-disk pair
-				// (BINLIST, progress) is consistent at every
-				// checkpoint, which is the invariant the
-				// crash-resume path relies on.
-				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
-					i.binList.addNames(missing)
-				}
-				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
-				if rerr != nil {
-					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
-					continue
-				}
-				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
-				// See pk.go for the rationale; pre-v3 builds wrote the
-				// raw concatenation as the key, which cost ~150 bytes
-				// per row in two LSM keyspaces (D/ pointer + I/ index
-				// suffix) and bought no functionality the live read
-				// path uses.
-				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
-				if perr := i.putData(setName, pk, row); perr != nil {
-					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
-				}
-			}
-		}()
-	}
-	wg.Wait()
+	// Drain resultsChan via the shared worker pool body. The body
+	// is a closure shared with live mode (see runWorkerPool) so the
+	// batch pipeline and the live listener funnel rows through the
+	// same row-stamp / bin-list update / putBatcher.submit code path.
+	i.runWorkerPool(resultsChan, workers)
 
 	// Final flush of the bin list, in case the last Put inside the
 	// worker-goroutine loop saw changed=false but a later goroutine
@@ -420,6 +332,86 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	i.progress.LogProcessor.Finished = true
 	i.progress.Unlock()
 	return nil
+}
+
+// runWorkerPool drains in (a buffered channel of *processResult)
+// through N worker goroutines and returns when in is closed and the
+// workers have finished. It is the row-emit body shared by the
+// batch pipeline (ProcessLogs) and the live listener
+// (livelisten.Listener via i.SubmitLiveResult).
+//
+// Each worker:
+//
+//   - Stamps pre-resolved label indices (data.Resolved) onto data.Data.
+//     The producer side already paid the metaShards / metaEntries.mu
+//     cost via resolveLabelsCached, so the workers are pure map writes
+//     here.
+//
+//   - Tracks missing bin names against the lock-free bin-list snapshot
+//     and publishes a COW update on a true miss (rare in steady state).
+//
+//   - Builds a typed db.Row via buildDataRow and submits it to the
+//     putBatcher under the metric PK.
+//
+// Pre-pool design spawned one goroutine per row from a single
+// dispatcher loop, gated by a 128-slot semaphore. At AGI's typical
+// throughput of ~1M rows/s the per-row goroutine creation (~1-3µs
+// each) saturated the dispatcher's single goroutine and capped the
+// entire pipeline at ~2 cores busy regardless of how parallel the
+// producers, batcher, or worker body actually were. The fixed
+// worker pool removes that ceiling: N persistent goroutines pull
+// directly from in with no per-row spawn and no semaphore.
+//
+// Label resolution USED to live inside the worker body too — each
+// worker resolved every meta key per row via shards.getOrCreate +
+// upsertMetaEntry, holding metaEntries.mu each time. Labels with low
+// cardinality (ClusterName, NodeIdent) had a single mutex shared by
+// every one of the 128 workers; the resulting contention serialised
+// the pipeline onto roughly the cardinality of the labels (~10
+// effective parallel workers) regardless of how many goroutines or
+// cores were available. Resolution now happens parser-side via a
+// per-file resolveCache; the worker body is reduced to stamping
+// pre-resolved indices into rowData.
+func (i *Ingest) runWorkerPool(in <-chan *processResult, workers int) {
+	if workers <= 0 {
+		workers = 1
+	}
+	wg := new(sync.WaitGroup)
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for data := range in {
+				if data.Error != nil {
+					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
+				}
+				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
+					continue
+				}
+				rowData := data.Data
+				fn := data.FileName
+				logLine := data.LogLine
+				setName := data.SetName
+				nodeIdentifier := data.UniqNodeString
+				for k, idx := range data.Resolved {
+					rowData[k] = idx
+				}
+				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
+					i.binList.addNames(missing)
+				}
+				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
+				if rerr != nil {
+					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
+					continue
+				}
+				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
+				if perr := i.putData(setName, pk, row); perr != nil {
+					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // resolveCache is a per-file (key -> value -> idx) memoiser that

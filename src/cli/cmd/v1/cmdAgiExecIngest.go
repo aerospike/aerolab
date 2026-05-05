@@ -45,7 +45,18 @@ type AgiExecIngestCmd struct {
 	// the check again here would either miss the override (and
 	// wrongly wipe a WAL=on DB) or duplicate work.
 	skipDirtyCheck bool
-	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	// ingestReady, when non-nil, is invoked exactly once by the
+	// run loop right after Init/InitWithDB returns a non-nil
+	// Ingest. The merged service (cmdAgiExecService) uses this
+	// hook to attach the live listener (pkg/agi/livelisten) to
+	// the same Ingest the batch pipeline is about to drive — so
+	// live and batch share the same metaShards / putBatcher /
+	// node-prefix allocator. The callback runs on the goroutine
+	// that produced the Ingest; it should be cheap (the merged
+	// service spawns the listener in its own goroutine and
+	// returns immediately).
+	ingestReady func(*ingest.Ingest)
+	Help        HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute runs the complete log ingestion pipeline.
@@ -283,6 +294,13 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	// own the db (standalone ingest command) or share it (merged
 	// service command).
 	defer i.Close()
+	// Hand the freshly-initialised Ingest to the merged service so
+	// it can attach the live listener. Fire-and-forget: the
+	// callback should not block (the service command starts the
+	// listener on its own goroutine).
+	if c.ingestReady != nil {
+		c.ingestReady(i)
+	}
 
 	// SIGTERM / SIGINT handler: flush ingest progress and db writes
 	// before the process is killed. Without this a `systemctl stop`

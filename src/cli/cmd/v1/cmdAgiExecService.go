@@ -3,19 +3,29 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
+	"github.com/aerospike/aerolab/pkg/agi/livelisten"
 	"github.com/aerospike/aerolab/pkg/agi/plugin"
 )
+
+// shutdownTimeoutUnit is the wall-clock unit used to size the live
+// listener's graceful shutdown deadline on SIGTERM. Sized so the
+// dispatcher's chunked POSTs have time to flush their final
+// X-Last-Offset trailer before the connection closes.
+const shutdownTimeoutUnit = time.Second
 
 // AgiExecServiceCmd runs the ingest pipeline and the Grafana plugin
 // backend together in a single process, sharing one Pebble DB handle.
@@ -186,6 +196,17 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 	}
 
+	// Live ingest plumbing. Declared up here so the SIGTERM
+	// handler can reach Shutdown / liveCancel even though the
+	// listener is constructed on the ingest goroutine. See the
+	// ingestReady callback below for the actual wiring.
+	liveCtx, liveCancel := context.WithCancel(context.Background())
+	defer liveCancel()
+	var (
+		liveListener *livelisten.Listener
+		liveListenMu sync.Mutex
+	)
+
 	// Install a process-level signal handler. On SIGTERM/SIGINT, ask
 	// the plugin to drain; the ingest goroutine will flush via its
 	// own deferred Close when the process exits. The goroutine below
@@ -203,6 +224,25 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 			return
 		}
 		system.Logger.Info("Service: received %s, initiating shutdown", sig)
+		// Stop the live listener BEFORE the plugin so the
+		// dispatcher's POST /agi/ingest/stream calls fail
+		// fast (the proxy 502s its reverse-proxy target) and
+		// the dispatcher's exponential-backoff reconnect
+		// loop kicks in. If we tore down the plugin first
+		// the live listener would still accept new
+		// connections for the duration of the plugin
+		// shutdown, then suddenly close them.
+		liveListenMu.Lock()
+		l := liveListener
+		liveListenMu.Unlock()
+		if l != nil {
+			shCtx, shCancel := context.WithTimeout(context.Background(), 30*shutdownTimeoutUnit)
+			if err := l.Shutdown(shCtx); err != nil {
+				system.Logger.Warn("live listener shutdown: %s", err)
+			}
+			shCancel()
+		}
+		liveCancel()
 		if p != nil {
 			p.Shutdown()
 		}
@@ -231,6 +271,36 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 				YamlFile:       c.IngestYaml,
 				sharedDB:       d,
 				skipDirtyCheck: true,
+			}
+			if ingestCfg.Live.Enabled {
+				// Defensive: reject live mode at runtime
+				// when WAL is off. cmdAgiCreate is supposed
+				// to have forced EnableWAL=true in plugin.yaml
+				// when --enable-live-ingest was set, but a
+				// hand-edited config could still slip through;
+				// log + skip rather than corrupt the DB.
+				if !dbOpts.EnableWAL {
+					system.Logger.Warn("live ingest is enabled in ingest.yaml but plugin.yaml has WAL=off; refusing to start live listener (data would be lost on next restart)")
+				} else {
+					inner.ingestReady = func(i *ingest.Ingest) {
+						l := livelisten.New(i, livelisten.Config{
+							ListenAddr:  ingestCfg.Live.ListenAddr,
+							OffsetsPath: "/opt/agi/live/offsets.json",
+							TokensPath:  "/opt/agi/tokens",
+							MaxStreams:  ingestCfg.Live.MaxStreams,
+							Workers:     ingestCfg.Live.Workers,
+						})
+						liveListenMu.Lock()
+						liveListener = l
+						liveListenMu.Unlock()
+						go func() {
+							system.Logger.Info("Live ingest listener starting on %s", ingestCfg.Live.ListenAddr)
+							if err := l.Serve(liveCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+								system.Logger.Warn("live listener: %s", err)
+							}
+						}()
+					}
+				}
 			}
 			if err := inner.Execute(args); err != nil {
 				system.Logger.Warn("Ingest pipeline returned error: %s", err)
@@ -268,6 +338,25 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 		p.Close()
 	}
+
+	// Clean-shutdown path: tear down the live listener before
+	// waiting on the batch ingest WaitGroup. If the SIGTERM
+	// handler ran already this is idempotent (Shutdown's
+	// stopOnce gate); otherwise this is the path the listener
+	// takes when the operator hits /shutdown on the proxy. We
+	// still bound it with a deadline so a wedged dispatcher
+	// connection cannot hang the merged process forever.
+	liveListenMu.Lock()
+	l := liveListener
+	liveListenMu.Unlock()
+	if l != nil {
+		shCtx, shCancel := context.WithTimeout(context.Background(), 30*shutdownTimeoutUnit)
+		if err := l.Shutdown(shCtx); err != nil {
+			system.Logger.Warn("live listener shutdown: %s", err)
+		}
+		shCancel()
+	}
+	liveCancel()
 
 	// Wait for ingest to finish flushing. ingest installs its own
 	// defer i.Close() so its memtable writes are drained before this

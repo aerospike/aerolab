@@ -46,6 +46,24 @@ type Ingest struct {
 	// newIngest and finalizeInit; the hot path always sees a
 	// non-nil batcher.
 	putBatcher *putBatcher
+	// putBatcherRefs gates putBatcher teardown across the batch
+	// and live ingest paths. Both batch (Close) and live
+	// (livelisten.Listener.Shutdown) hold a ref so the batcher
+	// only drains when the LAST holder releases. Initialised to
+	// 1 in finalizeInit (the batch holder); live mode adds 1 on
+	// Serve and releases on Shutdown via PutBatcherRetain /
+	// PutBatcherRelease. When the count reaches zero, putBatcher
+	// is closed.
+	putBatcherRefs   int
+	putBatcherMu     sync.Mutex
+	// liveResultsChan is the per-process input channel for the
+	// live worker pool. Allocated lazily by StartLiveWorkers; nil
+	// when live mode is not active. The handler in
+	// pkg/agi/livelisten submits *processResult onto this channel,
+	// the worker pool drains it via runWorkerPool (the same code
+	// path the batch pipeline uses).
+	liveResultsChan chan *processResult
+	liveWG          sync.WaitGroup
 }
 
 // binList is the catalog of every column ever produced by ingest.
@@ -429,6 +447,28 @@ type Config struct {
 	findClusterNameNodeIdRegex *regexp.Regexp
 	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
 	SendClusterInfo            string `yaml:"sendClusterInfo" envconfig:"LOGINGEST_SEND_CLUSTER_INFO"`
+	// Live ingest is an additive "live tail" path on top of the
+	// existing batch ingest pipeline. When enabled, the merged AGI
+	// service starts an in-process listener (see pkg/agi/livelisten)
+	// that accepts streamed log lines from a sidecar dispatcher
+	// running on each Aerospike node. The listener feeds rows
+	// through the same logStream / putBatcher / Pebble pipeline the
+	// batch path uses.
+	//
+	// Live mode REQUIRES EnableWAL=true: the dirty-marker mechanism
+	// in init.go wipes the DB on the next start when WAL=off, which
+	// is correct for batch ingest (the source files re-populate the
+	// DB on restart) but not for live ingest (the source lines have
+	// already been consumed and the dispatcher has no replay path).
+	// cmdAgiCreate enforces this in plugin.yaml when --enable-live-
+	// ingest is set, and the merged service refuses to start the
+	// listener at runtime when dbOpts.EnableWAL=false.
+	Live struct {
+		Enabled    bool   `yaml:"enabled" default:"false" envconfig:"LOGINGEST_LIVE_ENABLED"`
+		ListenAddr string `yaml:"listenAddr" default:"127.0.0.1:18080" envconfig:"LOGINGEST_LIVE_ADDR"`
+		Workers    int    `yaml:"workers" default:"16"`
+		MaxStreams int    `yaml:"maxStreams" default:"256"` // safety cap
+	} `yaml:"live"`
 }
 
 type TimeRanges struct {

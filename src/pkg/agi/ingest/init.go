@@ -287,6 +287,12 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 		}
 		sources = sources + "local " + i.config.CustomSourceName
 	}
+	if label := i.config.LiveSourceLabel(); label != "" {
+		if sources != "" {
+			sources = sources + "\n"
+		}
+		sources = sources + label
+	}
 	if labelsSet != "" {
 		metajson, _ := json.Marshal(&metaEntries{
 			Entries: []string{sources},
@@ -323,7 +329,13 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 	// drain in Close (the close() helper handles a never-used
 	// batcher cleanly). The fallback handles type-conflict
 	// retries the same way the pre-batcher putData hot path did.
+	//
+	// putBatcherRefs starts at 1: the batch ingest path is the
+	// initial holder. Live mode calls PutBatcherRetain on Serve
+	// to add a second hold, so Close (the batch-path teardown)
+	// only drains the batcher when both paths have released it.
 	i.putBatcher = newPutBatcher(i.db, i.config.PutBatchSize, i.config.PutBatchFlushMs, i.config.PutBatchShards, i.putDataSingle)
+	i.putBatcherRefs = 1
 	i.bg.Add(2)
 	go func() {
 		defer i.bg.Done()
@@ -374,9 +386,27 @@ func (i *Ingest) Close() {
 		// db.Close can flush an empty memtable. close() blocks
 		// until the flusher's run loop returns, which guarantees
 		// every queued PutBatch has been issued.
-		if i.putBatcher != nil {
-			i.putBatcher.close()
+		//
+		// Refcounted: the batch path holds 1 ref by default
+		// (initialised in finalizeInit). Live mode adds 1 ref
+		// in Serve and releases in Shutdown. Close releases
+		// the batch ref; the batcher only fires when the LAST
+		// holder releases. If live is still attached we leave
+		// the batcher alive — its goroutines stay parked on
+		// the per-shard inCh until Shutdown drives the count
+		// to zero.
+		var toClose *putBatcher
+		i.putBatcherMu.Lock()
+		if i.putBatcherRefs > 0 {
+			i.putBatcherRefs--
+		}
+		if i.putBatcherRefs == 0 && i.putBatcher != nil {
+			toClose = i.putBatcher
 			i.putBatcher = nil
+		}
+		i.putBatcherMu.Unlock()
+		if toClose != nil {
+			toClose.close()
 		}
 		if err := i.saveProgress(); err != nil {
 			log.Printf("ERROR: Could not save progress: %s", err)

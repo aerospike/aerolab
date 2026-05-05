@@ -83,6 +83,8 @@ type AgiExecProxyCmd struct {
 	ttydProxy          *httputil.ReverseProxy `no-default:"true"`
 	fbUrl              *url.URL               `no-default:"true"`
 	fbProxy            *httputil.ReverseProxy `no-default:"true"`
+	liveUrl            *url.URL               `no-default:"true"`
+	liveProxy          *httputil.ReverseProxy `no-default:"true"`
 	gottyConns         *counter               `no-default:"true"`
 	srv                *http.Server           `no-default:"true"`
 	tokens             *tokens                `no-default:"true"`
@@ -251,6 +253,35 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	c.fbUrl = furl
 	c.fbProxy = fproxy
 
+	// Live ingest reverse-proxy. The merged service runs the
+	// livelisten.Listener on 127.0.0.1:18080 (or whatever
+	// ingest.yaml's live.listenAddr says). FlushInterval=-1
+	// forwards each chunked-body byte immediately so the
+	// dispatcher's NDJSON stream lands in ingest with
+	// sub-millisecond latency; the default (0 = buffered) would
+	// stall every chunk until the ReverseProxy's response
+	// buffer fills, which destroys the live tail's "real-time"
+	// property.
+	lurl, err := url.Parse("http://127.0.0.1:18080/")
+	if err != nil {
+		return fmt.Errorf("failed to parse live ingest proxy URL: %w", err)
+	}
+	lproxy := httputil.NewSingleHostReverseProxy(lurl)
+	lproxy.FlushInterval = -1
+	// Long-lived chunked POSTs MUST disable the http transport's
+	// per-request idle timeout. The default RoundTripper times
+	// out after 30s on idle connections; live ingest streams
+	// can sit idle for hours during low-traffic periods on the
+	// monitored cluster.
+	lproxy.Transport = &http.Transport{
+		DisableCompression:    true,
+		IdleConnTimeout:       0,
+		ResponseHeaderTimeout: 0,
+		ExpectContinueTimeout: 0,
+	}
+	c.liveUrl = lurl
+	c.liveProxy = lproxy
+
 	// Setup authentication
 	c.tokens = new(tokens)
 	if c.AuthType == "basic" {
@@ -371,6 +402,8 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/agi/status", c.handleStatus)                // high-level agi service status
 	http.HandleFunc("/agi/inactivity", c.handleInactivity)        // print inactivity timers
 	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail)   // detailed logingest progress json
+	http.HandleFunc("/agi/ingest/stream", c.handleIngestStream)   // live log streaming reverse-proxy to merged service
+	http.HandleFunc("/agi/ingest/health", c.handleIngestStream)   // live listener health (same backend)
 	http.HandleFunc("/", c.grafanaHandler)                        // grafana
 
 	// Start HTTP server
@@ -1387,6 +1420,55 @@ func (c *AgiExecProxyCmd) ttydHandler(w http.ResponseWriter, r *http.Request) {
 	r.Host = c.ttydUrl.Host
 	r.Header.Del("Origin")
 	c.ttydProxy.ServeHTTP(w, r)
+}
+
+// handleIngestStream proxies live log streaming POSTs from the
+// dispatcher (cmdAgiExecDispatch) to the in-process livelisten
+// listener at 127.0.0.1:18080. The endpoint is gated by token auth
+// only — basic auth is rejected because dispatchers are unattended
+// systemd units, not interactive browsers.
+//
+// The reverse proxy is configured with FlushInterval=-1 so chunked
+// body bytes from the dispatcher reach the listener in real time;
+// any buffering in this layer would defeat the live-tail design.
+func (c *AgiExecProxyCmd) handleIngestStream(w http.ResponseWriter, r *http.Request) {
+	// Token-only authentication. The dispatcher always sends a
+	// bearer token in the Authorization header, never a cookie
+	// or basic-auth pair, so the standard checkAuthOnly path
+	// (which assumes browser flows) is bypassed.
+	if !c.isTokenAuth {
+		http.Error(w, "live ingest requires token authentication on the proxy", http.StatusUnauthorized)
+		return
+	}
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		http.Error(w, "missing bearer token", http.StatusUnauthorized)
+		return
+	}
+	tok := strings.TrimPrefix(auth, "Bearer ")
+	c.tokens.RLock()
+	ok := inslice.HasString(c.tokens.tokens, tok)
+	c.tokens.RUnlock()
+	if !ok {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// Activity counts. The dispatcher's POSTs are activity by
+	// any reasonable definition; without this, an AGI receiving
+	// only live logs (no human users) would auto-shutdown after
+	// MaxInactivity even while it's actively ingesting data.
+	go c.lastActivity.Set(time.Now())
+
+	// Reverse-proxy to the in-process listener. The standard
+	// X-Forwarded-* headers let the listener log honest client
+	// IPs even though it only ever sees 127.0.0.1.
+	r.URL.Host = c.liveUrl.Host
+	r.URL.Scheme = c.liveUrl.Scheme
+	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+	r.Host = c.liveUrl.Host
+	r.Header.Del("Origin")
+	c.liveProxy.ServeHTTP(w, r)
 }
 
 // fbHandler proxies requests to filebrowser

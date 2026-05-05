@@ -97,6 +97,7 @@ type AgiExecCmd struct {
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
 	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service"`
 	Proxy        AgiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Run web proxy"`
+	Dispatch     AgiExecDispatchCmd     `command:"dispatch" subcommands-optional:"true" description:"Run live log streaming dispatcher" hidden:"true"`
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`
 	Simulate     AgiExecSimulateCmd     `command:"simulate" subcommands-optional:"true" description:"Simulate spot termination"`
@@ -104,6 +105,12 @@ type AgiExecCmd struct {
 }
 
 func (c *AgiExecCmd) Execute(args []string) error { return errNoAGI }
+
+type AgiExecDispatchCmd struct {
+	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *AgiExecDispatchCmd) Execute(args []string) error { return errNoAGI }
 
 type AgiMonitorConfigCmd struct {
 	StrictAGITLS bool `long:"strict-agi-tls" description:"If set, AGI-Monitor will expect AGI instances to have a valid TLS certificate"`

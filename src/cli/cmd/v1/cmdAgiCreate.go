@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	mrand "math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -119,6 +120,27 @@ type AgiCreateCmd struct {
 	// positive value here pins the corresponding knob explicitly.
 	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
 	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
+
+	// EnableLiveIngest opens the live log streaming endpoint on the
+	// AGI instance. The endpoint is reverse-proxied by the existing
+	// /agi/* TLS surface (no extra port) and gated by a dispatcher-
+	// scoped token written to /opt/agi/tokens/dispatcher.
+	//
+	// Live mode REQUIRES Pebble WAL to be on: the dirty-marker
+	// crash-safety mechanism wipes the DB when WAL=off, which is
+	// fine for batch ingest (the source files re-populate it on
+	// restart) but catastrophic for live ingest (lines have already
+	// been consumed and the dispatcher has no replay path). Setting
+	// this flag therefore also forces EnableWAL=true and
+	// PostIngestCompact=false in the generated plugin.yaml /
+	// ingest.yaml so the merged service can safely keep the live
+	// listener attached after batch ingest completes.
+	//
+	// The deploy-time token written to /opt/agi/tokens/dispatcher is
+	// what `aerolab cluster add agi-client` reads and ships to each
+	// cluster node's /etc/aerolab/agi-dispatch.token.
+	EnableLiveIngest bool `long:"enable-live-ingest" description:"Open the live log streaming endpoint and force WAL=on. Pair with 'aerolab cluster add agi-client --send-logs-to <agi>' to enable end-to-end live tail."`
+
 	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
 	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
@@ -1744,6 +1766,14 @@ type pebbleConfig struct {
 	// per-deployment Pebble decision before fanning out to the two
 	// generators.
 	PostIngestCompact bool
+
+	// EnableWAL flows into both ingest.yaml and plugin.yaml because
+	// they share the same Pebble handle in the merged service; if
+	// they disagree on WAL the operator-set value silently loses to
+	// whichever side opens the DB first. Live ingest forces this on
+	// (see cmdAgiCreate.generateConfigs); batch-only deployments
+	// keep the historical default of false.
+	EnableWAL bool
 }
 
 // generateConfigs generates all AGI configuration files.
@@ -1768,6 +1798,16 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 		L0StopWritesThreshold: computePebbleL0StopWritesThreshold(backendType),
 		EnableBloomFilter:     computePebbleEnableBloomFilter(backendType),
 		PostIngestCompact:     computePebblePostIngestCompact(backendType),
+	}
+	// Live ingest forces WAL on and post-ingest compaction off:
+	// the dirty-marker crash-safety wipe (init.go) only fires when
+	// WAL=off, and a synchronous compaction at end-of-batch would
+	// stall the live listener. cmdAgiExecService refuses to start
+	// the live listener when WAL=false, so we MUST flip these here
+	// or the listener silently no-ops on first boot.
+	if c.EnableLiveIngest {
+		pcfg.EnableWAL = true
+		pcfg.PostIngestCompact = false
 	}
 	pcfg.StopWritesThreshold = computePebbleStopWritesThreshold(totalMem, memSize, pcfg.MemTableBytes, backendType)
 	// LBaseMaxBytes scales with the memtable size we picked so that
@@ -1814,6 +1854,28 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 	// Create nodim marker if needed
 	if c.NoDIM {
 		configs["/opt/agi/nodim"] = []byte("")
+	}
+
+	// Live-ingest dispatcher token. Written into /opt/agi/tokens/
+	// alongside any user-added auth tokens; the proxy's existing
+	// fsnotify-based token watcher will pick it up automatically
+	// at startup. The dispatcher CLI on each cluster node reads
+	// this same value out of /etc/aerolab/agi-dispatch.token,
+	// which `aerolab cluster add agi-client` (cmdClusterAddAgiClient.go)
+	// is responsible for placing there. The token is regenerated
+	// every time `agi create` runs unless one already exists in
+	// the volume — with NoConfigOverride=true (the EFS reattach
+	// path) the existing file wins, so dispatchers don't have to
+	// be re-tokened on every reattach.
+	if c.EnableLiveIngest {
+		token := generateRandomToken(128, mrand.NewSource(time.Now().UnixNano()))
+		configs["/opt/agi/tokens/dispatcher"] = []byte(token)
+		// Stash the token under the AGI working dir too so the
+		// caller (agi create stdout, or `cluster add agi-client`
+		// running on the same operator workstation) can reach it
+		// without an extra SSH round-trip. This is identical in
+		// content to /opt/agi/tokens/dispatcher.
+		configs["/opt/agi/dispatcher.token"] = []byte(token)
 	}
 
 	return configs, nil
@@ -2315,6 +2377,17 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 	config.DB.L0StopWritesThreshold = pcfg.L0StopWritesThreshold
 	config.DB.EnableBloomFilter = pcfg.EnableBloomFilter
 	config.DB.PostIngestCompact = pcfg.PostIngestCompact
+	config.DB.EnableWAL = pcfg.EnableWAL
+
+	// Live ingest configuration. When enabled, the merged service
+	// stands up an in-process listener (pkg/agi/livelisten) that
+	// receives streamed log lines from the dispatcher and feeds
+	// them through the same metaShards/putBatcher/Pebble pipeline
+	// the batch path uses.
+	if c.EnableLiveIngest {
+		config.Live.Enabled = true
+		config.Live.ListenAddr = "127.0.0.1:18080"
+	}
 
 	// MaxPutThreads: explicit CLI override takes precedence over
 	// every other source. Otherwise fall through to the embedded
@@ -2496,11 +2569,13 @@ db:
   lBaseMaxBytes: %d
   l0StopWritesThreshold: %d
   enableBloomFilter: %t
+  enableWAL: %t
 %s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel,
 		pcfg.CacheBytes, pcfg.MemTableBytes, pcfg.MaxCompactions, pcfg.StopWritesThreshold,
 		pcfg.BlockSize, pcfg.Compression,
 		pcfg.TargetFileSizeL0, pcfg.BytesPerSync, pcfg.LBaseMaxBytes, pcfg.L0StopWritesThreshold,
 		pcfg.EnableBloomFilter,
+		pcfg.EnableWAL,
 		cpuProfiling)
 
 	return []byte(config)
