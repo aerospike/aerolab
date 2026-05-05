@@ -69,6 +69,7 @@ type AgiExecCmd struct {
 	Plugin       AgiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Run plugin backend (legacy; conflicts with standalone ingest on shared DB)"`
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
 	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service (legacy; conflicts with standalone plugin on shared DB)"`
+	Dispatch     AgiExecDispatchCmd     `command:"dispatch" hidden:"true" subcommands-optional:"true" description:"Stream local Aerospike logs to AGI live ingest"`
 	Proxy        AgiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Run web proxy"`
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`

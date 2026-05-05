@@ -97,6 +97,7 @@ type AgiExecCmd struct {
 	GrafanaFix   AgiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Run Grafana helper"`
 	Ingest       AgiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Run ingest service"`
 	Proxy        AgiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Run web proxy"`
+	Dispatch     AgiExecDispatchCmd     `command:"dispatch" hidden:"true" subcommands-optional:"true" description:"Stream local Aerospike logs to AGI live ingest"`
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`
 	Simulate     AgiExecSimulateCmd     `command:"simulate" subcommands-optional:"true" description:"Simulate spot termination"`
@@ -117,11 +118,11 @@ type AgiMonitorConfigCmd struct {
 	// Defaults mirror cmdAgiMonitor.go (with-agi build); keep in
 	// lockstep with the agiOSReserveBytes + agiNonPebbleOverheadBytes
 	// constants in cmdAgiCreate.go.
-	RAMFloorGB           int `long:"ram-floor-gb" description:"Always-on baseline RAM (OS reserve + merged-process non-Pebble overhead). Added on top of (multiplier × cache target) and headroom" default:"10"`
-	CachePeakMultiplier  int `long:"cache-peak-multiplier" description:"Multiplier on the Pebble cache target to predict total host RAM needed; 4 reflects 'Pebble = 50% of host, half cache + half memtables'" default:"4"`
-	CacheTargetPct       int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
-	CacheMinGB           int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
-	CacheMaxGB           int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
+	RAMFloorGB          int `long:"ram-floor-gb" description:"Always-on baseline RAM (OS reserve + merged-process non-Pebble overhead). Added on top of (multiplier × cache target) and headroom" default:"10"`
+	CachePeakMultiplier int `long:"cache-peak-multiplier" description:"Multiplier on the Pebble cache target to predict total host RAM needed; 4 reflects 'Pebble = 50% of host, half cache + half memtables'" default:"4"`
+	CacheTargetPct      int `long:"cache-target-pct" description:"Pebble block cache target as % of LogProcessorTotalSize; combined with the OS page cache, this is the 'fast in-memory query' surface" default:"10"`
+	CacheMinGB          int `long:"cache-min-gb" description:"Floor on the Pebble block cache target, even for small ingests" default:"1"`
+	CacheMaxGB          int `long:"cache-max-gb" description:"Ceiling on the Pebble block cache target; beyond this the OS page cache is just as effective and cheaper" default:"16"`
 
 	DisableSizing   bool `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
 	SizingMaxRamGB  int  `long:"sizing-max-ram-gb" description:"Will not size above these many GB" default:"48"`
@@ -376,6 +377,12 @@ type AgiExecProxyCmd struct {
 }
 
 func (c *AgiExecProxyCmd) Execute(args []string) error { return errNoAGI }
+
+type AgiExecDispatchCmd struct {
+	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *AgiExecDispatchCmd) Execute(args []string) error { return errNoAGI }
 
 type AgiExecIngestStatusCmd struct {
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`

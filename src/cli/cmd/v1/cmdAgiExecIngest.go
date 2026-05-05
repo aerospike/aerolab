@@ -37,6 +37,11 @@ type AgiExecIngestCmd struct {
 	// runs in the same process as the plugin; the db is then owned by
 	// the service command and ingest's Close does not close it.
 	sharedDB *db.DB
+	// PreOpenedIngest, when non-nil, is an ingest instance already
+	// initialised by the merged service (InitWithDB). The pipeline
+	// skips Init and defers only a putBatcher hold release when live
+	// ingest keeps the batcher alive after batch completes.
+	PreOpenedIngest *ingest.Ingest
 	// skipDirtyCheck, when true, suppresses the dirty-marker
 	// crash-safety wipe at the top of run(). The merged service
 	// (cmdAgiExecService) sets this because it has already run its
@@ -250,7 +255,10 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 		steps.InitStartTime = time.Now().UTC()
 	}
 	var i *ingest.Ingest
-	if c.sharedDB != nil {
+	if c.PreOpenedIngest != nil {
+		i = c.PreOpenedIngest
+		err = nil
+	} else if c.sharedDB != nil {
 		i, err = ingest.InitWithDB(config, c.sharedDB)
 	} else {
 		i, err = ingest.Init(config)
@@ -282,7 +290,13 @@ func (c *AgiExecIngestCmd) run(args []string) error {
 	// the underlying db handle — so this defer is safe whether we
 	// own the db (standalone ingest command) or share it (merged
 	// service command).
-	defer i.Close()
+	defer func() {
+		if c.PreOpenedIngest != nil && config.Live.Enabled {
+			i.ReleasePutBatcherHold()
+			return
+		}
+		i.Close()
+	}()
 
 	// SIGTERM / SIGINT handler: flush ingest progress and db writes
 	// before the process is killed. Without this a `systemctl stop`

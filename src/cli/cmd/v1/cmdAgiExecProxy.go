@@ -371,7 +371,8 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/agi/status", c.handleStatus)                // high-level agi service status
 	http.HandleFunc("/agi/inactivity", c.handleInactivity)        // print inactivity timers
 	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail)   // detailed logingest progress json
-	http.HandleFunc("/", c.grafanaHandler)                        // grafana
+	http.HandleFunc("/agi/ingest/stream", c.handleIngestStream) // live log POST (token + reverse proxy)
+	http.HandleFunc("/", c.grafanaHandler)                      // grafana
 
 	// Start HTTP server
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
@@ -777,6 +778,53 @@ func (c *AgiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 // wwwstatic serves static files from /opt/agi/www
 func (c *AgiExecProxyCmd) wwwstatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path.Join("/opt/agi/www", strings.TrimPrefix(strings.TrimLeft(r.URL.Path, "/"), "agi/")))
+}
+
+var (
+	ingestStreamProxyOnce sync.Once
+	ingestStreamProxyVal  *httputil.ReverseProxy
+)
+
+func ingestStreamReverseProxy() *httputil.ReverseProxy {
+	ingestStreamProxyOnce.Do(func() {
+		u, err := url.Parse("http://127.0.0.1:18080")
+		if err != nil {
+			panic(err)
+		}
+		p := httputil.NewSingleHostReverseProxy(u)
+		p.FlushInterval = -1
+		ingestStreamProxyVal = p
+	})
+	return ingestStreamProxyVal
+}
+
+func (c *AgiExecProxyCmd) handleIngestStream(w http.ResponseWriter, r *http.Request) {
+	if !c.checkIngestStreamProxyAuth(w, r) {
+		return
+	}
+	ingestStreamReverseProxy().ServeHTTP(w, r)
+}
+
+func (c *AgiExecProxyCmd) checkIngestStreamProxyAuth(w http.ResponseWriter, r *http.Request) bool {
+	if !c.isBasicAuth && !c.isTokenAuth {
+		return true
+	}
+	if c.isTokenAuth {
+		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		scheme, token, ok := strings.Cut(auth, " ")
+		if ok && strings.EqualFold(scheme, "Bearer") {
+			tok := strings.TrimSpace(token)
+			if tok != "" {
+				c.tokens.RLock()
+				found := inslice.HasString(c.tokens.tokens, tok)
+				c.tokens.RUnlock()
+				if found {
+					return true
+				}
+			}
+		}
+	}
+	return c.checkAuthOnly(w, r)
 }
 
 // handleIngestDetail returns detailed ingest progress

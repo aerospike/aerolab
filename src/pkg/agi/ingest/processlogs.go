@@ -76,7 +76,7 @@ func (m *metaEntries) ensureIdx() {
 // is held only for the brief get-or-create branch, so first sightings
 // of a never-seen key (a few dozen times per ingest) are the only
 // readers blocked behind the exclusive lock.
-type metaShards struct {
+type MetaShards struct {
 	parentMu sync.RWMutex
 	meta     map[string]*metaEntries
 }
@@ -86,7 +86,7 @@ type metaShards struct {
 // RLock-then-Lock dance is the standard double-checked init pattern:
 // the hot read path takes the cheap RLock once the key exists; only
 // the rare insertion takes the exclusive Lock.
-func (s *metaShards) getOrCreate(key string) *metaEntries {
+func (s *MetaShards) getOrCreate(key string) *metaEntries {
 	s.parentMu.RLock()
 	if m, ok := s.meta[key]; ok {
 		s.parentMu.RUnlock()
@@ -218,7 +218,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// touching disjoint key sets proceed in parallel; rows that
 	// collide on the always-shared keys (ClusterName, NodeIdent)
 	// only serialize on those, not on every label.
-	shards := &metaShards{meta: meta}
+	shards := &MetaShards{meta: meta}
 	// resultsChan is buffered so producers can push multiple rows
 	// without a per-row scheduler rendezvous against the receivers.
 	// The buffer is a smoothing window, not a parallelism
@@ -255,7 +255,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 			workers = 32
 		}
 	}
-	resultsChan := make(chan *processResult, resultsChanBuf)
+	resultsChan := make(chan *ProcessResult, resultsChanBuf)
 	go i.processLogsFeed(foundLogs, resultsChan, shards)
 
 	// feed results to backend DB.
@@ -287,70 +287,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// of O(rows), and only the 6 parser goroutines (not 128
 	// workers) ever take it. The worker body below is reduced to
 	// stamping pre-resolved indices into rowData.
-	wg := new(sync.WaitGroup)
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
-		go func() {
-			defer wg.Done()
-			for data := range resultsChan {
-				if data.Error != nil {
-					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
-				}
-				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
-					continue
-				}
-				rowData := data.Data
-				fn := data.FileName
-				logLine := data.LogLine
-				setName := data.SetName
-				nodeIdentifier := data.UniqNodeString
-				// Stamp pre-resolved label indices. The parser-side
-				// processLogFile already paid the metaShards /
-				// metaEntries.mu cost (typically once per (file,
-				// key, value) combination via the per-file
-				// resolveCache), so this loop is pure map writes.
-				// Keys absent from data.Resolved are keys that
-				// resolveLabelsCached refused (non-string value or
-				// upsertMetaEntry persist failure) — the row goes
-				// through with one less label rather than dumping
-				// every other label too, matching the legacy
-				// per-key error semantics.
-				for k, idx := range data.Resolved {
-					rowData[k] = idx
-				}
-				// Hot path: lock-free probe against the bin-list
-				// snapshot. After warmup every column is already
-				// known and missingNames returns nil with zero
-				// allocations; the rare miss takes b.lock once
-				// and publishes a copy-on-written replacement.
-				// We deliberately do NOT call storeBinList here.
-				// Persistence is folded into saveProgress (see
-				// trackprogress.go) so the on-disk pair
-				// (BINLIST, progress) is consistent at every
-				// checkpoint, which is the invariant the
-				// crash-resume path relies on.
-				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
-					i.binList.addNames(missing)
-				}
-				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
-				if rerr != nil {
-					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
-					continue
-				}
-				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
-				// See pk.go for the rationale; pre-v3 builds wrote the
-				// raw concatenation as the key, which cost ~150 bytes
-				// per row in two LSM keyspaces (D/ pointer + I/ index
-				// suffix) and bought no functionality the live read
-				// path uses.
-				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
-				if perr := i.putData(setName, pk, row); perr != nil {
-					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
-				}
-			}
-		}()
-	}
-	wg.Wait()
+	i.RunWorkerPool(resultsChan, workers)
 
 	// Final flush of the bin list, in case the last Put inside the
 	// worker-goroutine loop saw changed=false but a later goroutine
@@ -444,7 +381,7 @@ type resolveCache map[string]map[string]int
 // metaEntries idx using the per-file cache first and the shared
 // metaShards path on miss. The returned map is freshly allocated and
 // owned by the caller; callers stamp it into rowData on the consumer
-// side (or into a processResult that the worker copies). Non-string
+// side (or into a ProcessResult that the worker copies). Non-string
 // values and per-key persistence failures are dropped from the
 // resulting map (they were dropped from rowData by the legacy worker
 // loop too) so a single bad label never poisons the whole row.
@@ -453,7 +390,7 @@ type resolveCache map[string]map[string]int
 // reverse-index). It is the file-scope ClusterName passed to
 // processLogFile; the legacy worker fished the same value out of
 // metadata["ClusterName"] every row.
-func (i *Ingest) resolveLabelsCached(metadata map[string]any, cache resolveCache, shards *metaShards, clusterName, fn string) map[string]int {
+func (i *Ingest) resolveLabelsCached(metadata map[string]any, cache resolveCache, shards *MetaShards, clusterName, fn string) map[string]int {
 	if len(metadata) == 0 {
 		return nil
 	}
@@ -495,10 +432,10 @@ func (i *Ingest) resolveLabelsCached(metadata map[string]any, cache resolveCache
 // semantics: file-scope labels win on collision.
 //
 // Returning resolvedLabels by reference is safe because the worker
-// pool only reads from processResult.Resolved (it stamps idx values
+// pool only reads from ProcessResult.Resolved (it stamps idx values
 // into rowData, which is per-row); resolvedLabels is never mutated
 // after the file-scope pre-resolve in processLogFile.
-func (i *Ingest) mergeResolved(resolvedLabels map[string]int, perLine map[string]any, cache resolveCache, shards *metaShards, clusterName, fn string) map[string]int {
+func (i *Ingest) mergeResolved(resolvedLabels map[string]int, perLine map[string]any, cache resolveCache, shards *MetaShards, clusterName, fn string) map[string]int {
 	if len(perLine) == 0 {
 		return resolvedLabels
 	}
@@ -517,6 +454,51 @@ func (i *Ingest) mergeResolved(resolvedLabels map[string]int, perLine map[string
 		merged[k] = v
 	}
 	return merged
+}
+
+// RunWorkerPool spawns workers reading from in until in is closed,
+// draining every *ProcessResult into putBatcher. The caller owns the
+// channel lifecycle (close after producers finish). workers must be >0.
+func (i *Ingest) RunWorkerPool(in <-chan *ProcessResult, workers int) {
+	if workers <= 0 {
+		workers = 4
+	}
+	wg := new(sync.WaitGroup)
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for data := range in {
+				if data.Error != nil {
+					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
+				}
+				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
+					continue
+				}
+				rowData := data.Data
+				fn := data.FileName
+				logLine := data.LogLine
+				setName := data.SetName
+				nodeIdentifier := data.UniqNodeString
+				for k, idx := range data.Resolved {
+					rowData[k] = idx
+				}
+				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
+					i.binList.addNames(missing)
+				}
+				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
+				if rerr != nil {
+					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
+					continue
+				}
+				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
+				if perr := i.putData(setName, pk, row); perr != nil {
+					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // upsertMetaEntry performs the previously-monolithic per-key body of
@@ -925,7 +907,7 @@ func (i *Ingest) coerceRow(row db.Row, schema []db.ColumnSpec) db.Row {
 	return coerced
 }
 
-func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *processResult, shards *metaShards) {
+func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *ProcessResult, shards *MetaShards) {
 	// resultsChan MUST be closed exactly once, even if a per-file
 	// goroutine or this dispatcher itself panics. Otherwise the
 	// consumer in ProcessLogs (`for data := range resultsChan`)
@@ -977,7 +959,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 			}
 			fd, err := os.Open(n)
 			if err != nil {
-				resultsChan <- &processResult{
+				resultsChan <- &ProcessResult{
 					FileName: n,
 					Error:    err,
 				}
@@ -998,7 +980,10 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 	wg.Wait()
 }
 
-type processResult struct {
+// ProcessResult is one row (or error) emitted by the log parser toward
+// the putBatcher worker pool. Live ingest reuses the same shape as
+// batch file processing.
+type ProcessResult struct {
 	FileName string
 	Data     map[string]any
 	// Resolved carries pre-translated label indices (key -> idx into
@@ -1017,7 +1002,7 @@ type processResult struct {
 	UniqNodeString string
 }
 
-func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *processResult, shards *metaShards, labels map[string]any, nodePrefix int, uniqNodeString string) {
+func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *ProcessResult, shards *MetaShards, labels map[string]any, nodePrefix int, uniqNodeString string) {
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.LogProcessor.changed = true
@@ -1048,11 +1033,11 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 	// resolve them ONCE here so the per-line emit loop doesn't have
 	// to even re-walk the cache for them. resolvedLabels is shared
 	// (read-only after this point) by every emit below; the worker
-	// pool reads it via processResult.Resolved.
+	// pool reads it via ProcessResult.Resolved.
 	resolvedLabels := i.resolveLabelsCached(labels, cache, shards, clusterName, fn)
 	for s.Scan() {
 		if err = s.Err(); err != nil {
-			resultsChan <- &processResult{
+			resultsChan <- &ProcessResult{
 				Error: fmt.Errorf("could not read input file: %s", err),
 			}
 			return
@@ -1090,7 +1075,7 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 			// lineProcess (see logstream.go) so the per-row map
 			// allocation + copy that lived here is gone. d.Data
 			// is owned by this row; no other goroutine reads it.
-			resultsChan <- &processResult{
+			resultsChan <- &ProcessResult{
 				FileName:       fileName,
 				Data:           d.Data,
 				Resolved:       i.mergeResolved(resolvedLabels, d.Metadata, cache, shards, clusterName, fn),
@@ -1114,7 +1099,7 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 	}
 	out, startTime, endTime := stream.Close()
 	for _, d := range out {
-		resultsChan <- &processResult{
+		resultsChan <- &ProcessResult{
 			FileName:       fileName,
 			Data:           d.Data,
 			Resolved:       i.mergeResolved(resolvedLabels, d.Metadata, cache, shards, clusterName, fn),
@@ -1136,7 +1121,7 @@ func (i *Ingest) processLogFile(fileName string, fd *os.File, resultsChan chan *
 		// Synthetic "fileName" label per-emit; cache hits on the
 		// second timestamp emit for this file.
 		extra := map[string]any{"fileName": clusterName + "/" + fileNameOnly}
-		resultsChan <- &processResult{
+		resultsChan <- &ProcessResult{
 			FileName: fileName,
 			Data: map[string]any{
 				"nodePrefix":                 nodePrefix,

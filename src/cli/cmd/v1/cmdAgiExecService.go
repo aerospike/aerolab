@@ -3,17 +3,21 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
+	"github.com/aerospike/aerolab/pkg/agi/livelisten"
 	"github.com/aerospike/aerolab/pkg/agi/plugin"
 )
 
@@ -143,6 +147,11 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 	}
 
 	system.Logger.Info("Opening shared AGI db at %s (WAL=%t)", dbOpts.Path, dbOpts.EnableWAL)
+	var liveIngest *ingest.Ingest
+	var liveSrv *livelisten.Listener
+	svcCtx, svcCancel := context.WithCancel(context.Background())
+	defer svcCancel()
+
 	d, err := db.Open(dbOpts)
 	if err != nil {
 		// agi-db v2 (clustered-by-time indexed payloads) is not
@@ -163,6 +172,30 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 			return Error(err, system, cmd, c, args)
 		}
 	}
+
+	if !c.SkipIngest && ingestCfg.Live.Enabled {
+		if !dbOpts.EnableWAL {
+			system.Logger.Warn("live ingest: listener not started because WAL is disabled on the shared database (set enableWAL: true in plugin.yaml for live ingest)")
+		} else {
+			liveIngest, err = ingest.InitWithDB(ingestCfg, d)
+			if err != nil {
+				return Error(fmt.Errorf("live ingest InitWithDB: %w", err), system, cmd, c, args)
+			}
+			liveSrv = livelisten.New(liveIngest, livelisten.Config{
+				ListenAddr:  ingestCfg.Live.ListenAddr,
+				OffsetsPath: "/opt/agi/live/offsets.json",
+				TokensPath:  "/opt/agi/tokens",
+				Workers:     ingestCfg.Live.Workers,
+				MaxStreams:  ingestCfg.Live.MaxStreams,
+			})
+			go func() {
+				if err := liveSrv.Serve(svcCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					system.Logger.Warn("live listener: %s", err)
+				}
+			}()
+		}
+	}
+
 	// The service owns the db. Neither the ingest pipeline nor the
 	// plugin will close it because they were handed the handle via
 	// InitWithDB (ownsDB=false on both).
@@ -203,6 +236,7 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 			return
 		}
 		system.Logger.Info("Service: received %s, initiating shutdown", sig)
+		svcCancel()
 		if p != nil {
 			p.Shutdown()
 		}
@@ -226,11 +260,12 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		go func() {
 			defer ingestWG.Done()
 			inner := &AgiExecIngestCmd{
-				AGIName:        c.AGIName,
-				Async:          c.Async,
-				YamlFile:       c.IngestYaml,
-				sharedDB:       d,
-				skipDirtyCheck: true,
+				AGIName:         c.AGIName,
+				Async:           c.Async,
+				YamlFile:        c.IngestYaml,
+				sharedDB:        d,
+				skipDirtyCheck:  true,
+				PreOpenedIngest: liveIngest,
 			}
 			if err := inner.Execute(args); err != nil {
 				system.Logger.Warn("Ingest pipeline returned error: %s", err)
@@ -273,6 +308,15 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 	// defer i.Close() so its memtable writes are drained before this
 	// return; we just need the goroutine to actually exit.
 	ingestWG.Wait()
+
+	if liveSrv != nil {
+		shctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_ = liveSrv.Shutdown(shctx)
+		cancel()
+	}
+	if liveIngest != nil {
+		liveIngest.Close()
+	}
 
 	if ingestErr != nil {
 		return Error(ingestErr, system, cmd, c, args)

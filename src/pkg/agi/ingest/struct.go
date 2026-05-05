@@ -46,6 +46,11 @@ type Ingest struct {
 	// newIngest and finalizeInit; the hot path always sees a
 	// non-nil batcher.
 	putBatcher *putBatcher
+	// putBatcherHolds counts concurrent users of putBatcher (batch
+	// pipeline + optional live listener). finalizeInit sets 1; live
+	// ingest calls RetainPutBatcherHold; each ReleasePutBatcherHold
+	// drops by one and closes the batcher when it reaches zero.
+	putBatcherHolds atomic.Int32
 }
 
 // binList is the catalog of every column ever produced by ingest.
@@ -372,6 +377,16 @@ type Config struct {
 		Enabled   bool `yaml:"enabled" default:"true"`
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`
+	// Live configures the optional loopback HTTP listener that accepts
+	// chunked log lines from aerolab agi exec dispatch. Requires
+	// DB.EnableWAL=true: with WAL off, rows from live streams have no
+	// recoverable source file and the dirty-marker wipe would lose data.
+	Live struct {
+		Enabled    bool   `yaml:"enabled" default:"false" envconfig:"LOGINGEST_LIVE_ENABLED"`
+		ListenAddr string `yaml:"listenAddr" default:"127.0.0.1:18080" envconfig:"LOGINGEST_LIVE_ADDR"`
+		Workers    int    `yaml:"workers" default:"16"`
+		MaxStreams int    `yaml:"maxStreams" default:"256"`
+	} `yaml:"live"`
 	Processor struct {
 		// MaxConcurrentLogFiles caps how many log files are
 		// parsed in parallel (one parser goroutine per file in

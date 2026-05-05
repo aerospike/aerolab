@@ -82,6 +82,12 @@ if err := grafanafix.Run(nil); err != nil {
 }
 ```
 
+### livelisten
+Loopback HTTP listener used by the merged AGI service. Accepts `POST /agi/ingest/stream` with newline-delimited log lines, validates bearer tokens from `/opt/agi/tokens`, and forwards parsed rows into the same `putBatcher` path as batch ingest (requires WAL on the Pebble DB).
+
+### dispatcher
+Library used by `aerolab agi exec dispatch` on Aerospike nodes: discovers log destinations from `aerospike.conf`, tails files or `journalctl`, and streams lines to the AGI proxy over HTTPS with resumable offsets.
+
 ## Configuration
 
 Each subpackage supports configuration through YAML files and environment variables. See individual subpackage documentation for specific configuration options.

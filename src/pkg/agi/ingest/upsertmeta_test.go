@@ -14,7 +14,7 @@ import (
 // registered, and a binList. Returns the Ingest, the parent
 // metaShards (so the test can inspect the meta map), and a teardown
 // function.
-func makeIngestForUpsertTests(t *testing.T) (*Ingest, *metaShards, func()) {
+func makeIngestForUpsertTests(t *testing.T) (*Ingest, *MetaShards, func()) {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "ingest-db")
 	opts := db.DefaultOptions()
@@ -40,7 +40,7 @@ func makeIngestForUpsertTests(t *testing.T) (*Ingest, *metaShards, func()) {
 		db:       d,
 		binList:  bl,
 	}
-	shards := &metaShards{meta: make(map[string]*metaEntries)}
+	shards := &MetaShards{meta: make(map[string]*metaEntries)}
 	teardown := func() {
 		_ = d.Close()
 	}

@@ -25,7 +25,7 @@ type logStream struct {
 	logFileEndTime      time.Time
 }
 
-type logStreamOutput struct {
+type LogStreamOutput struct {
 	Data     map[string]any
 	Metadata map[string]any
 	Line     string
@@ -43,7 +43,7 @@ type aggregator struct {
 	stat      int              // the stat that increases
 	startTime time.Time        // time first encountered, resets if we fell outside of the aggregation period
 	endTime   time.Time        //  startTime+Every aggregation window
-	out       *logStreamOutput // this will be set as time goes by to allow for dumping of data, the stat will need to be overridden
+	out       *LogStreamOutput // this will be set as time goes by to allow for dumping of data, the stat will need to be overridden
 }
 
 func newLogStream(clusterName string, p *patterns, t *TimeRanges, timestampName string) *logStream {
@@ -73,8 +73,8 @@ func newLogStream(clusterName string, p *patterns, t *TimeRanges, timestampName 
 	}
 }
 
-func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time, logEndTime time.Time) {
-	ret := []*logStreamOutput{}
+func (s *logStream) Close() (outputs []*LogStreamOutput, logStartTime time.Time, logEndTime time.Time) {
+	ret := []*LogStreamOutput{}
 	for _, a := range s.aggregateItems {
 		ret = append(ret, a.out)
 	}
@@ -91,7 +91,7 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 
 const parseTimeError = "TIME PARSE: %s"
 
-func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, error) {
+func (s *logStream) Process(line string, nodePrefix int) ([]*LogStreamOutput, error) {
 	timestamp, lineOffset, err := s.lineGetTimestamp(line)
 	if err != nil {
 		return nil, fmt.Errorf(parseTimeError, err)
@@ -107,7 +107,7 @@ func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, er
 	if lineOffset > 0 {
 		line = line[lineOffset:]
 	}
-	out := []*logStreamOutput{}
+	out := []*LogStreamOutput{}
 	for _, m := range s.patterns.Multiline {
 		// check and handle new multiline
 		if strings.Contains(line, m.StartLineSearch) {
@@ -265,7 +265,7 @@ func coerceStringInts(m map[string]any) {
 	}
 }
 
-func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
+func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*LogStreamOutput, error) {
 	def := s.patterns.Defs[s.defId]
 	// Replace the linear `for _, p := range Patterns { if
 	// !strings.Contains(line, p.Search) continue }` scan with one
@@ -387,7 +387,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 			}
 			nRes[s.timestampStatName] = timestamp.UnixMilli()
 			//aggregate
-			ret := []*logStreamOutput{}
+			ret := []*LogStreamOutput{}
 			aggrToDelete := []string{}
 			for aguniq, ag := range s.aggregateItems {
 				if ag.endTime.After(timestamp) {
@@ -430,7 +430,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 						stat:      newVal,
 						startTime: timestamp,
 						endTime:   timestamp.Add(p.Aggregate.Every),
-						out: &logStreamOutput{
+						out: &LogStreamOutput{
 							Data:     nRes,
 							Metadata: nMeta,
 							Line:     line,
@@ -449,7 +449,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 			// processLogFile is gone now that nRes carries the
 			// final types).
 			coerceStringInts(nRes)
-			ret = append(ret, &logStreamOutput{
+			ret = append(ret, &LogStreamOutput{
 				Data:     nRes,
 				Metadata: nMeta,
 				Line:     line,

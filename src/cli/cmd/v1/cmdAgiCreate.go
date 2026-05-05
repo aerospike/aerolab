@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,14 +115,17 @@ type AgiCreateCmd struct {
 	FeaturesFilePath flags.Filename `short:"f" long:"featurefile" description:"Features file to install, overriding the template's features file"`
 	IngestLogLevel   int            `long:"ingest-log-level" description:"Log level: 1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL" default:"4"`
 	IngestCpuProfile bool           `long:"ingest-cpu-profiling" description:"Enable CPU profiling for ingest"`
+	EnableLiveIngest bool           `long:"enable-live-ingest" description:"Expose HTTPS live log streaming; forces WAL on and disables post-ingest compaction"`
+	// liveDispatcherToken is set when generating configs with --enable-live-ingest (logged once on success).
+	liveDispatcherToken string `json:"-"`
 	// Ingest pipeline tuning. Both default to 0 = use the
 	// embedded ingest-config defaults (which themselves auto-scale
 	// where appropriate; see pkg/agi/ingest/struct.go). Setting a
 	// positive value here pins the corresponding knob explicitly.
-	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
-	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
-	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
-	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
+	IngestMaxConcurrentLogFiles int  `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
+	IngestMaxPutThreads         int  `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
+	PluginCpuProfile            bool `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
+	PluginLogLevel              int  `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
 	// Notification options
 	SlackToken   string `long:"notify-slack-token" description:"Slack token for notifications (supports ENV::VAR_NAME)"`
@@ -1542,6 +1547,28 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 		c.updateVolumeTagsWithResolvedValues(system, inventory, logger, volumeName, backendType, awsInstanceType, gcpInstanceType, sourceStringLocal, sourceStringSftp, sourceStringS3, agiFirewallName, templateName, arch)
 	}
 
+	if c.EnableLiveIngest {
+		desc := inst.Describe()
+		if len(desc) > 0 {
+			host := desc[0].IP.Public
+			if host == "" {
+				host = desc[0].IP.Private
+			}
+			scheme := "https"
+			if c.ProxyDisableSSL {
+				scheme = "http"
+			}
+			if c.liveDispatcherToken != "" {
+				logger.Info("Live log ingest is enabled. Dispatcher bearer token: %s", c.liveDispatcherToken)
+			}
+			if host != "" {
+				logger.Info("Live ingest stream URL pattern: %s://%s/agi/ingest/stream?cluster=CLUSTER&node=NODE_ID&source-id=STABLE_ID (Authorization: Bearer <token>)", scheme, host)
+			} else {
+				logger.Info("Live ingest is enabled; use the AGI instance IP or DNS with path /agi/ingest/stream and query params cluster, node, source-id")
+			}
+		}
+	}
+
 	return inst, nil
 }
 
@@ -1776,6 +1803,10 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 	// is set; see computePebbleLBaseMaxBytes for the ratio rationale.
 	pcfg.LBaseMaxBytes = computePebbleLBaseMaxBytes(backendType, pcfg.MemTableBytes)
 
+	if c.EnableLiveIngest {
+		pcfg.PostIngestCompact = false
+	}
+
 	// Generate ingest.yaml
 	ingestConfig, err := c.generateIngestConfig(backendType, pcfg)
 	if err != nil {
@@ -1784,8 +1815,20 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 	configs["/opt/agi/ingest.yaml"] = ingestConfig
 
 	// Generate plugin.yaml
-	pluginConfig := c.generatePluginConfig(backendType, pcfg)
+	pluginConfig := c.generatePluginConfig(backendType, pcfg, c.EnableLiveIngest)
 	configs["/opt/agi/plugin.yaml"] = pluginConfig
+
+	if c.EnableLiveIngest {
+		c.liveDispatcherToken = ""
+		tok := make([]byte, 24)
+		if _, err := rand.Read(tok); err != nil {
+			system.Logger.Warn("could not generate dispatcher token: %v", err)
+		} else {
+			tokHex := hex.EncodeToString(tok)
+			configs["/opt/agi/tokens/dispatcher"] = []byte(tokHex + "\n")
+			c.liveDispatcherToken = tokHex
+		}
+	}
 
 	// Generate grafanafix.yaml
 	grafanafixConfig := c.generateGrafanafixConfig()
@@ -2216,13 +2259,13 @@ func computePebbleBytesPerSync(backendType string) int {
 //	memTable=1 GiB    → LBase=4 GiB
 //
 // 4× balances three things:
-//   1. Big enough that 4 flushes land before LBase fills (so
-//      cascade fires once per ~4 flushes, not per flush);
-//   2. Small enough that LBase compactions still run in bounded
-//      time and bounded memory;
-//   3. For typical AGI ingest sizes (10-50 GiB), the cascade
-//      fires only a handful of times across the whole run
-//      instead of after every flush.
+//  1. Big enough that 4 flushes land before LBase fills (so
+//     cascade fires once per ~4 flushes, not per flush);
+//  2. Small enough that LBase compactions still run in bounded
+//     time and bounded memory;
+//  3. For typical AGI ingest sizes (10-50 GiB), the cascade
+//     fires only a handful of times across the whole run
+//     instead of after every flush.
 //
 // Docker AGIs use local FS where the cascade is cheap (compactions
 // are quick), and the default 64 MiB ÷ 64-256 MiB memtable ratio
@@ -2438,6 +2481,13 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 		}
 	}
 
+	if c.EnableLiveIngest {
+		config.Live.Enabled = true
+		config.Live.ListenAddr = "127.0.0.1:18080"
+		config.DB.EnableWAL = true
+		config.DB.PostIngestCompact = false
+	}
+
 	// Marshal to YAML
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -2450,7 +2500,7 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 }
 
 // generatePluginConfig generates the plugin.yaml configuration.
-func (c *AgiCreateCmd) generatePluginConfig(backendType string, pcfg pebbleConfig) []byte {
+func (c *AgiCreateCmd) generatePluginConfig(backendType string, pcfg pebbleConfig, enableWAL bool) []byte {
 	maxDp := 34560000
 	if backendType == "docker" {
 		maxDp = maxDp / 2
@@ -2496,11 +2546,13 @@ db:
   lBaseMaxBytes: %d
   l0StopWritesThreshold: %d
   enableBloomFilter: %t
+  enableWAL: %t
 %s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel,
 		pcfg.CacheBytes, pcfg.MemTableBytes, pcfg.MaxCompactions, pcfg.StopWritesThreshold,
 		pcfg.BlockSize, pcfg.Compression,
 		pcfg.TargetFileSizeL0, pcfg.BytesPerSync, pcfg.LBaseMaxBytes, pcfg.L0StopWritesThreshold,
 		pcfg.EnableBloomFilter,
+		enableWAL,
 		cpuProfiling)
 
 	return []byte(config)
@@ -2711,7 +2763,7 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 			}
 
 			perm := os.FileMode(0644)
-			if strings.HasSuffix(path, ".key") {
+			if strings.HasSuffix(path, ".key") || strings.HasPrefix(path, "/opt/agi/tokens/") {
 				perm = 0600
 			}
 

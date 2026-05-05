@@ -287,6 +287,12 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 		}
 		sources = sources + "local " + i.config.CustomSourceName
 	}
+	if i.config.Live.Enabled {
+		if sources != "" {
+			sources = sources + "\n"
+		}
+		sources = sources + "live ingest listener"
+	}
 	if labelsSet != "" {
 		metajson, _ := json.Marshal(&metaEntries{
 			Entries: []string{sources},
@@ -324,6 +330,7 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 	// batcher cleanly). The fallback handles type-conflict
 	// retries the same way the pre-batcher putData hot path did.
 	i.putBatcher = newPutBatcher(i.db, i.config.PutBatchSize, i.config.PutBatchFlushMs, i.config.PutBatchShards, i.putDataSingle)
+	i.putBatcherHolds.Store(1)
 	i.bg.Add(2)
 	go func() {
 		defer i.bg.Done()
@@ -375,8 +382,7 @@ func (i *Ingest) Close() {
 		// until the flusher's run loop returns, which guarantees
 		// every queued PutBatch has been issued.
 		if i.putBatcher != nil {
-			i.putBatcher.close()
-			i.putBatcher = nil
+			i.ReleasePutBatcherHold()
 		}
 		if err := i.saveProgress(); err != nil {
 			log.Printf("ERROR: Could not save progress: %s", err)
