@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -117,10 +118,11 @@ type AgiCreateCmd struct {
 	// embedded ingest-config defaults (which themselves auto-scale
 	// where appropriate; see pkg/agi/ingest/struct.go). Setting a
 	// positive value here pins the corresponding knob explicitly.
-	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
-	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
-	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
-	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
+	IngestMaxConcurrentLogFiles int  `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
+	IngestMaxPutThreads         int  `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
+	EnableLiveIngest            bool `long:"enable-live-ingest" description:"Open the live log streaming endpoint; requires WAL=on"`
+	PluginCpuProfile            bool `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
+	PluginLogLevel              int  `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
 	// Notification options
 	SlackToken   string `long:"notify-slack-token" description:"Slack token for notifications (supports ENV::VAR_NAME)"`
@@ -640,6 +642,10 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	logger.Info("  aerolab agi open -n %s                 - Open AGI in browser", c.ClusterName)
 	logger.Info("  aerolab agi attach -n %s               - Attach to shell", c.ClusterName)
 	logger.Info("  aerolab agi status -n %s               - Show status", c.ClusterName)
+	if c.EnableLiveIngest {
+		logger.Info("  aerolab cluster add agi-client -n <cluster> --send-logs-to %s - Stream cluster logs live", c.ClusterName)
+		logger.Info("Live ingest dispatcher token was written to /opt/agi/tokens/dispatcher")
+	}
 
 	return instance, nil
 }
@@ -1775,6 +1781,9 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 	// the LBase→L1 compaction cascade. Must come after MemTableBytes
 	// is set; see computePebbleLBaseMaxBytes for the ratio rationale.
 	pcfg.LBaseMaxBytes = computePebbleLBaseMaxBytes(backendType, pcfg.MemTableBytes)
+	if c.EnableLiveIngest {
+		pcfg.PostIngestCompact = false
+	}
 
 	// Generate ingest.yaml
 	ingestConfig, err := c.generateIngestConfig(backendType, pcfg)
@@ -1803,6 +1812,9 @@ func (c *AgiCreateCmd) generateConfigs(system *System, totalMem, memSize int64, 
 	configs["/opt/agi/label"] = []byte(c.AGILabel)
 	configs["/opt/agi/name"] = []byte(string(c.ClusterName))
 	configs["/opt/agi/owner"] = []byte(c.Owner)
+	if c.EnableLiveIngest {
+		configs["/opt/agi/tokens/dispatcher"] = []byte(generateRandomToken(128, rand.NewSource(time.Now().UnixNano())))
+	}
 
 	// Generate deployment.json.gz
 	deploymentConfig, err := c.generateDeploymentConfig()
@@ -2216,13 +2228,13 @@ func computePebbleBytesPerSync(backendType string) int {
 //	memTable=1 GiB    → LBase=4 GiB
 //
 // 4× balances three things:
-//   1. Big enough that 4 flushes land before LBase fills (so
-//      cascade fires once per ~4 flushes, not per flush);
-//   2. Small enough that LBase compactions still run in bounded
-//      time and bounded memory;
-//   3. For typical AGI ingest sizes (10-50 GiB), the cascade
-//      fires only a handful of times across the whole run
-//      instead of after every flush.
+//  1. Big enough that 4 flushes land before LBase fills (so
+//     cascade fires once per ~4 flushes, not per flush);
+//  2. Small enough that LBase compactions still run in bounded
+//     time and bounded memory;
+//  3. For typical AGI ingest sizes (10-50 GiB), the cascade
+//     fires only a handful of times across the whole run
+//     instead of after every flush.
 //
 // Docker AGIs use local FS where the cascade is cheap (compactions
 // are quick), and the default 64 MiB ÷ 64-256 MiB memtable ratio
@@ -2315,6 +2327,11 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 	config.DB.L0StopWritesThreshold = pcfg.L0StopWritesThreshold
 	config.DB.EnableBloomFilter = pcfg.EnableBloomFilter
 	config.DB.PostIngestCompact = pcfg.PostIngestCompact
+	if c.EnableLiveIngest {
+		config.DB.EnableWAL = true
+		config.Live.Enabled = true
+		config.Live.ListenAddr = "127.0.0.1:18080"
+	}
 
 	// MaxPutThreads: explicit CLI override takes precedence over
 	// every other source. Otherwise fall through to the embedded
@@ -2496,11 +2513,13 @@ db:
   lBaseMaxBytes: %d
   l0StopWritesThreshold: %d
   enableBloomFilter: %t
+  enableWAL: %t
 %s`, maxDp, maxRequests, maxJobs, c.PluginLogLevel,
 		pcfg.CacheBytes, pcfg.MemTableBytes, pcfg.MaxCompactions, pcfg.StopWritesThreshold,
 		pcfg.BlockSize, pcfg.Compression,
 		pcfg.TargetFileSizeL0, pcfg.BytesPerSync, pcfg.LBaseMaxBytes, pcfg.L0StopWritesThreshold,
 		pcfg.EnableBloomFilter,
+		c.EnableLiveIngest,
 		cpuProfiling)
 
 	return []byte(config)
@@ -2712,6 +2731,9 @@ func (c *AgiCreateCmd) uploadConfigs(instance backends.InstanceList, configs map
 
 			perm := os.FileMode(0644)
 			if strings.HasSuffix(path, ".key") {
+				perm = 0600
+			}
+			if strings.HasPrefix(path, "/opt/agi/tokens/") {
 				perm = 0600
 			}
 

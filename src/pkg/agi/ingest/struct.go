@@ -48,6 +48,33 @@ type Ingest struct {
 	putBatcher *putBatcher
 }
 
+// LiveWorkers owns the worker pool used by live log streams. Callers create
+// one worker set per live listener and close it during listener shutdown so
+// queued rows are flushed through the shared putBatcher before the Ingest is
+// closed.
+type LiveWorkers struct {
+	i       *Ingest
+	results chan *processResult
+	shards  *metaShards
+	wg      sync.WaitGroup
+	once    sync.Once
+}
+
+// LiveStream is a per-connection parser state for live log ingestion. It wraps
+// the same internal logStream and label-resolution cache used by batch ingest,
+// but exposes only line submission and close semantics to listener packages.
+type LiveStream struct {
+	i              *Ingest
+	workers        *LiveWorkers
+	stream         *logStream
+	cache          resolveCache
+	resolvedLabels map[string]int
+	clusterName    string
+	fileName       string
+	nodePrefix     int
+	uniqNodeString string
+}
+
 // binList is the catalog of every column ever produced by ingest.
 // It is published two ways:
 //
@@ -252,8 +279,8 @@ type Config struct {
 		MemTableStopWritesThreshold int    `yaml:"memTableStopWritesThreshold" default:"0"` // 0 -> db default
 		MaxConcurrentCompactions    int    `yaml:"maxConcurrentCompactions" default:"0"`    // 0 -> db default
 		MaxOpenFiles                int    `yaml:"maxOpenFiles" default:"0"`
-		BlockSize                   int    `yaml:"blockSize" default:"0"`     // 0 -> db default (Pebble default = 4 KiB)
-		Compression                 string `yaml:"compression" default:""`    // "" -> db default (Pebble default = uniform Snappy); see db.Options.Compression for valid values
+		BlockSize                   int    `yaml:"blockSize" default:"0"`  // 0 -> db default (Pebble default = 4 KiB)
+		Compression                 string `yaml:"compression" default:""` // "" -> db default (Pebble default = uniform Snappy); see db.Options.Compression for valid values
 		// EFS / NFS-shape Pebble tuning knobs. See db.Options docs
 		// for full semantics. 0 = leave Pebble's default for every
 		// numeric field here (consistent with the rest of this
@@ -368,7 +395,16 @@ type Config struct {
 	// the available cores adds scheduler churn without raising
 	// throughput.
 	PutBatchShards int `yaml:"putBatchShards" default:"0"`
-	Dedup          struct {
+	Live           struct {
+		// Enabled opens the live log streaming endpoint. Live ingest
+		// requires db.enableWAL=true because live rows have no durable
+		// source file to re-ingest after a crash.
+		Enabled    bool   `yaml:"enabled" default:"false" envconfig:"LOGINGEST_LIVE_ENABLED"`
+		ListenAddr string `yaml:"listenAddr" default:"127.0.0.1:18080" envconfig:"LOGINGEST_LIVE_ADDR"`
+		Workers    int    `yaml:"workers" default:"16" envconfig:"LOGINGEST_LIVE_WORKERS"`
+		MaxStreams int    `yaml:"maxStreams" default:"256" envconfig:"LOGINGEST_LIVE_MAX_STREAMS"`
+	} `yaml:"live"`
+	Dedup struct {
 		Enabled   bool `yaml:"enabled" default:"true"`
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`

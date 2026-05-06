@@ -73,6 +73,7 @@ type AgiExecCmd struct {
 	IngestStatus AgiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Get ingest status"`
 	IngestDetail AgiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Get ingest details"`
 	Simulate     AgiExecSimulateCmd     `command:"simulate" subcommands-optional:"true" description:"Simulate spot termination"`
+	Dispatch     AgiExecDispatchCmd     `command:"dispatch" subcommands-optional:"true" description:"Run live log dispatcher" hidden:"true"`
 	Help         HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

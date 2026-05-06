@@ -287,6 +287,12 @@ func finalizeInit(i *Ingest) (*Ingest, error) {
 		}
 		sources = sources + "local " + i.config.CustomSourceName
 	}
+	if i.config.Live.Enabled {
+		if sources != "" {
+			sources = sources + "\n"
+		}
+		sources = sources + "live streams"
+	}
 	if labelsSet != "" {
 		metajson, _ := json.Marshal(&metaEntries{
 			Entries: []string{sources},

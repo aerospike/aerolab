@@ -188,6 +188,21 @@ Collect logs from a running Aerospike cluster:
 aerolab agi create --source-cluster mydc
 ```
 
+### Live Cluster Streaming
+Create an AGI with the live ingest endpoint enabled, then install the dispatcher
+on a running Aerospike cluster:
+```bash
+aerolab agi create -n myagi --enable-live-ingest
+aerolab cluster add agi-client -n mydc --send-logs-to myagi
+```
+
+Live ingest uses the existing AGI HTTPS proxy and token directory. The AGI
+stores a dispatcher token at `/opt/agi/tokens/dispatcher`; cluster nodes store a
+copy at `/etc/aerolab/agi-dispatch.token` and run
+`aerolab agi exec dispatch` under systemd. Live mode requires Pebble WAL, so
+`--enable-live-ingest` writes matching WAL-enabled DB settings for the merged
+ingest/plugin service.
+
 ## Authentication
 
 AGI supports multiple authentication modes:

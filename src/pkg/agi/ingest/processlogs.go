@@ -149,7 +149,14 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 	i.progress.LogProcessor.Files = make(map[string]*LogFile)
 	maps.Copy(i.progress.LogProcessor.Files, foundLogs)
 	i.progress.LogProcessor.changed = true
-	meta = make(map[string]*metaEntries)
+	meta = i.loadMetaEntries()
+	i.progress.Unlock()
+	err = i.saveProgress()
+	return foundLogs, meta, err
+}
+
+func (i *Ingest) loadMetaEntries() map[string]*metaEntries {
+	meta := make(map[string]*metaEntries)
 	// The labels set uses <row-key = label-name, column-name = "json">
 	// (see init.go's labelsValueCol). Keys like "BINLIST" / "cfName" /
 	// "sources" / "timerange" are not metaEntries; skip them. Every
@@ -189,9 +196,7 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 		log.Printf("WARN: Could not read existing labels: %s", serr)
 	}
 	_ = it.Close()
-	i.progress.Unlock()
-	err = i.saveProgress()
-	return foundLogs, meta, err
+	return meta
 }
 
 func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*metaEntries) error {
@@ -287,70 +292,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	// of O(rows), and only the 6 parser goroutines (not 128
 	// workers) ever take it. The worker body below is reduced to
 	// stamping pre-resolved indices into rowData.
-	wg := new(sync.WaitGroup)
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
-		go func() {
-			defer wg.Done()
-			for data := range resultsChan {
-				if data.Error != nil {
-					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
-				}
-				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
-					continue
-				}
-				rowData := data.Data
-				fn := data.FileName
-				logLine := data.LogLine
-				setName := data.SetName
-				nodeIdentifier := data.UniqNodeString
-				// Stamp pre-resolved label indices. The parser-side
-				// processLogFile already paid the metaShards /
-				// metaEntries.mu cost (typically once per (file,
-				// key, value) combination via the per-file
-				// resolveCache), so this loop is pure map writes.
-				// Keys absent from data.Resolved are keys that
-				// resolveLabelsCached refused (non-string value or
-				// upsertMetaEntry persist failure) — the row goes
-				// through with one less label rather than dumping
-				// every other label too, matching the legacy
-				// per-key error semantics.
-				for k, idx := range data.Resolved {
-					rowData[k] = idx
-				}
-				// Hot path: lock-free probe against the bin-list
-				// snapshot. After warmup every column is already
-				// known and missingNames returns nil with zero
-				// allocations; the rare miss takes b.lock once
-				// and publishes a copy-on-written replacement.
-				// We deliberately do NOT call storeBinList here.
-				// Persistence is folded into saveProgress (see
-				// trackprogress.go) so the on-disk pair
-				// (BINLIST, progress) is consistent at every
-				// checkpoint, which is the invariant the
-				// crash-resume path relies on.
-				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
-					i.binList.addNames(missing)
-				}
-				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
-				if rerr != nil {
-					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
-					continue
-				}
-				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
-				// See pk.go for the rationale; pre-v3 builds wrote the
-				// raw concatenation as the key, which cost ~150 bytes
-				// per row in two LSM keyspaces (D/ pointer + I/ index
-				// suffix) and bought no functionality the live read
-				// path uses.
-				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
-				if perr := i.putData(setName, pk, row); perr != nil {
-					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
-				}
-			}
-		}()
-	}
-	wg.Wait()
+	i.runWorkerPool(resultsChan, workers)
 
 	// Final flush of the bin list, in case the last Put inside the
 	// worker-goroutine loop saw changed=false but a later goroutine
@@ -420,6 +362,82 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	i.progress.LogProcessor.Finished = true
 	i.progress.Unlock()
 	return nil
+}
+
+func (i *Ingest) runWorkerPool(resultsChan <-chan *processResult, workers int) {
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0) * 2
+		if workers < 4 {
+			workers = 4
+		}
+		if workers > 32 {
+			workers = 32
+		}
+	}
+	wg := new(sync.WaitGroup)
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for data := range resultsChan {
+				if data.Error != nil {
+					log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
+				}
+				if data.Data == nil || data.SetName == "" || data.LogLine == "" {
+					continue
+				}
+				rowData := data.Data
+				fn := data.FileName
+				logLine := data.LogLine
+				setName := data.SetName
+				nodeIdentifier := data.UniqNodeString
+				// Stamp pre-resolved label indices. The parser-side
+				// processLogFile already paid the metaShards /
+				// metaEntries.mu cost (typically once per (file,
+				// key, value) combination via the per-file
+				// resolveCache), so this loop is pure map writes.
+				// Keys absent from data.Resolved are keys that
+				// resolveLabelsCached refused (non-string value or
+				// upsertMetaEntry persist failure) — the row goes
+				// through with one less label rather than dumping
+				// every other label too, matching the legacy
+				// per-key error semantics.
+				for k, idx := range data.Resolved {
+					rowData[k] = idx
+				}
+				// Hot path: lock-free probe against the bin-list
+				// snapshot. After warmup every column is already
+				// known and missingNames returns nil with zero
+				// allocations; the rare miss takes b.lock once
+				// and publishes a copy-on-written replacement.
+				// We deliberately do NOT call storeBinList here.
+				// Persistence is folded into saveProgress (see
+				// trackprogress.go) so the on-disk pair
+				// (BINLIST, progress) is consistent at every
+				// checkpoint, which is the invariant the
+				// crash-resume path relies on.
+				if missing := i.binList.missingNames(rowData); len(missing) > 0 {
+					i.binList.addNames(missing)
+				}
+				row, rerr := buildDataRow(rowData, i.config.TimestampColumnName)
+				if rerr != nil {
+					log.Printf("ERROR: Log Processor: %s: %s", fn, rerr)
+					continue
+				}
+				// PK = XXH3-128(clusterName::/::nodeIdent::/::logLine).
+				// See pk.go for the rationale; pre-v3 builds wrote the
+				// raw concatenation as the key, which cost ~150 bytes
+				// per row in two LSM keyspaces (D/ pointer + I/ index
+				// suffix) and bought no functionality the live read
+				// path uses.
+				pk := MetricsRowKeyFromCombined(nodeIdentifier, logLine)
+				if perr := i.putData(setName, pk, row); perr != nil {
+					log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, perr)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // resolveCache is a per-file (key -> value -> idx) memoiser that

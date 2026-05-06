@@ -83,6 +83,8 @@ type AgiExecProxyCmd struct {
 	ttydProxy          *httputil.ReverseProxy `no-default:"true"`
 	fbUrl              *url.URL               `no-default:"true"`
 	fbProxy            *httputil.ReverseProxy `no-default:"true"`
+	ingestStreamUrl    *url.URL               `no-default:"true"`
+	ingestStreamProxy  *httputil.ReverseProxy `no-default:"true"`
 	gottyConns         *counter               `no-default:"true"`
 	srv                *http.Server           `no-default:"true"`
 	tokens             *tokens                `no-default:"true"`
@@ -251,6 +253,15 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	c.fbUrl = furl
 	c.fbProxy = fproxy
 
+	iurl, err := url.Parse("http://127.0.0.1:18080/")
+	if err != nil {
+		return fmt.Errorf("failed to parse live ingest proxy URL: %w", err)
+	}
+	iproxy := httputil.NewSingleHostReverseProxy(iurl)
+	iproxy.FlushInterval = -1
+	c.ingestStreamUrl = iurl
+	c.ingestStreamProxy = iproxy
+
 	// Setup authentication
 	c.tokens = new(tokens)
 	if c.AuthType == "basic" {
@@ -370,6 +381,7 @@ func (c *AgiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/agi/poweroff", c.handlePoweroff)            // poweroff the instance
 	http.HandleFunc("/agi/status", c.handleStatus)                // high-level agi service status
 	http.HandleFunc("/agi/inactivity", c.handleInactivity)        // print inactivity timers
+	http.HandleFunc("/agi/ingest/stream", c.handleIngestStream)   // live log ingest stream
 	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail)   // detailed logingest progress json
 	http.HandleFunc("/", c.grafanaHandler)                        // grafana
 
@@ -1402,6 +1414,41 @@ func (c *AgiExecProxyCmd) fbHandler(w http.ResponseWriter, r *http.Request) {
 	r.Host = c.fbUrl.Host
 	r.Header.Del("Origin")
 	c.fbProxy.ServeHTTP(w, r)
+}
+
+// handleIngestStream proxies live log streams to the loopback listener without
+// response buffering so chunked request bodies are forwarded immediately.
+func (c *AgiExecProxyCmd) handleIngestStream(w http.ResponseWriter, r *http.Request) {
+	if !c.checkIngestStreamAuth(w, r) {
+		return
+	}
+	r.URL.Host = c.ingestStreamUrl.Host
+	r.URL.Scheme = c.ingestStreamUrl.Scheme
+	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+	r.Host = c.ingestStreamUrl.Host
+	r.Header.Del("Origin")
+	c.ingestStreamProxy.ServeHTTP(w, r)
+}
+
+func (c *AgiExecProxyCmd) checkIngestStreamAuth(w http.ResponseWriter, r *http.Request) bool {
+	if !c.isTokenAuth {
+		return c.checkAuthOnly(w, r)
+	}
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(header, "Bearer ") {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	c.tokens.RLock()
+	defer c.tokens.RUnlock()
+	for _, stored := range c.tokens.tokens {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(strings.TrimSpace(stored))) == 1 {
+			return true
+		}
+	}
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	return false
 }
 
 // getTtyd downloads and runs ttyd web terminal

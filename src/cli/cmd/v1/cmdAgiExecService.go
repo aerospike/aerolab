@@ -3,17 +3,21 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/agi/db"
 	"github.com/aerospike/aerolab/pkg/agi/ingest"
+	"github.com/aerospike/aerolab/pkg/agi/livelisten"
 	"github.com/aerospike/aerolab/pkg/agi/plugin"
 )
 
@@ -45,13 +49,13 @@ import (
 // the systemd unit; the ingest pipeline picks up from the resulting
 // empty steps.
 type AgiExecServiceCmd struct {
-	AGIName        string  `long:"agi-name" description:"Name of this AGI instance"`
-	Async          bool    `long:"async" description:"If set, will asynchronously process logs and collectinfo during ingest"`
-	IngestYaml     string  `long:"ingest-yaml" description:"Path to ingest YAML config file" default:"/opt/agi/ingest.yaml"`
-	PluginYaml     string  `long:"plugin-yaml" description:"Path to plugin YAML config file" default:"/opt/agi/plugin.yaml"`
-	SkipIngest     bool    `long:"skip-ingest" description:"Skip running the ingest pipeline (plugin-only mode, useful for reopening an existing DB)"`
-	SkipPlugin     bool    `long:"skip-plugin" description:"Skip running the plugin (ingest-only mode, equivalent to 'agi exec ingest')"`
-	Help           HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	AGIName    string  `long:"agi-name" description:"Name of this AGI instance"`
+	Async      bool    `long:"async" description:"If set, will asynchronously process logs and collectinfo during ingest"`
+	IngestYaml string  `long:"ingest-yaml" description:"Path to ingest YAML config file" default:"/opt/agi/ingest.yaml"`
+	PluginYaml string  `long:"plugin-yaml" description:"Path to plugin YAML config file" default:"/opt/agi/plugin.yaml"`
+	SkipIngest bool    `long:"skip-ingest" description:"Skip running the ingest pipeline (plugin-only mode, useful for reopening an existing DB)"`
+	SkipPlugin bool    `long:"skip-plugin" description:"Skip running the plugin (ingest-only mode, equivalent to 'agi exec ingest')"`
+	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute opens the shared DB, then orchestrates ingest + plugin as
@@ -186,6 +190,29 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 	}
 
+	liveCtx, liveCancel := context.WithCancel(context.Background())
+	defer liveCancel()
+	var liveMu sync.Mutex
+	var liveSrv *livelisten.Listener
+	var liveIngest *ingest.Ingest
+	shutdownLive := func() {
+		liveCancel()
+		liveMu.Lock()
+		srv := liveSrv
+		li := liveIngest
+		liveMu.Unlock()
+		if srv != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := srv.Shutdown(ctx); err != nil {
+				system.Logger.Warn("live listener shutdown: %s", err)
+			}
+			cancel()
+		}
+		if li != nil {
+			li.Close()
+		}
+	}
+
 	// Install a process-level signal handler. On SIGTERM/SIGINT, ask
 	// the plugin to drain; the ingest goroutine will flush via its
 	// own deferred Close when the process exits. The goroutine below
@@ -203,6 +230,7 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 			return
 		}
 		system.Logger.Info("Service: received %s, initiating shutdown", sig)
+		shutdownLive()
 		if p != nil {
 			p.Shutdown()
 		}
@@ -239,6 +267,54 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}()
 	}
 
+	startLive := func() {
+		select {
+		case <-liveCtx.Done():
+			return
+		default:
+		}
+		if !ingestCfg.Live.Enabled {
+			return
+		}
+		if !dbOpts.EnableWAL {
+			system.Logger.Warn("live ingest is enabled but db.enableWAL=false; live listener will not start")
+			return
+		}
+		li, err := ingest.InitWithDB(ingestCfg, d)
+		if err != nil {
+			system.Logger.Warn("live ingest init failed: %s", err)
+			return
+		}
+		srv := livelisten.New(li, livelisten.Config{
+			ListenAddr:  ingestCfg.Live.ListenAddr,
+			OffsetsPath: "/opt/agi/live/offsets.json",
+			TokensPath:  "/opt/agi/tokens",
+			MaxStreams:  ingestCfg.Live.MaxStreams,
+			Workers:     ingestCfg.Live.Workers,
+		})
+		liveMu.Lock()
+		liveIngest = li
+		liveSrv = srv
+		liveMu.Unlock()
+		system.Logger.Info("Starting live ingest listener on %s", ingestCfg.Live.ListenAddr)
+		if err := srv.Serve(liveCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			system.Logger.Warn("live listener returned error: %s", err)
+		}
+	}
+	if ingestCfg.Live.Enabled {
+		if c.SkipIngest {
+			go startLive()
+		} else {
+			go func() {
+				ingestWG.Wait()
+				if ingestErr != nil {
+					return
+				}
+				startLive()
+			}()
+		}
+	}
+
 	// Plugin CPU profiling is process-global (Go's runtime/pprof CPU
 	// profiler can only have one writer at a time) and would otherwise
 	// clash with the ingest profile. Defer the plugin profile until
@@ -268,6 +344,8 @@ func (c *AgiExecServiceCmd) Execute(args []string) error {
 		}
 		p.Close()
 	}
+
+	shutdownLive()
 
 	// Wait for ingest to finish flushing. ingest installs its own
 	// defer i.Close() so its memtable writes are drained before this
