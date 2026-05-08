@@ -135,7 +135,14 @@ func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string
 			install = true
 		}
 	} else {
-		if c.Force || vEdition == "-unofficial" || vEdition == "-prerelease" || versions.Compare(latestVersionBase, vBranch) > 0 {
+		// Stable mode: never silently downgrade. The "-prerelease" / "-unofficial"
+		// shortcut promotes a running prerelease to the matching stable, but only
+		// when the latest stable's version is >= the running prerelease's version.
+		// Otherwise a v(N) prerelease user would be downgraded to v(N-1) stable
+		// while v(N) stable hasn't shipped yet. Use --force to override.
+		cmp := versions.Compare(latestVersionBase, vBranch)
+		promoteFromUnstable := (vEdition == "-unofficial" || vEdition == "-prerelease") && cmp >= 0
+		if c.Force || promoteFromUnstable || cmp > 0 {
 			install = true
 		}
 	}
