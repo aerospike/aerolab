@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -202,8 +203,14 @@ func rollbackTo79(home string) bool {
 	}
 
 	if err := cmd.CheckBinaryDirWritable(); err != nil {
-		log.Printf("AeroLab needs to perform an auto-downgrade to v7, but %s", err)
-		os.Exit(1)
+		// Try to re-run the original command under sudo so the user gets a
+		// password prompt instead of a hard failure. On success this never
+		// returns (the sudo'd child takes over and os.Exit is called).
+		wrapped := fmt.Errorf("AeroLab needs to perform an auto-downgrade to v7, but %s", err)
+		if rerr := cmd.ReExecWithSudo(logger.NewLogger(), wrapped); rerr != nil {
+			log.Printf("%s", rerr)
+			os.Exit(1)
+		}
 	}
 
 	// get current binary path

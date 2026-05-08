@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -229,7 +230,7 @@ func (c *UpgradeCmd) UpgradeAerolab(log *logger.Logger) error {
 	}
 
 	if err := CheckBinaryDirWritable(); err != nil {
-		return err
+		return ReExecWithSudo(log, err)
 	}
 
 	// create the temporary file
@@ -320,4 +321,57 @@ func CheckBinaryDirWritable() error {
 	f.Close()
 	os.Remove(testFile)
 	return nil
+}
+
+// ReExecWithSudo re-runs the current aerolab invocation under sudo when the
+// binary directory is not writable, so the user gets a single password prompt
+// instead of a hard failure. The exact original os.Args (resolved through the
+// canonical self path) are forwarded.
+//
+// On success the sudo'd child takes over: this function calls os.Exit with
+// the child's exit code and never returns. If re-execution is not possible
+// (Windows, already root, sudo missing, opt-out via AEROLAB_NO_AUTO_SUDO=1,
+// or self-path resolution failure), origErr is returned unchanged so the
+// caller can surface the original "no write permission" message.
+func ReExecWithSudo(log *logger.Logger, origErr error) error {
+	// On Windows there is no sudo; fall back to the original message which
+	// already tells the user to re-run as Administrator.
+	if runtime.GOOS == "windows" {
+		return origErr
+	}
+	// Explicit opt-out for users / scripts that don't want auto-elevation.
+	if os.Getenv("AEROLAB_NO_AUTO_SUDO") == "1" {
+		return origErr
+	}
+	// Already root: re-execing via sudo wouldn't help; the dir is just not
+	// writable to anyone. Surface the original error.
+	if os.Geteuid() == 0 {
+		return origErr
+	}
+	sudoPath, lookErr := exec.LookPath("sudo")
+	if lookErr != nil {
+		return fmt.Errorf("%s; tried to auto-elevate but sudo was not found in PATH", origErr)
+	}
+	self, err := GetSelfPath()
+	if err != nil {
+		return fmt.Errorf("%s; tried to auto-elevate but could not resolve self path: %s", origErr, err)
+	}
+
+	childArgs := append([]string{self}, os.Args[1:]...)
+	log.Warn("Insufficient permissions to write to '%s'. Re-running with sudo: %s %s",
+		filepath.Dir(self), sudoPath, strings.Join(childArgs, " "))
+
+	proc := exec.Command(sudoPath, childArgs...)
+	proc.Stdin = os.Stdin
+	proc.Stdout = os.Stdout
+	proc.Stderr = os.Stderr
+	if runErr := proc.Run(); runErr != nil {
+		// Forward the child's exit code if it ran but exited non-zero.
+		if exitErr, ok := runErr.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return fmt.Errorf("failed to re-execute via sudo: %s", runErr)
+	}
+	os.Exit(0)
+	return nil // unreachable
 }
