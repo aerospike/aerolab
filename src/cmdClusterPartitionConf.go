@@ -307,6 +307,13 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 	}
 
 	if (c.ConfDest == "allflash" || c.ConfDest == "pi-flash") && totalFsSizeBytes > 0 {
+		// partition-tree-sprigs is a power of 2 in [256, 268,435,456]; the server
+		// refuses to start (before logging) for values outside this range.
+		// Source: https://aerospike.com/docs/database/reference/config#namespace__partition-tree-sprigs
+		const (
+			sprigsHardMin = 256
+			sprigsHardMax = 268435456
+		)
 		treeSprigs := "256"
 		rf := "2"
 		if namespace.Type("partition-tree-sprigs") != aeroconf.ValueNil {
@@ -326,6 +333,16 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		spaceRequired := 4096 * rfInt * 4096 * treeSprigsInt
 		maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
 		maxSprigs := NextPowOf2(maxUsableBytes / 4096 / rfInt / 4096)
+		if maxSprigs > sprigsHardMax {
+			maxSprigs = sprigsHardMax
+		}
+		if maxSprigs < sprigsHardMin {
+			maxSprigs = sprigsHardMin
+			minSpaceRequired := 4096 * rfInt * 4096 * sprigsHardMin
+			if minSpaceRequired > maxUsableBytes {
+				log.Printf("WARNING: node=%d pi-flash partition_size*%d%% (%s) is too small to hold the minimum legal partition-tree-sprigs=%d (requires %s). The cluster may overflow its index mount; grow the partition or lower --mounts-size-limit-pct.", nodeNo, int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), sprigsHardMin, convSize(int64(minSpaceRequired)))
+			}
+		}
 		maxRecords := maxSprigs * 4096 * 64
 		p := message.NewPrinter(language.English)
 		maxRecordsStr := p.Sprintf("%d", maxRecords)
