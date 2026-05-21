@@ -428,11 +428,12 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 				maxSprigs = sprigsHardMax
 			}
 			if maxSprigs < sprigsHardMin {
-				maxSprigs = sprigsHardMin
 				minSpaceRequired := 4096 * rfInt * 4096 * sprigsHardMin
 				if minSpaceRequired > maxUsableBytes {
-					log.Printf("WARNING: node=%d pi-flash partition_size*%d%% (%s) is too small to hold the minimum legal partition-tree-sprigs=%d (requires %s). The cluster may overflow its index mount; grow the partition or lower --mounts-size-limit-pct.", inst.NodeNo, int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), sprigsHardMin, convSize(int64(minSpaceRequired)))
+					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: pi-flash partition_size*%d%% (%s) is too small to hold the minimum legal partition-tree-sprigs=%d (requires %s); grow the partition or lower --mounts-size-limit-pct", inst.ClusterName, inst.NodeNo, int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), sprigsHardMin, convSize(int64(minSpaceRequired))))
+					return
 				}
+				maxSprigs = sprigsHardMin
 			}
 			maxRecords := maxSprigs * 4096 * 64
 			p := message.NewPrinter(language.English)
