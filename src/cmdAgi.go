@@ -311,8 +311,8 @@ type agiRetriggerCmd struct {
 	SftpRegex        *string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^" simplemode:"false"`
 	S3Enable         *bool            `long:"source-s3-enable" description:"enable s3 source" simplemode:"false"`
 	S3Threads        *int             `long:"source-s3-threads" description:"number of concurrent downloader threads" simplemode:"false"`
-	S3Region         *string          `long:"source-s3-region" description:"aws region where the s3 bucket is located" simplemode:"false"`
-	S3Bucket         *string          `long:"source-s3-bucket" description:"s3 bucket name" simplemode:"false"`
+	S3Region         *string          `long:"source-s3-region" description:"aws region where the s3 bucket is located; ignored if --source-s3-bucket uses the 'region:name' form" simplemode:"false"`
+	S3Bucket         *string          `long:"source-s3-bucket" description:"s3 bucket name; may also be given as 'region:name' to embed the region (overrides --source-s3-region)" simplemode:"false"`
 	S3KeyID          *string          `long:"source-s3-key-id" description:"(optional) access key ID" simplemode:"false"`
 	S3Secret         *string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
 	S3path           *string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
@@ -347,6 +347,18 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	if c.S3Secret != nil && strings.HasPrefix(*c.S3Secret, "ENV::") {
 		aa := os.Getenv(strings.Split(*c.S3Secret, "::")[1])
 		c.S3Secret = &aa
+	}
+	// allow --source-s3-bucket to carry the region as "region:bucket"; embedded region wins
+	if c.S3Bucket != nil {
+		if region, bucket, ok, err := parseAgiS3Bucket(*c.S3Bucket); err != nil {
+			return err
+		} else if ok {
+			if c.S3Region != nil && *c.S3Region != "" && *c.S3Region != region {
+				log.Printf("WARNING: --source-s3-region=%q overridden by region embedded in --source-s3-bucket (%q)", *c.S3Region, region)
+			}
+			c.S3Region = &region
+			c.S3Bucket = &bucket
+		}
 	}
 	if c.S3Enable != nil && *c.S3Enable && c.S3path != nil && *c.S3path == "" {
 		return errors.New("S3 path cannot be left empty")

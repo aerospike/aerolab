@@ -64,8 +64,8 @@ type agiCreateCmd struct {
 	SftpFullCheck    bool            `long:"source-sftp-listfiles" description:"set this to make aerolab login to sftp and list files prior to starting AGI; this will interactively prompt to continue" simplemode:"false"`
 	S3Enable         bool            `long:"source-s3-enable" description:"enable s3 source" simplemode:"false"`
 	S3Threads        int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"4" simplemode:"false"`
-	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located" simplemode:"false"`
-	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name" simplemode:"false"`
+	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located; ignored if --source-s3-bucket uses the 'region:name' form" simplemode:"false"`
+	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name; may also be given as 'region:name' to embed the region (overrides --source-s3-region)" simplemode:"false"`
 	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID" simplemode:"false"`
 	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
@@ -191,6 +191,16 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	if strings.HasPrefix(c.S3Secret, "ENV::") {
 		c.S3Secret = os.Getenv(strings.Split(c.S3Secret, "::")[1])
+	}
+	// allow --source-s3-bucket to carry the region as "region:bucket"; embedded region wins
+	if region, bucket, ok, err := parseAgiS3Bucket(c.S3Bucket); err != nil {
+		return err
+	} else if ok {
+		if c.S3Region != "" && c.S3Region != region {
+			log.Printf("WARNING: --source-s3-region=%q overridden by region embedded in --source-s3-bucket (%q)", c.S3Region, region)
+		}
+		c.S3Region = region
+		c.S3Bucket = bucket
 	}
 	if c.ClusterName == "~auto~" {
 		nName := ""
@@ -1116,6 +1126,21 @@ var agiCreateScriptDocker string
 
 //go:embed cmdAgiCreateLogtags.py
 var agiCreateLogTags string
+
+// parseAgiS3Bucket accepts a bucket value of the form "region:name" or "name".
+// When the colon form is used it returns ok=true plus the split region and
+// bucket. Empty region or bucket halves are rejected. S3 bucket names cannot
+// contain ':' (AWS naming rules), so the separator is unambiguous.
+func parseAgiS3Bucket(s string) (region, bucket string, ok bool, err error) {
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		region, bucket = s[:i], s[i+1:]
+		if region == "" || bucket == "" {
+			return "", "", true, fmt.Errorf("invalid --source-s3-bucket %q: expected 'region:name' or 'name'", s)
+		}
+		return region, bucket, true, nil
+	}
+	return "", s, false, nil
+}
 
 func gz(p []byte) (r []byte, err error) {
 	buf := &bytes.Buffer{}
