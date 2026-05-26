@@ -428,8 +428,8 @@ func (c *webCmd) Execute(args []string) error {
 					c.inventoryHide.Subnets = true
 				default:
 					linesplit := []string{line}
-					if strings.Contains(line, ":") {
-						linesplit = strings.Split(line, ":")
+					if idx := strings.Index(line, ":"); idx >= 0 {
+						linesplit = []string{line[:idx], line[idx+1:]}
 						c.webchoice[strings.ToLower(linesplit[0])] = linesplit[1]
 					}
 					c.simpleMode = append(c.simpleMode, strings.ToLower(linesplit[0]))
