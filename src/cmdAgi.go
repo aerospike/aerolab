@@ -492,7 +492,7 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 		}
 	}
 	if c.ClusterSource != nil {
-		if c.LocalSource == nil && *c.LocalSource != "" {
+		if c.LocalSource != nil && *c.LocalSource != "" {
 			return errors.New("local source cannot be specified when using --source-cluster")
 		}
 		localSource, err := agiLogsGet(*c.ClusterSource)
