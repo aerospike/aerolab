@@ -80,8 +80,8 @@ type AgiCreateCmd struct {
 	// S3 source options
 	S3Enable    bool   `long:"source-s3-enable" description:"Enable S3 source"`
 	S3Threads   int    `long:"source-s3-threads" description:"Number of concurrent downloader threads" default:"4"`
-	S3Region    string `long:"source-s3-region" description:"AWS region where S3 bucket is located"`
-	S3Bucket    string `long:"source-s3-bucket" description:"S3 bucket name"`
+	S3Region    string `long:"source-s3-region" description:"AWS region where S3 bucket is located; ignored if --source-s3-bucket uses the 'region:name' form"`
+	S3Bucket    string `long:"source-s3-bucket" description:"S3 bucket name; may also be given as 'region:name' to embed the region (overrides --source-s3-region)"`
 	S3KeyID     string `long:"source-s3-key-id" description:"AWS access key ID (supports ENV::VAR_NAME)"`
 	S3Secret    string `long:"source-s3-secret-key" description:"AWS secret key (supports ENV::VAR_NAME)" webtype:"password"`
 	S3Path      string `long:"source-s3-path" description:"Path prefix in S3 bucket"`
@@ -275,6 +275,18 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 
 	// Process ENV:: variables for secrets
 	c.processEnvVariables()
+
+	// Allow --source-s3-bucket to carry the region as "region:bucket"; the
+	// embedded region wins over --source-s3-region.
+	if region, bucket, ok, perr := parseAgiS3Bucket(c.S3Bucket); perr != nil {
+		return nil, perr
+	} else if ok {
+		if c.S3Region != "" && c.S3Region != region {
+			logger.Warn("--source-s3-region=%q overridden by region embedded in --source-s3-bucket (%q)", c.S3Region, region)
+		}
+		c.S3Region = region
+		c.S3Bucket = bucket
+	}
 
 	// Handle cluster source - get logs from cluster
 	if c.ClusterSource != "" {
@@ -659,6 +671,21 @@ func (c *AgiCreateCmd) processEnvVariables() {
 			*field = os.Getenv(envVar)
 		}
 	}
+}
+
+// parseAgiS3Bucket accepts a bucket value of the form "region:name" or
+// "name". When the colon form is used it returns ok=true plus the split
+// region and bucket. Empty halves are rejected. S3 bucket names cannot
+// contain ':' per AWS naming rules, so the separator is unambiguous.
+func parseAgiS3Bucket(s string) (region, bucket string, ok bool, err error) {
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		region, bucket = s[:i], s[i+1:]
+		if region == "" || bucket == "" {
+			return "", "", true, fmt.Errorf("invalid --source-s3-bucket %q: expected 'region:name' or 'name'", s)
+		}
+		return region, bucket, true, nil
+	}
+	return "", s, false, nil
 }
 
 // generateAutoName generates an auto name based on source parameters.

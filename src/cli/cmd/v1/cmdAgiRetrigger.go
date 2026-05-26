@@ -52,8 +52,8 @@ type AgiRetriggerCmd struct {
 	// S3 source options
 	S3Enable  *bool   `long:"source-s3-enable" description:"Enable S3 source"`
 	S3Threads *int    `long:"source-s3-threads" description:"Number of concurrent downloader threads"`
-	S3Region  *string `long:"source-s3-region" description:"AWS region where S3 bucket is located"`
-	S3Bucket  *string `long:"source-s3-bucket" description:"S3 bucket name"`
+	S3Region  *string `long:"source-s3-region" description:"AWS region where S3 bucket is located; ignored if --source-s3-bucket uses the 'region:name' form"`
+	S3Bucket  *string `long:"source-s3-bucket" description:"S3 bucket name; may also be given as 'region:name' to embed the region (overrides --source-s3-region)"`
 	S3KeyID   *string `long:"source-s3-key-id" description:"AWS access key ID (supports ENV::VAR_NAME)"`
 	S3Secret  *string `long:"source-s3-secret-key" description:"AWS secret key (supports ENV::VAR_NAME)" webtype:"password"`
 	S3Path    *string `long:"source-s3-path" description:"Path prefix in S3 bucket"`
@@ -121,6 +121,20 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 
 	// Process ENV:: variables
 	c.processEnvVariables()
+
+	// Allow --source-s3-bucket to carry the region as "region:bucket"; the
+	// embedded region wins over --source-s3-region.
+	if c.S3Bucket != nil {
+		if region, bucket, ok, perr := parseAgiS3Bucket(*c.S3Bucket); perr != nil {
+			return perr
+		} else if ok {
+			if c.S3Region != nil && *c.S3Region != "" && *c.S3Region != region {
+				logger.Warn("--source-s3-region=%q overridden by region embedded in --source-s3-bucket (%q)", *c.S3Region, region)
+			}
+			c.S3Region = &region
+			c.S3Bucket = &bucket
+		}
+	}
 
 	// Validate S3 path if S3 is enabled
 	if c.S3Enable != nil && *c.S3Enable && c.S3Path != nil && *c.S3Path == "" {
