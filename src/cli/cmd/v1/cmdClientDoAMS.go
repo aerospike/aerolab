@@ -977,6 +977,11 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 
 	images := inventory.Images.WithTags(map[string]string{"aerolab.image.type": "ams"}).WithArchitecture(arch)
 	var templateName string
+	// resolvedImage points at the AMS template we end up using, so we can
+	// size the client's root volume to be at least as large as the backing
+	// snapshot. AWS rejects launching from a 30GiB snapshot onto a 20GiB
+	// root volume (InvalidBlockDeviceMapping); GCP behaves the same way.
+	var resolvedImage *backends.Image
 	switch images.Count() {
 	case 0:
 		logger.Info("No AMS template found for %s; creating one...", archStr)
@@ -1005,12 +1010,22 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 		// `Image{}` with a zero-value Architecture, which in turn makes Docker
 		// try to run the arm64 image as linux/amd64.)
 		system.Backend.ForceRefreshInventory()
-		templateName = resolveCanonicalAMSTemplateName(system.Backend.GetInventory(), arch, name)
+		refreshed := system.Backend.GetInventory()
+		templateName = resolveCanonicalAMSTemplateName(refreshed, arch, name)
 		if templateName == "" {
 			return fmt.Errorf("auto-created AMS template %q not visible in inventory after refresh", name)
 		}
+		imgs := refreshed.Images.
+			WithTags(map[string]string{"aerolab.image.type": "ams"}).
+			WithArchitecture(arch).
+			WithName(templateName).
+			Describe()
+		if len(imgs) > 0 {
+			resolvedImage = imgs[0]
+		}
 	case 1:
-		templateName = images.Describe()[0].Name
+		resolvedImage = images.Describe()[0]
+		templateName = resolvedImage.Name
 		logger.Info("Using AMS template: %s", templateName)
 		logger.Info("Using existing AMS template. To refresh the template and get the latest dashboards, run: aerolab client template ams refresh")
 	default:
@@ -1027,6 +1042,7 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 				bestGen = gen
 			}
 		}
+		resolvedImage = best
 		templateName = best.Name
 		names := []string{}
 		for _, img := range images.Describe() {
@@ -1057,7 +1073,73 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 	if c.Arch == "" {
 		c.Arch = archStr
 	}
+
+	// Ensure the client's root volume is at least as large as the AMS
+	// template snapshot. Without this, the default 20GiB --disk on cloud
+	// backends fails with InvalidBlockDeviceMapping because the AMS
+	// template is built with a 30GiB root volume.
+	if resolvedImage != nil && resolvedImage.Size > 0 {
+		templateSizeGiB := int64(resolvedImage.Size / backends.StorageGiB)
+		if templateSizeGiB > 0 {
+			switch backendType {
+			case "aws":
+				updated, changed, err := ensureRootDiskMinSizeGiB(c.AWS.Disks, templateSizeGiB)
+				if err != nil {
+					return fmt.Errorf("could not adjust --aws-disk for AMS template: %w", err)
+				}
+				if changed {
+					logger.Info("Resizing AWS root volume to %dGiB to match AMS template snapshot", templateSizeGiB)
+					c.AWS.Disks = updated
+				}
+			case "gcp":
+				updated, changed, err := ensureRootDiskMinSizeGiB(c.GCP.Disks, templateSizeGiB)
+				if err != nil {
+					return fmt.Errorf("could not adjust --gcp-disk for AMS template: %w", err)
+				}
+				if changed {
+					logger.Info("Resizing GCP root volume to %dGiB to match AMS template snapshot", templateSizeGiB)
+					c.GCP.Disks = updated
+				}
+			}
+		}
+	}
 	return nil
+}
+
+// ensureRootDiskMinSizeGiB returns disks with the first ("root") entry's
+// size= field bumped to at least minGiB. Returns the (possibly updated)
+// slice and a flag indicating whether a change was made. Disks without an
+// explicit size= attribute (Docker bind mounts, cloud disks letting the
+// backend pick a default) are left untouched. Subsequent ("data") disks
+// are not modified.
+func ensureRootDiskMinSizeGiB(disks []string, minGiB int64) ([]string, bool, error) {
+	if len(disks) == 0 || minGiB <= 0 {
+		return disks, false, nil
+	}
+	parts := strings.Split(disks[0], ",")
+	changed := false
+	for i, p := range parts {
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 || strings.ToLower(strings.TrimSpace(kv[0])) != "size" {
+			continue
+		}
+		size, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64)
+		if err != nil {
+			return nil, false, fmt.Errorf("invalid size in disk %q: %w", disks[0], err)
+		}
+		if size < minGiB {
+			parts[i] = fmt.Sprintf("size=%d", minGiB)
+			changed = true
+		}
+		break
+	}
+	if !changed {
+		return disks, false, nil
+	}
+	out := make([]string, len(disks))
+	copy(out, disks)
+	out[0] = strings.Join(parts, ",")
+	return out, true, nil
 }
 
 // resolveCanonicalAMSTemplateName finds the canonical inventory name for an

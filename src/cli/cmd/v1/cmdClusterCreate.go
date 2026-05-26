@@ -96,6 +96,7 @@ type ClusterCreateCmdGcp struct {
 	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"on-host maintenance policy: MIGRATE or TERMINATE; defaults to MIGRATE (or TERMINATE for spot)" simplemode:"false"`
 	MinCPUPlatform      string          `long:"gcp-min-cpu-platform" description:"set the minimum CPU platform; see https://cloud.google.com/compute/docs/instances/specify-min-cpu-platform"`
+	GVNIC               bool            `long:"gcp-gvnic" description:"use Google Virtual NIC (gVNIC) instead of the default VirtIO NIC; required for highest network performance and for some newer instance types"`
 	IAMInstanceProfile  string          `long:"gcp-instance-profile" description:"IAM instance profile to use for the instances"`
 	InstanceDNS         InstanceDNS     `group:"Automated GCP DNS" namespace:"gcp" description:"backend-gcp"`
 }
@@ -518,6 +519,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			SpotInstance:       c.Gcp.SpotInstance,
 			IAMInstanceProfile: c.Gcp.IAMInstanceProfile,
 			MinCPUPlatform:     c.Gcp.MinCPUPlatform,
+			GVNIC:              c.Gcp.GVNIC,
 			OnHostMaintenance:  c.Gcp.OnHostMaintenance,
 			CustomDNS:          c.Gcp.InstanceDNS,
 		},

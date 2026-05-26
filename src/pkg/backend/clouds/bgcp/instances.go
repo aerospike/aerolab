@@ -74,6 +74,8 @@ type CreateInstanceParams struct {
 	// optional: the on-host maintenance policy for the instance(node); if not set, will default to MIGRATE (or TERMINATE for spot)
 	// valid values: MIGRATE, TERMINATE
 	OnHostMaintenance string `yaml:"onHostMaintenance" json:"onHostMaintenance"`
+	// optional: if true, the instance(node) will use Google Virtual NIC (gVNIC) instead of the default VirtIO NIC
+	GVNIC bool `yaml:"gvnic" json:"gvnic"`
 }
 
 type InstanceDetail struct {
@@ -1674,6 +1676,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		if backendSpecificParams.MinCpuPlatform != "" {
 			minCpuPlatform = new(backendSpecificParams.MinCpuPlatform)
 		}
+		// gVNIC opt-in. NicType is a string field on NetworkInterface that accepts the
+		// enum name ("GVNIC"); leaving it nil lets GCP pick the default NIC for the
+		// machine type.
+		var nicType *string
+		if backendSpecificParams.GVNIC {
+			nicType = new(computepb.NetworkInterface_GVNIC.String())
+		}
 		// Create instance with capacity retry logic
 		insertRequest := &computepb.InsertInstanceRequest{
 			Project: s.credentials.Project,
@@ -1704,6 +1713,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 						Network:    new(vpc.NetworkId),
 						Subnetwork: new(subnet.SubnetId),
 						StackType:  new("IPV4_ONLY"),
+						NicType:    nicType,
 						AccessConfigs: []*computepb.AccessConfig{
 							{
 								Name:        new("External NAT"),

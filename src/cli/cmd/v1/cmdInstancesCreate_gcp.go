@@ -21,6 +21,7 @@ func buildGCPInstanceParams(c *InstancesCreateCmd, itype string, gcpCustomImageI
 		IAMInstanceProfile: c.GCP.IAMInstanceProfile,
 		CustomDNS:          c.GCP.CustomDNS.makeInstanceDNS(),
 		MinCpuPlatform:     c.GCP.MinCPUPlatform,
+		GVNIC:              c.GCP.GVNIC,
 		CustomImageID:      gcpCustomImageID,
 		OnHostMaintenance:  c.GCP.OnHostMaintenance,
 	}
