@@ -1103,6 +1103,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
 		return 0, 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
 	}
+	backendSpecificParams.Disks = applyGCPInstanceDiskDefaults(backendSpecificParams.Disks, backendSpecificParams.InstanceType)
 	instanceType, err := s.GetInstanceType(backendSpecificParams.NetworkPlacement, backendSpecificParams.InstanceType)
 	if err != nil {
 		return 0, 0, err
@@ -1344,6 +1345,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
 		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
 	}
+	backendSpecificParams.Disks = applyGCPInstanceDiskDefaults(backendSpecificParams.Disks, backendSpecificParams.InstanceType)
 	// early check - DNS
 	if backendSpecificParams.CustomDNS != nil && backendSpecificParams.CustomDNS.Name != "" && input.Nodes > 1 {
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as GCP Domains does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
