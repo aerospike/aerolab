@@ -3287,6 +3287,24 @@ type gcpMakeOps struct {
 	op  *compute.Operation
 }
 
+func gcpRequiresHyperdiskBootDisk(instanceType string) bool {
+	return strings.HasPrefix(instanceType, "n4-") || strings.HasPrefix(instanceType, "c4a-")
+}
+
+func gcpAdjustDisksForInstanceType(disks []*cloudDisk, instanceType string) []*cloudDisk {
+	if len(disks) == 0 || !gcpRequiresHyperdiskBootDisk(instanceType) {
+		return disks
+	}
+	if !strings.HasPrefix(disks[0].Type, "pd-") {
+		return disks
+	}
+	disks[0].Type = "hyperdisk-balanced"
+	if disks[0].Size == 0 {
+		disks[0].Size = 20
+	}
+	return disks
+}
+
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
 	name = strings.Trim(name, "\r\n\t ")
 	if extra.zone == "" {
@@ -3328,7 +3346,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	// this whole IF block is to handle old formatting and defaults if disks are not specified
 	if len(disksInt) == 0 {
 		if len(extra.disks) == 0 {
-			if strings.HasPrefix(extra.instanceType, "n4-") {
+			if gcpRequiresHyperdiskBootDisk(extra.instanceType) {
 				extra.disks = []string{"hyperdisk-balanced:20"}
 			} else {
 				extra.disks = []string{"pd-balanced:20"}
@@ -3359,29 +3377,31 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			}
 			if strings.HasPrefix(disk, "hyperdisk-balanced:") {
 				diska := strings.Split(disk, ":")
-				if len(diska) == 2 {
-					diska = append(diska, []string{"3060", "155"}...)
-				}
-				if len(diska) != 4 {
-					return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+				if len(diska) != 2 && len(diska) != 4 {
+					return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20 hyperdisk-balanced:20:3060:155)")
 				}
 				dsize, err := strconv.Atoi(diska[1])
 				if err != nil {
 					return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
 				}
-				diops, err := strconv.Atoi(diska[2])
-				if err != nil {
-					return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
-				}
-				dthroughput, err := strconv.Atoi(diska[3])
-				if err != nil {
-					return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+				var diops, dthroughput int64
+				if len(diska) == 4 {
+					iopsVal, err := strconv.Atoi(diska[2])
+					if err != nil {
+						return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+					}
+					throughputVal, err := strconv.Atoi(diska[3])
+					if err != nil {
+						return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+					}
+					diops = int64(iopsVal)
+					dthroughput = int64(throughputVal)
 				}
 				disksInt = append(disksInt, &cloudDisk{
 					Type:                  diska[0],
 					Size:                  int64(dsize),
-					ProvisionedIOPS:       int64(diops),
-					ProvisionedThroughput: int64(dthroughput),
+					ProvisionedIOPS:       diops,
+					ProvisionedThroughput: dthroughput,
 				})
 				continue
 			}
@@ -3416,6 +3436,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			})
 		}
 	}
+	disksInt = gcpAdjustDisksForInstanceType(disksInt, extra.instanceType)
 
 	var imageName string
 	if d.client {
