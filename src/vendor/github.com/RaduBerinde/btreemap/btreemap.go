@@ -84,11 +84,9 @@ func (t *BTreeMap[K, V]) Clone() (t2 *BTreeMap[K, V]) {
 	return &out
 }
 
-// ReplaceOrInsert adds the given item to the tree.  If an item in the tree
+// ReplaceOrInsert adds the given item to the tree. If an item in the tree
 // already equals the given one, it is removed from the tree and returned,
-// and the second return value is true.  Otherwise, (zeroValue, false)
-//
-// nil cannot be added to the tree (will panic).
+// and the second return value is true. Otherwise, (0, 0, false)
 func (t *BTreeMap[K, V]) ReplaceOrInsert(key K, value V) (_ K, _ V, replaced bool) {
 	if t.root == nil {
 		t.root = t.cow.newNode()
@@ -194,7 +192,7 @@ func (t *BTreeMap[K, V]) Ascend(start LowerBound[K], stop UpperBound[K]) iter.Se
 }
 
 // DescendFunc calls yield() for all elements between the start and stop bounds,
-// in ascending order.
+// in descending order.
 func (t *BTreeMap[K, V]) DescendFunc(
 	start UpperBound[K], stop LowerBound[K], yield func(key K, value V) bool,
 ) {
@@ -224,14 +222,50 @@ func (t *BTreeMap[K, V]) Get(key K) (_ K, _ V, _ bool) {
 
 // Min returns the smallest key and associated value in the tree, or
 // (0, 0, false) if the tree is empty.
-func (t *BTreeMap[K, V]) Min() (K, V, bool) {
+func (t *BTreeMap[K, V]) Min() (_ K, _ V, ok bool) {
 	return min(t.root)
 }
 
 // Max returns the largest key and associated value in the tree, or
 // (0, 0, false) if the tree is empty.
-func (t *BTreeMap[K, V]) Max() (K, V, bool) {
+func (t *BTreeMap[K, V]) Max() (_ K, _ V, ok bool) {
 	return max(t.root)
+}
+
+// SeekGE returns the first key/value pair greater than or equal to the given
+// key, or (0, 0, false) if no such key exists.
+func (t *BTreeMap[K, V]) SeekGE(key K) (_ K, _ V, ok bool) {
+	for k, v := range t.Ascend(GE[K](key), Max[K]()) {
+		return k, v, true
+	}
+	return zero[K](), zero[V](), false
+}
+
+// SeekGT returns the first key/value pair strictly greater than the given key,
+// or (0, 0, false) if no such key exists.
+func (t *BTreeMap[K, V]) SeekGT(key K) (_ K, _ V, ok bool) {
+	for k, v := range t.Ascend(GT[K](key), Max[K]()) {
+		return k, v, true
+	}
+	return zero[K](), zero[V](), false
+}
+
+// SeekLE returns the first key/value pair less than or equal to the given
+// key, or (0, 0, false) if no such key exists.
+func (t *BTreeMap[K, V]) SeekLE(key K) (_ K, _ V, ok bool) {
+	for k, v := range t.Descend(LE[K](key), Min[K]()) {
+		return k, v, true
+	}
+	return zero[K](), zero[V](), false
+}
+
+// SeekLT returns the first key/value pair strictly less than the given key, or
+// (0, 0, false) if no such key exists.
+func (t *BTreeMap[K, V]) SeekLT(key K) (_ K, _ V, ok bool) {
+	for k, v := range t.Descend(LT[K](key), Min[K]()) {
+		return k, v, true
+	}
+	return zero[K](), zero[V](), false
 }
 
 // Has returns true if the given key is in the tree.
@@ -347,4 +381,9 @@ func (c *copyOnWriteContext[K, V]) freeNode(n *node[K, V]) freeType {
 	} else {
 		return ftNotOwned
 	}
+}
+
+func zero[T any]() T {
+	var t T
+	return t
 }

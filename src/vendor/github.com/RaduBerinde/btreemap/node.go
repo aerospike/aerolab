@@ -282,7 +282,7 @@ func (n *node[K, V]) growChildAndRemove(i int, key K, minItems int, typ toRemove
 	return n.remove(key, minItems, typ)
 }
 
-// asced provides a simple method for iterating over elements in the tree, in
+// ascend provides a simple method for iterating over elements in the tree, in
 // ascending order.
 func (n *node[K, V]) ascend(
 	start LowerBound[K], stop UpperBound[K], hit bool, iter func(K, V) bool,

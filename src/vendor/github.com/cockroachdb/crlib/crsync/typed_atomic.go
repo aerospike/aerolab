@@ -16,7 +16,7 @@ package crsync
 
 import "sync/atomic"
 
-// TypedAtomicInt64 is a thin wrapper aorund atomic.Int64 that provides type
+// TypedAtomicInt64 is a thin wrapper around atomic.Int64 that provides type
 // safety.
 type TypedAtomicInt64[T ~int64] struct {
 	v atomic.Int64

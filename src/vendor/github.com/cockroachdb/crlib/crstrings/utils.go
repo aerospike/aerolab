@@ -16,6 +16,7 @@ package crstrings
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 )
@@ -87,13 +88,80 @@ func FilterEmpty(elems []string) []string {
 
 // Lines breaks up the given string into lines.
 func Lines(s string) []string {
+	return slices.Collect(LinesSeq(s))
+}
+
+// LinesSeq returns an iterator over the lines of the given string.
+func LinesSeq(s string) iter.Seq[string] {
 	// Remove any trailing newline (to avoid getting an extraneous empty line at
 	// the end).
 	s = strings.TrimSuffix(s, "\n")
 	if s == "" {
-		// In this case, Split returns a slice with a single empty string (which is
-		// not what we want).
-		return nil
+		// In this case, SplitSeq returns an iterator with a single empty string
+		// (which is not what we want).
+		return func(yield func(string) bool) {}
 	}
-	return strings.Split(s, "\n")
+	return strings.SplitSeq(s, "\n")
+}
+
+// Indent prepends a string to every line of the given string.
+//
+// If the string ends in a newline, the resulting string also ends in a newline.
+func Indent(prepend, str string) string {
+	lines := strings.Split(str, "\n")
+	var b strings.Builder
+	b.Grow(len(str) + len(lines)*len(prepend))
+	for i, l := range lines {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		// Make sure we don't add an extra prepend after a trailing newline.
+		if i < len(lines)-1 || l != "" {
+			b.WriteString(prepend)
+			b.WriteString(l)
+		}
+	}
+	return b.String()
+}
+
+// UnwrapText reformats wrapped lines by replacing single newlines with spaces,
+// while preserving blank-line paragraph breaks. This allows defining long
+// strings in a readable fashion.
+//
+// More specifically:
+//   - the input string is broken up into lines;
+//   - each line is trimmed of leading and trailing whitespace;
+//   - leading or trailing empty lines are discarded;
+//   - each run of non-empty lines is joined into a single line, with a space
+//     separator;
+//   - resulting single lines are joined with a blank line in-between.
+//
+// For example:
+// UnwrapText(`
+//
+//	This is a paragraph that
+//	is wrapped on multiple lines.
+//
+//	This is another paragraph.
+//
+// `)
+// returns
+// "This is a paragraph that is wrapped on multiple lines.\n\nThis is another paragraph."
+func UnwrapText(input string) string {
+	var buf strings.Builder
+
+	var separator string
+	for l := range strings.SplitSeq(input, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			separator = "\n\n"
+		} else {
+			if buf.Len() > 0 {
+				buf.WriteString(separator)
+			}
+			buf.WriteString(l)
+			separator = " "
+		}
+	}
+	return buf.String()
 }
