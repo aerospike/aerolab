@@ -15,7 +15,7 @@
   * [Partitioner](partitioner/partition-disks.md)
   * [Advanced - AWS Firewall Rules](aws-firewall.md)
   * [Advanced - Custom VPC](vpc.md)
-  * [Advanced - Run without PublicIPs](aws-no-publicip.md)
+  * [Advanced - Run without PublicIPs](no-publicip.md)
 * [Docker Multiarch](docker_multiarch.md)
 * [Usage examples](usage/index.md)
   * [Basic](usage/basic/index.md)
