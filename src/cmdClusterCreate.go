@@ -707,6 +707,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		cloudDisks:      cloudDisks,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		if c.Gcp.PublicIP && a.opts.Config.Backend.GCPNoPublicIps {
+			return errors.New("cannot use --external-ip together with the gcp-nopublic-ip backend setting: instances will not have a public IP")
+		}
 		cloudDisks, err := disk2backend(c.Gcp.Disk)
 		if err != nil {
 			return err
