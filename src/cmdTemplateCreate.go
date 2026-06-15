@@ -145,6 +145,8 @@ func (c *templateCreateCmd) Execute(args []string) error {
 			disks:        []string{"balanced:20"},
 			zone:         c.Gcp.Zone.String(),
 			labels:       c.Gcp.Labels,
+			gcpNetwork:   c.Gcp.Network,
+			gcpSubnet:    c.Gcp.Subnet,
 		}
 	}
 	if a.opts.Config.Backend.Type == "gcp" {

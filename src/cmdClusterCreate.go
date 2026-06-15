@@ -194,6 +194,8 @@ type clusterCreateCmdGcp struct {
 	Disk                []string        `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times"`
 	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
+	Network             string          `long:"gcp-network" description:"GCP network name to use" default:"default" simplemode:"false"`
+	Subnet              string          `long:"gcp-subnet" description:"GCP subnet name; default: auto-select a subnet in the zone's region of the chosen network" simplemode:"false"`
 	IsArm               bool            `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
 	Tags                []string        `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
@@ -707,6 +709,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		cloudDisks:      cloudDisks,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		if c.Gcp.PublicIP && a.opts.Config.Backend.GCPNoPublicIps {
+			return errors.New("cannot use --external-ip together with the gcp-nopublic-ip backend setting: instances will not have a public IP")
+		}
 		cloudDisks, err := disk2backend(c.Gcp.Disk)
 		if err != nil {
 			return err
@@ -771,6 +776,8 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 		if a.opts.Config.Backend.Type == "gcp" {
 			extra.firewallNamePrefix = c.Gcp.NamePrefix
+			extra.gcpNetwork = c.Gcp.Network
+			extra.gcpSubnet = c.Gcp.Subnet
 		} else {
 			extra.firewallNamePrefix = c.Aws.NamePrefix
 		}
@@ -970,6 +977,8 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.isAgiFirewall = c.useAgiFirewall
 	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
+		extra.gcpNetwork = c.Gcp.Network
+		extra.gcpSubnet = c.Gcp.Subnet
 		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
 		extra.firewallNamePrefix = c.Aws.NamePrefix
