@@ -60,9 +60,13 @@ func (c *ClusterDestroyCmd) DestroyCluster(system *System, inventory *backends.I
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		// Validate all clusters up-front so a partial list doesn't half-destroy
+		// some and then bail on the next. The helper lists available clusters
+		// to help the user fix their input. No state filter -- destroy is
+		// valid against any non-terminated cluster.
 		for _, cluster := range clusters {
-			if inventory.Instances.WithClusterName(cluster).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Count() == 0 {
-				return nil, fmt.Errorf("cluster %s not found", cluster)
+			if err := clusterStateErr(cluster, inventory, []string{"server", "aerospike"}); err != nil {
+				return nil, err
 			}
 		}
 		for _, cluster := range clusters {

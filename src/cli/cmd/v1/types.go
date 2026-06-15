@@ -593,36 +593,24 @@ func getInstanceListForClusterName(t *string, inventory *backends.Inventory, ins
 	}
 	if cluster == nil || cluster.Count() == 0 {
 		if IsInteractive() {
-			// get cluster list (include instances matching type, and old type only for client)
-			baseAll := inventory.Instances.WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
-			var allMerged backends.InstanceList
-			if slices.Contains(instanceTypes, "client") {
-				allMerged = mergeInstanceListsByID(
-					baseAll.WithType(instanceTypes...).Describe(),
-					baseAll.WithOldType(instanceTypes...).Describe(),
-				)
-			} else {
-				allMerged = baseAll.WithType(instanceTypes...).Describe()
-			}
-			clusters := []string{}
-			seenClusters := map[string]struct{}{}
-			for _, i := range allMerged {
-				if len(interactiveStates) > 0 && !slices.Contains(interactiveStates, i.InstanceState) {
-					continue
-				}
-				if strings.Contains(i.ClusterName, *t) {
-					if _, ok := seenClusters[i.ClusterName]; !ok {
-						seenClusters[i.ClusterName] = struct{}{}
-						clusters = append(clusters, i.ClusterName)
-					}
+			// Prefer clusters whose names contain the typo as a substring; if
+			// none match, fall back to listing all available clusters of the
+			// requested type+state so the user can see what's actually there.
+			all := availableClusterNames(inventory, instanceTypes, interactiveStates...)
+			matches := []string{}
+			for _, c := range all {
+				if strings.Contains(c, *t) {
+					matches = append(matches, c)
 				}
 			}
-			if len(clusters) == 0 {
-				return nil, errors.New("cluster not found")
+			pickFrom := matches
+			if len(pickFrom) == 0 {
+				pickFrom = all
 			}
-			sort.Strings(clusters)
-			// ask user to select a cluster interactively
-			choice, quitting, err := choice.Choice(fmt.Sprintf("Cluster %s not found, select an existing cluster:", *t), choice.StringSliceToItems(clusters))
+			if len(pickFrom) == 0 {
+				return nil, clusterStateErr(*t, inventory, instanceTypes, interactiveStates...)
+			}
+			choice, quitting, err := choice.Choice(fmt.Sprintf("Cluster %s not found, select an existing cluster:", *t), choice.StringSliceToItems(pickFrom))
 			if err != nil || quitting {
 				return nil, err
 			}
@@ -635,10 +623,106 @@ func getInstanceListForClusterName(t *string, inventory *backends.Inventory, ins
 				cluster = byType.Describe()
 			}
 		} else {
-			return nil, errors.New("cluster not found")
+			return nil, clusterStateErr(*t, inventory, instanceTypes, interactiveStates...)
 		}
 	}
 	return cluster.Describe(), nil
+}
+
+// availableClusterNames returns sorted, deduplicated cluster names whose
+// instances match the given type filters (server/aerospike, client, agi).
+// When states are provided, only clusters with at least one instance in one
+// of those states are returned. Terminated and terminating instances are
+// always excluded.
+func availableClusterNames(inventory *backends.Inventory, instanceTypes []string, states ...backends.LifeCycleState) []string {
+	if inventory == nil {
+		return nil
+	}
+	baseAll := inventory.Instances.WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+	var allMerged backends.InstanceList
+	if slices.Contains(instanceTypes, "client") {
+		allMerged = mergeInstanceListsByID(
+			baseAll.WithType(instanceTypes...).Describe(),
+			baseAll.WithOldType(instanceTypes...).Describe(),
+		)
+	} else {
+		allMerged = baseAll.WithType(instanceTypes...).Describe()
+	}
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, i := range allMerged {
+		if len(states) > 0 && !slices.Contains(states, i.InstanceState) {
+			continue
+		}
+		if _, ok := seen[i.ClusterName]; ok {
+			continue
+		}
+		seen[i.ClusterName] = struct{}{}
+		out = append(out, i.ClusterName)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// clusterStateErr returns a user-friendly error describing why the named
+// cluster cannot be used in the requested state, distinguishing two cases:
+//
+//  1. The cluster doesn't exist (or only as terminated/terminating instances):
+//     lists available clusters of the same type+state so the user can fix
+//     a typo or see what's actually deployed.
+//  2. The cluster exists but no instances are in the requested state(s):
+//     reports the cluster's current state(s), e.g. "cluster X exists but no
+//     instances are in state [Stopped] (current: [Running])".
+//
+// Returns nil when the cluster exists and at least one of its instances is in
+// one of the requested states (or when no states are required).
+func clusterStateErr(name string, inventory *backends.Inventory, instanceTypes []string, states ...backends.LifeCycleState) error {
+	if inventory == nil {
+		return errors.New("inventory is required")
+	}
+	base := inventory.Instances.WithClusterName(name).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated)
+	var byType backends.InstanceList
+	if slices.Contains(instanceTypes, "client") {
+		byType = mergeInstanceListsByID(
+			base.WithType(instanceTypes...).Describe(),
+			base.WithOldType(instanceTypes...).Describe(),
+		)
+	} else {
+		byType = base.WithType(instanceTypes...).Describe()
+	}
+	if len(byType) == 0 {
+		// Doesn't exist (or only terminated). List available clusters in the
+		// requested state(s) so the user can correct their input.
+		available := availableClusterNames(inventory, instanceTypes, states...)
+		if len(available) == 0 {
+			return fmt.Errorf("cluster %q not found and no other clusters exist in the requested state", name)
+		}
+		return fmt.Errorf("cluster %q not found. Available: %s", name, strings.Join(available, ", "))
+	}
+	if len(states) == 0 {
+		return nil
+	}
+	inState := false
+	currentStates := map[backends.LifeCycleState]struct{}{}
+	for _, i := range byType {
+		currentStates[i.InstanceState] = struct{}{}
+		if slices.Contains(states, i.InstanceState) {
+			inState = true
+		}
+	}
+	if inState {
+		return nil
+	}
+	wanted := make([]string, 0, len(states))
+	for _, s := range states {
+		wanted = append(wanted, s.String())
+	}
+	current := make([]string, 0, len(currentStates))
+	for s := range currentStates {
+		current = append(current, s.String())
+	}
+	sort.Strings(current)
+	return fmt.Errorf("cluster %q exists but no instances are in state [%s] (current: [%s])", name, strings.Join(wanted, ", "), strings.Join(current, ", "))
 }
 
 // mergeInstanceListsByID returns an InstanceList with instances from both lists, deduplicated by InstanceID.

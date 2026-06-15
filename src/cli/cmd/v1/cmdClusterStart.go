@@ -62,9 +62,13 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		// Validate all clusters up-front so a partial list doesn't half-start
+		// some and then bail on the next. The helper distinguishes "doesn't
+		// exist" from "exists but already running", and in either case lists
+		// available stopped clusters to help the user fix their input.
 		for _, clusterName := range clusters {
-			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateStopped).Count() == 0 {
-				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			if err := clusterStateErr(clusterName, inventory, []string{"server", "aerospike"}, backends.LifeCycleStateStopped); err != nil {
+				return nil, err
 			}
 		}
 		for _, clusterName := range clusters {

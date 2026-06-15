@@ -56,9 +56,13 @@ func (c *ClusterStopCmd) StopCluster(system *System, inventory *backends.Invento
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var instances backends.InstanceList
+		// Validate all clusters up-front so a partial list doesn't half-stop
+		// some and then bail on the next. The helper distinguishes "doesn't
+		// exist" from "exists but already stopped", and lists available
+		// running clusters to help the user fix their input.
 		for _, clusterName := range clusters {
-			if inventory.Instances.WithClusterName(clusterName).WithState(backends.LifeCycleStateRunning).Count() == 0 {
-				return nil, fmt.Errorf("cluster %s not found", clusterName)
+			if err := clusterStateErr(clusterName, inventory, []string{"server", "aerospike"}, backends.LifeCycleStateRunning); err != nil {
+				return nil, err
 			}
 		}
 		for _, clusterName := range clusters {
