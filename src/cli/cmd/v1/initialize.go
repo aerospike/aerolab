@@ -98,6 +98,7 @@ type InitBackend struct {
 	GCPBrowser          bool                 // whether to open a browser to authenticate with GCP - if false, the user will need to manually visit the auth URL with GCP
 	GCPClientID         string               // GCP client ID used for authentication - if not set, a default auth account will be used
 	GCPClientSecret     string               // GCP client secret used for authentication - if not set, a default auth account will be used
+	GCPUseIAP           bool                 // whether to route SSH/SFTP through Google IAP TCP forwarding instead of dialing the routable instance IP
 }
 
 func Initialize(i *Init, command []string, params any, args ...string) (*System, error) {
@@ -398,6 +399,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 			GCPBrowser:          !s.Opts.Config.Backend.GCPNoBrowser,
 			GCPClientID:         s.Opts.Config.Backend.GCPClientID,
 			GCPClientSecret:     s.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:           s.Opts.Config.Backend.GCPUseIAP,
 		}
 	}
 	if s.Opts.Config.Backend.Type == "" || s.Opts.Config.Backend.Type == "none" {
@@ -445,6 +447,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 					Browser:            i.Backend.GCPBrowser,
 					TokenCacheFilePath: path.Join(tokenCacheFilePath, "token-cache.json"),
 				},
+				UseIAP: i.Backend.GCPUseIAP,
 			},
 			DOCKER: clouds.DOCKER{
 				EnableDefaultFromEnv: true,

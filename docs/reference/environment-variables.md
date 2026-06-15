@@ -20,6 +20,7 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROLAB_DEBUG` | 1 | If set to 1, aerolab will print more detailed output and not terminate instances on certain errors |
 | `AEROLAB_SIMPLE_MODE` | FILEPATH | Path to a simple mode config file that overrides which commands/parameters are visible in simple mode |
 | `AEROLAB_FORCE_SIMPLE_MODE` | true | Enforce simple mode: blocked commands cannot be run, blocked parameters cannot be changed from defaults |
+| `AEROLAB_SKIP_NAT_CHECK` | 1 | GCP only. Bypass the Cloud NAT pre-check that blocks `--gcp-nopublic-ip` creates when no Cloud NAT covers the target subnet. Set when egress is provided through VPN, VPC peering, an internal proxy, or another mechanism aerolab cannot detect via `compute.routers.list` |
 
 ## AEROLAB_HOME
 
@@ -297,6 +298,30 @@ aerolab attach shell    # ERROR: command 'attach.shell' is not available in simp
 - Enforce restricted command sets in production environments
 - Prevent users from accessing hidden functionality via CLI
 - Create locked-down shared environments
+
+## AEROLAB_SKIP_NAT_CHECK
+
+GCP only. When the operator opts out of public IPs (`config backend --gcp-nopublic-ip` or `--gcp-disable-public-ip` on a create), aerolab queries Cloud Routers in the target region and aborts the create if no Cloud NAT covers the chosen subnet. Without egress, the install script would hang for minutes on `apt-get` / `curl` from `download.aerospike.com` before timing out.
+
+Set this variable to bypass the check. The create proceeds regardless of NAT state.
+
+### Values
+
+- `1`, `true`, or `TRUE` — bypass the check
+- unset / any other value — check is enforced
+
+### Example
+
+```bash
+export AEROLAB_SKIP_NAT_CHECK=1
+aerolab cluster create -n iaptest -c 2 --gcp-disable-public-ip ...
+```
+
+### Use Cases
+
+- Egress is provided through Cloud VPN, VPC peering through a transit VPC, an internal HTTP proxy, or a hand-rolled NAT VM — none of which `compute.routers.list` can see
+- The caller's service account lacks `compute.routers.list` permission and you accept the risk that NAT may be missing (the check itself soft-fails on API errors and lets the create proceed in this case, but the env var is the explicit way to silence it)
+- Air-gapped environments where image-baked dependencies make outbound internet unnecessary
 
 ## Common Usage Patterns
 

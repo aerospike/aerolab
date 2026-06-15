@@ -36,6 +36,7 @@ type ConfigBackendCmd struct {
 	GCPClientID     string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use" hidden:"true"`
 	GCPClientSecret string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use" hidden:"true"`
 	GCPNoPublicIps  bool   `long:"gcp-nopublic-ip" description:"GCP: if set, aerolab will not request public IPs, and will operate on private IPs only"`
+	GCPUseIAP       bool   `long:"gcp-use-iap" description:"GCP: route SSH/SFTP through IAP TCP forwarding instead of dialing the routable instance IP. Independent of --gcp-nopublic-ip; aerolab does NOT auto-enable IAP when public IPs are disabled."`
 
 	Arch                 string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
 	DockerRegistryRegion string         `long:"docker-registry-region" description:"DOCKER: region for pre-built template image registry; values: na, eu, disabled" default:"na"`
@@ -72,12 +73,18 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		if !slices.Contains(webParams, "gcp-nopublic-ip") {
 			c.GCPNoPublicIps = false
 		}
+		if !slices.Contains(webParams, "gcp-use-iap") {
+			c.GCPUseIAP = false
+		}
 	} else {
 		if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
 			c.AWSNoPublicIps = false
 		}
 		if !inslice.HasString(os.Args[1:], "--gcp-nopublic-ip") {
 			c.GCPNoPublicIps = false
+		}
+		if !inslice.HasString(os.Args[1:], "--gcp-use-iap") {
+			c.GCPUseIAP = false
 		}
 	}
 
@@ -150,6 +157,7 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		fmt.Printf("Config.Backend.GCPAuthMethod = %s\n", c.GCPAuthMethod)
 		fmt.Printf("Config.Backend.GCPNoBrowser = %v\n", c.GCPNoBrowser)
 		fmt.Printf("Config.Backend.GCPNoPublicIps = %v\n", c.GCPNoPublicIps)
+		fmt.Printf("Config.Backend.GCPUseIAP = %v\n", c.GCPUseIAP)
 	}
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
@@ -257,6 +265,9 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		if !slices.Contains(webParams, "gcp-nopublic-ip") {
 			c.GCPNoPublicIps = false
 		}
+		if !slices.Contains(webParams, "gcp-use-iap") {
+			c.GCPUseIAP = false
+		}
 		if !slices.Contains(webParams, "gcp-no-browser") {
 			c.GCPNoBrowser = false
 		}
@@ -272,6 +283,9 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		}
 		if !slices.Contains(os.Args, "--gcp-nopublic-ip") {
 			c.GCPNoPublicIps = false
+		}
+		if !slices.Contains(os.Args, "--gcp-use-iap") {
+			c.GCPUseIAP = false
 		}
 		if !slices.Contains(os.Args, "--gcp-no-browser") && !slices.Contains(os.Args, "-b") {
 			c.GCPNoBrowser = false
@@ -318,6 +332,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		GCPBrowser:          !c.GCPNoBrowser,
 		GCPClientID:         c.GCPClientID,
 		GCPClientSecret:     c.GCPClientSecret,
+		GCPUseIAP:           c.GCPUseIAP,
 	}
 	err = system.GetBackend(false)
 	if err != nil {

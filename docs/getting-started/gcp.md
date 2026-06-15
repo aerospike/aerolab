@@ -116,6 +116,106 @@ Or with expiry:
 aerolab inventory delete-project-resources -f --expiry
 ```
 
+### Optional: Route SSH/SFTP through IAP
+
+For deployments where the operator's desktop cannot reach VM IPs directly (no
+public IPs, no VPN/peering), aerolab can route SSH and SFTP through Google
+[Identity-Aware Proxy TCP forwarding](https://cloud.google.com/iap/docs/using-tcp-forwarding):
+
+```bash
+aerolab config backend -t gcp -r us-central1 -o your-project-id --gcp-use-iap
+```
+
+You can combine this with `--gcp-nopublic-ip` for a no-public-IP, IAP-only
+deployment:
+
+```bash
+aerolab config backend -t gcp -r us-central1 -o your-project-id \
+  --gcp-nopublic-ip --gcp-use-iap
+```
+
+`--gcp-use-iap` is the **sole** trigger for IAP usage. It is intentionally
+independent of `--gcp-nopublic-ip` -- aerolab does **not** auto-route through
+IAP just because public IPs were disabled. The four combinations:
+
+| `--gcp-nopublic-ip` | `--gcp-use-iap` | Behaviour |
+| --- | --- | --- |
+| no  | no  | Default: instances get public IPs; SSH dials the public IP. |
+| yes | no  | No public IP; SSH attempts the private IP and will fail unless you have VPN/peering. |
+| no  | yes | Instances still get public IPs but SSH/SFTP routes through IAP. |
+| yes | yes | Canonical no-public-IP, IAP-only deployment. |
+
+**IAP prerequisites** (one-time, per project):
+
+1. The IAP API (`iap.googleapis.com`) must be enabled in the project. aerolab
+   enables it for you the first time you run `aerolab config backend ...
+   --gcp-use-iap`, provided the calling principal has
+   `roles/serviceusage.serviceUsageAdmin` (or the equivalent
+   `serviceusage.services.enable` permission). If your principal cannot enable
+   APIs, ask a project owner to run:
+   ```bash
+   gcloud services enable iap.googleapis.com --project=your-project-id
+   ```
+2. Grant `roles/iap.tunnelResourceAccessor` to the principal aerolab runs as
+   (your user, or a service account):
+   ```bash
+   gcloud projects add-iam-policy-binding your-project-id \
+     --member=user:you@example.com \
+     --role=roles/iap.tunnelResourceAccessor
+   ```
+3. Firewall: aerolab's default `aerolab-default` rule already allows tcp:22
+   from `0.0.0.0/0`, which covers IAP's source range `35.235.240.0/20`. No
+   extra rule is required for IAP to function.
+
+**Smoke test**:
+
+```bash
+# Configure (no public IPs + IAP-only). On the first run with --gcp-use-iap,
+# aerolab will enable iap.googleapis.com automatically; this can take 30-60s.
+aerolab config backend -t gcp -r us-central1 -o your-project-id \
+  --gcp-nopublic-ip --gcp-use-iap
+
+# Create a small cluster
+aerolab cluster create -n iaptest -c 2 -d ubuntu -i 24.04 -v '8.*' \
+  --instance e2-standard-4 --gcp-disk type=pd-ssd,size=20 --gcp-expire=2h
+
+# Attach -- traffic flows over the IAP tunnel
+aerolab attach shell -n iaptest -l 1
+```
+
+If `aerolab attach shell` reports a 403 from `tunnel.cloudproxy.app`, recheck
+the `roles/iap.tunnelResourceAccessor` binding; if `aerolab config backend`
+itself fails with a service-enable error, recheck that the principal has
+permission to enable APIs (or ask a project owner to enable
+`iap.googleapis.com` ahead of time).
+
+### Cloud NAT (required when running without public IPs)
+
+VMs created with `--gcp-nopublic-ip` have no outbound internet by default.
+The install script needs to reach `download.aerospike.com`, the distro
+package mirrors, and (for AGI) Grafana / Loki release endpoints, so without
+egress the create hangs for minutes on apt-get / curl before timing out.
+
+To prevent that, aerolab queries Cloud Routers in the target region at create
+time and **aborts the create** if no Cloud NAT covers the chosen subnet. Set
+up NAT once per (project, region, network):
+
+```bash
+gcloud compute routers create aerolab-router \
+  --network=default --region=us-central1 --project=your-project-id
+
+gcloud compute routers nats create aerolab-nat \
+  --router=aerolab-router --region=us-central1 \
+  --auto-allocate-nat-external-ips --nat-all-subnet-ip-ranges \
+  --enable-logging --project=your-project-id
+```
+
+Egress already provided by VPN, VPC peering, an internal proxy, or a
+hand-rolled NAT VM is invisible to `compute.routers.list`. Bypass the check
+in those cases with `AEROLAB_SKIP_NAT_CHECK=1`. See the
+[environment variables reference](../reference/environment-variables.md#aerolab_skip_nat_check)
+for details.
+
 ## GCP-Specific Configuration
 
 ### List Firewall Rules

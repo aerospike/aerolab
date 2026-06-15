@@ -269,6 +269,7 @@ func (c *WebUICmd) Execute(args []string) error {
 			GCPBrowser:          !system.Opts.Config.Backend.GCPNoBrowser,
 			GCPClientID:         system.Opts.Config.Backend.GCPClientID,
 			GCPClientSecret:     system.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:           system.Opts.Config.Backend.GCPUseIAP,
 		}
 		if err := system.GetBackend(true); err != nil {
 			return Error(fmt.Errorf("failed to reinitialize backend with polling: %w", err), system, cmd, c, args)
@@ -569,6 +570,7 @@ func (c *WebUICmd) reinitializeBackend() error {
 			GCPBrowser:          !system.Opts.Config.Backend.GCPNoBrowser,
 			GCPClientID:         system.Opts.Config.Backend.GCPClientID,
 			GCPClientSecret:     system.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:           system.Opts.Config.Backend.GCPUseIAP,
 		}
 	}
 	if err := system.GetBackend(pollEnabled); err != nil {

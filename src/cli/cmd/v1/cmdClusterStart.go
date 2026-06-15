@@ -17,7 +17,7 @@ type ClusterStartCmd struct {
 	NoFixMesh   bool            `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh" simplemode:"false"`
 	NoStart     bool            `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
 	Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
-	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	MaxRetries  int             `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"5" simplemode:"false"`
 	RetrySleep  time.Duration   `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -114,6 +114,13 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 			Nodes:           c.Nodes,
 			ParallelThreads: c.Threads,
 			ConfigPath:      "/etc/aerospike/aerospike.conf",
+			// Pass through retry config explicitly. Struct-tag `default:` only
+			// applies via the flag parser; instantiating the struct in Go
+			// leaves these zero, which would mean a single-attempt SFTP dial
+			// and surface as misleading "ssh: handshake failed" errors when
+			// sshd hasn't fully come up yet (see GH issue: IAP 4003).
+			MaxRetries: c.MaxRetries,
+			RetrySleep: c.RetrySleep,
 		}
 		if err := fixMesh.FixMesh(system, inventory, logger.WithPrefix("FixMesh: "), args); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to fix mesh configuration: %w", err))

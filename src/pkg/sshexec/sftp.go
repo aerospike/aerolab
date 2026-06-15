@@ -53,11 +53,12 @@ func newSftpInternal(i *ClientConf) (*Sftp, error) {
 	}
 
 	// ssh dial
+	addr := fmt.Sprintf("%s:%d", i.Host, i.Port)
 	currentTimeout := i.ConnectTimeout
 	start := time.Now()
 	var conn *ssh.Client
 	for {
-		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+		conn, err = dialSSH(i, addr, config)
 		if err == nil {
 			break
 		}

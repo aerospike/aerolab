@@ -864,9 +864,73 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 				return errors.New("wait timeout")
 			}
 		}
+
+		// AWS has confirmed the instances are RUNNING but sshd is not necessarily
+		// listening yet. Without an explicit ssh-ready wait, callers that
+		// immediately SSH (cluster.start -> FixMesh, client.start -> SFTP) race
+		// the boot sequence and report misleading SSH/SFTP errors.
+		//
+		// We locally flip InstanceState to Running so InstancesExec accepts the
+		// probe. The caller is expected to RefreshChangedInventory() afterwards,
+		// at which point this local mutation is overwritten by canonical state.
+		for _, inst := range instances {
+			inst.InstanceState = backends.LifeCycleStateRunning
+		}
+		log.Detail("Waiting for instances to be ssh-ready")
+		if !s.waitForSSHReady(instances, waitDur, log) {
+			return fmt.Errorf("instances started but failed to become ssh-ready within remaining budget")
+		}
 	}
 	wg.Wait()
 	return reterr
+}
+
+// waitForSSHReady polls each instance via a lightweight `ls /` exec until all
+// respond successfully or the budget runs out. Returns true when every instance
+// answered at least once within the budget; false on timeout.
+func (s *b) waitForSSHReady(instances backends.InstanceList, budget time.Duration, log loggerIface) bool {
+	if budget <= 0 {
+		return false
+	}
+	parallel := len(instances)
+	if parallel <= 0 {
+		return true
+	}
+	remaining := budget
+	for remaining > 0 {
+		iterStart := time.Now()
+		out := s.InstancesExec(instances, &backends.ExecInput{
+			Username:        "root",
+			ParallelThreads: parallel,
+			ConnectTimeout:  5 * time.Second,
+			ExecDetail: sshexec.ExecDetail{
+				Command:        []string{"ls", "/"},
+				SessionTimeout: 10 * time.Second,
+			},
+		})
+		success := len(out) == len(instances)
+		for _, o := range out {
+			if o.Output.Err != nil {
+				success = false
+				log.Detail("Waiting for instance %s to be ssh-ready: %s", o.Instance.InstanceID, o.Output.Err)
+			}
+		}
+		if success {
+			return true
+		}
+		remaining -= time.Since(iterStart)
+		if remaining > 0 {
+			time.Sleep(1 * time.Second)
+			remaining -= 1 * time.Second
+		}
+	}
+	return false
+}
+
+// loggerIface lets waitForSSHReady stay decoupled from the concrete logger
+// type; we only need Detail(format, args...) in this hot path.
+type loggerIface interface {
+	Detail(format string, args ...any)
 }
 
 func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput) []*backends.ExecOutput {

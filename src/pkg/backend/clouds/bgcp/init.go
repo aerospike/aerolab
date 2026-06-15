@@ -90,6 +90,16 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 		return err
 	}
 	defer cli.CloseIdleConnections()
+	// If the operator opted in to IAP (--gcp-use-iap), make sure the IAP API is
+	// enabled in the target project. EnableService is idempotent (no-op if
+	// already enabled). This mirrors how `expiry-install` eagerly enables the
+	// services it depends on, and surfaces permission errors at config-backend
+	// time rather than on the first SSH dial.
+	if s.credentials.UseIAP {
+		if err := s.enableService("iap.googleapis.com"); err != nil {
+			return fmt.Errorf("enable iap.googleapis.com (required by --gcp-use-iap): %w", err)
+		}
+	}
 	_, zones, err := s.listAllZones()
 	if err != nil {
 		return err

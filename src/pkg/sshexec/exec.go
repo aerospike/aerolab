@@ -2,11 +2,13 @@ package sshexec
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -45,6 +47,11 @@ type ClientConf struct {
 	ConnectTimeout time.Duration // connect timeout
 	MaxRetries     int           // max retries for operations (default: 0 = no retries)
 	RetrySleep     time.Duration // sleep between retries (default: 5s if MaxRetries > 0)
+	// Dialer, if non-nil, is used to obtain the underlying net.Conn instead of
+	// the default net.Dial("tcp", host:port). Host/Port are still passed to
+	// ssh.NewClientConn for the host-key entry / known_hosts. Used for IAP and
+	// other tunnels that produce a pre-connected net.Conn.
+	Dialer func(ctx context.Context) (net.Conn, error)
 }
 
 type Env struct {
@@ -227,10 +234,11 @@ func ExecPrepare(i *ExecInput) (session *ssh.Session, conn *ssh.Client, err erro
 	}
 
 	// ssh dial
+	addr := fmt.Sprintf("%s:%d", i.Host, i.Port)
 	currentTimeout := i.ConnectTimeout
 	start := time.Now()
 	for {
-		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+		conn, err = dialSSH(&i.ClientConf, addr, config)
 		if err == nil {
 			break
 		}
@@ -248,6 +256,75 @@ func ExecPrepare(i *ExecInput) (session *ssh.Session, conn *ssh.Client, err erro
 		return nil, nil, fmt.Errorf("failed to create session: %s", err)
 	}
 	return session, conn, nil
+}
+
+// dialSSH establishes an *ssh.Client. When ClientConf.Dialer is set, the
+// underlying net.Conn is obtained via that custom dialer (e.g. IAP); otherwise
+// a plain net.Dial("tcp", addr) is used. In both cases ssh.NewClientConn is
+// driven over the resulting net.Conn so the rest of the call site (sessions,
+// tunnels, etc.) is unchanged.
+//
+// The dial-timeout for custom dialers is enforced via a goroutine race rather
+// than via context.WithTimeout. This is intentional and necessary: some
+// dialers (notably cedws/iapc) bind the long-lived connection's WebSocket
+// read/write to the SAME context that was passed to the dial. If we cancelled
+// that context via defer cancel() after a successful handshake, the websocket
+// would tear down, the SSH transport's read loop would see EOF and call
+// underlying-conn Close to unblock its reader, and the iap conn's internal
+// sendNbCh would close. The very next outbound SSH packet (e.g.
+// conn.NewSession()) would then panic with "send on closed channel" inside
+// iapc.(*Conn).Write. By passing context.Background() to the dialer and
+// timing out the dial via a separate goroutine, the conn's I/O context stays
+// alive for as long as the conn itself is in use.
+func dialSSH(cc *ClientConf, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	if cc.Dialer == nil {
+		return ssh.Dial("tcp", addr, config)
+	}
+
+	type dialResult struct {
+		nc  net.Conn
+		err error
+	}
+	resCh := make(chan dialResult, 1)
+	go func() {
+		nc, err := cc.Dialer(context.Background())
+		resCh <- dialResult{nc: nc, err: err}
+	}()
+
+	var nc net.Conn
+	var err error
+	if cc.ConnectTimeout > 0 {
+		timer := time.NewTimer(cc.ConnectTimeout)
+		select {
+		case res := <-resCh:
+			timer.Stop()
+			nc, err = res.nc, res.err
+		case <-timer.C:
+			// The dial goroutine may still complete after we return; close
+			// the late-arriving conn so we don't leak a tunnel.
+			go func() {
+				late := <-resCh
+				if late.nc != nil {
+					_ = late.nc.Close()
+				}
+			}()
+			return nil, fmt.Errorf("dial timeout after %s", cc.ConnectTimeout)
+		}
+	} else {
+		res := <-resCh
+		nc, err = res.nc, res.err
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(nc, addr, config)
+	if err != nil {
+		_ = nc.Close()
+		return nil, err
+	}
+	return ssh.NewClient(sshConn, chans, reqs), nil
 }
 
 var sessionsLock = new(sync.RWMutex)

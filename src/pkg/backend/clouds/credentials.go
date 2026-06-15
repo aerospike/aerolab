@@ -47,6 +47,11 @@ type GCP struct {
 	Project    string         `yaml:"project" json:"project"`
 	AuthMethod GCPAuthMethod  `yaml:"authMethod" json:"authMethod"`
 	Login      LoginGCPConfig `yaml:"login" json:"login"`
+	// UseIAP, when true, routes SSH/SFTP traffic to GCE instances through
+	// Identity-Aware Proxy TCP forwarding instead of dialing the routable
+	// instance IP directly. This is the SOLE trigger for IAP usage; it is
+	// intentionally independent of whether instances have public IPs.
+	UseIAP bool `yaml:"useIAP" json:"useIAP"`
 }
 
 type GCPAuthMethod string

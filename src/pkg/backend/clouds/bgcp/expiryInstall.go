@@ -1,10 +1,13 @@
 package bgcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,6 +26,8 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/lithammer/shortuuid"
+	"github.com/rglonek/logger"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -74,6 +79,24 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 			}
 			break
 		}
+	}
+	// EnableService returning ENABLED does NOT guarantee the per-project
+	// service agent SAs (e.g. service-<num>@gcf-admin-robot.iam.gserviceaccount.com)
+	// have been provisioned yet -- Google creates those asynchronously. If we
+	// proceed straight to bucket-IAM grants below, GCP rejects the binding with
+	// `400 Service account ... does not exist., invalid`. Force the agents into
+	// existence via the v1beta1 generateServiceIdentity API, which is
+	// synchronous (returns once the SA is usable).
+	if err := s.generateServiceIdentities(context.Background(),
+		"cloudfunctions.googleapis.com",
+		"cloudbuild.googleapis.com",
+		"pubsub.googleapis.com",
+		"run.googleapis.com",
+	); err != nil {
+		// Non-fatal: gcloud also tolerates partial-failure here, and the
+		// retry loop in grantGCFServiceAgentBucketAccess provides a second
+		// line of defense.
+		log.Warn("generateServiceIdentities reported a problem (will retry IAM grants on dial): %s", err)
 	}
 	newToken := shortuuid.New() + "-" + shortuuid.New()
 	cron, err := intervalToCron(intervalMinutes)
@@ -308,20 +331,220 @@ func (s *b) grantGCFServiceAgentBucketAccess(ctx context.Context, bucket *storag
 	member := fmt.Sprintf("serviceAccount:service-%s@gcf-admin-robot.iam.gserviceaccount.com", projectNumber)
 	role := iam.RoleName("roles/storage.objectViewer")
 
-	policy, err := bucket.IAM().Policy(ctx)
-	if err != nil {
-		return fmt.Errorf("get bucket IAM policy: %w", err)
+	// SetPolicy can fail with `400 Service account ... does not exist., invalid`
+	// when the GCF service agent has not yet been provisioned (see
+	// generateServiceIdentities call site for the eager-provision step). On a
+	// brand-new project the agent may take up to a couple of minutes to become
+	// usable in IAM bindings even after generateServiceIdentity returns
+	// success, so retry with backoff before giving up. This mirrors what
+	// gcloud functions deploy does internally.
+	const (
+		maxAttempts    = 12
+		initialBackoff = 2 * time.Second
+		maxBackoff     = 20 * time.Second
+	)
+	backoff := initialBackoff
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		policy, err := bucket.IAM().Policy(ctx)
+		if err != nil {
+			return fmt.Errorf("get bucket IAM policy: %w", err)
+		}
+		if policy.HasRole(member, role) {
+			log.Detail("GCF service agent already has objectViewer on bucket")
+			return nil
+		}
+		policy.Add(member, role)
+		err = bucket.IAM().SetPolicy(ctx, policy)
+		if err == nil {
+			log.Detail("Granted objectViewer to %s (attempt %d)", member, attempt)
+			return nil
+		}
+		lastErr = err
+		if !isServiceAgentNotReadyError(err) {
+			return fmt.Errorf("set bucket IAM policy: %w", err)
+		}
+		log.Detail("GCF service agent not yet visible to IAM (attempt %d/%d), retrying in %s", attempt, maxAttempts, backoff)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
 	}
-	if policy.HasRole(member, role) {
-		log.Detail("GCF service agent already has objectViewer on bucket")
+	return fmt.Errorf("set bucket IAM policy after %d attempts: %w", maxAttempts, lastErr)
+}
+
+// isServiceAgentNotReadyError detects the specific
+// `400 Service account ... does not exist., invalid` error that GCP returns
+// while a service agent is being provisioned asynchronously. We recognise it
+// either via *googleapi.Error (typed) or by string match (defensive --
+// different storage clients wrap the error differently across versions).
+func isServiceAgentNotReadyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var gerr *googleapi.Error
+	if errors.As(err, &gerr) {
+		if gerr.Code == http.StatusBadRequest &&
+			(strings.Contains(gerr.Message, "does not exist") ||
+				strings.Contains(strings.ToLower(gerr.Message), "invalid")) {
+			return true
+		}
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "does not exist") &&
+		(strings.Contains(msg, "service account") || strings.Contains(msg, "@gcf-admin-robot") ||
+			strings.Contains(msg, "@gcp-sa-") || strings.Contains(msg, "iam.gserviceaccount.com"))
+}
+
+// generateServiceIdentities forces Google to provision the per-project service
+// agents for the supplied APIs. EnableService returning ENABLED is necessary
+// but not sufficient: the agent SAs (e.g. service-<num>@gcf-admin-robot...)
+// are created lazily, and IAM bindings referencing them fail with HTTP 400
+// "does not exist" until that lazy creation completes. The serviceusage
+// v1beta1 :generateServiceIdentity endpoint is the supported way to force
+// synchronous creation.
+//
+// Each call returns a long-running operation; we poll until done. We use raw
+// HTTP because the v1beta1 client is not vendored. The HTTP client returned
+// by connect.GetClient is already authenticated.
+func (s *b) generateServiceIdentities(ctx context.Context, services ...string) error {
+	log := s.log.WithPrefix("generateServiceIdentities: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return fmt.Errorf("get auth client: %w", err)
+	}
+
+	var firstErr error
+	for _, svc := range services {
+		if err := s.generateServiceIdentity(ctx, cli, log, svc); err != nil {
+			log.Warn("generateServiceIdentity(%s) failed: %s", svc, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		log.Detail("Service identity ready: %s", svc)
+	}
+	return firstErr
+}
+
+func (s *b) generateServiceIdentity(ctx context.Context, cli *http.Client, log *logger.Logger, service string) error {
+	url := fmt.Sprintf("https://serviceusage.googleapis.com/v1beta1/projects/%s/services/%s:generateServiceIdentity",
+		s.credentials.Project, service)
+
+	opName, opDone, opErr, err := postLRO(ctx, cli, url, nil)
+	if err != nil {
+		return fmt.Errorf("POST generateServiceIdentity: %w", err)
+	}
+	if opDone {
+		if opErr != nil {
+			return opErr
+		}
 		return nil
 	}
-	policy.Add(member, role)
-	if err := bucket.IAM().SetPolicy(ctx, policy); err != nil {
-		return fmt.Errorf("set bucket IAM policy: %w", err)
+
+	// Poll the LRO. Most service-identity operations complete in a few
+	// seconds; cap the wait at ~2 minutes to avoid hanging the caller on
+	// freak GCP control-plane delays.
+	const (
+		maxPolls    = 60
+		pollBackoff = 2 * time.Second
+	)
+	for i := 0; i < maxPolls; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollBackoff):
+		}
+		done, opErr2, err := getLRO(ctx, cli, opName)
+		if err != nil {
+			log.Detail("poll %s: %s (will retry)", opName, err)
+			continue
+		}
+		if done {
+			if opErr2 != nil {
+				return opErr2
+			}
+			return nil
+		}
 	}
-	log.Detail("Granted objectViewer to %s", member)
-	return nil
+	return fmt.Errorf("operation %s did not complete within %s", opName, time.Duration(maxPolls)*pollBackoff)
+}
+
+// lroResponse is the minimal shape of a serviceusage Long-Running Operation.
+type lroResponse struct {
+	Name  string `json:"name"`
+	Done  bool   `json:"done"`
+	Error *struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
+// postLRO POSTs to a serviceusage v1beta1 endpoint that returns an LRO. It
+// returns (operationName, done, opError, transportError).
+func postLRO(ctx context.Context, cli *http.Client, url string, body []byte) (string, bool, error, error) {
+	if body == nil {
+		body = []byte("{}")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", false, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := cli.Do(req)
+	if err != nil {
+		return "", false, nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	var op lroResponse
+	if err := json.Unmarshal(raw, &op); err != nil {
+		return "", false, nil, fmt.Errorf("decode LRO: %w", err)
+	}
+	if op.Error != nil {
+		return op.Name, op.Done, fmt.Errorf("operation error %d: %s", op.Error.Code, op.Error.Message), nil
+	}
+	return op.Name, op.Done, nil, nil
+}
+
+// getLRO polls a serviceusage v1beta1 operation. Returns (done, opError, transportError).
+func getLRO(ctx context.Context, cli *http.Client, opName string) (bool, error, error) {
+	url := fmt.Sprintf("https://serviceusage.googleapis.com/v1beta1/%s", opName)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, nil, err
+	}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return false, nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	var op lroResponse
+	if err := json.Unmarshal(raw, &op); err != nil {
+		return false, nil, fmt.Errorf("decode LRO: %w", err)
+	}
+	if op.Error != nil {
+		return op.Done, fmt.Errorf("operation error %d: %s", op.Error.Code, op.Error.Message), nil
+	}
+	return op.Done, nil, nil
 }
 
 func (s *b) getProjectNumber(ctx context.Context, projectID string) (string, error) {

@@ -29,6 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.1
 	github.com/aws/smithy-go v1.27.0
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/cedws/iapc v0.1.12
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -117,6 +118,7 @@ require (
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/cockroachdb/swiss v0.0.0-20251224182025-b0f6560f979b // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20250429170803-42689b6311bb // indirect
+	github.com/coder/websocket v1.8.12 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect

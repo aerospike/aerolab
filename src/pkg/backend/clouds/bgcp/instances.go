@@ -25,6 +25,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/iap"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
@@ -768,6 +769,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 	if len(instances) == 0 {
 		return nil
 	}
+	startedAt := time.Now()
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
@@ -815,18 +817,118 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
-		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		opCtx, cancel := context.WithTimeout(ctx, waitDur)
 		defer cancel()
 		for _, op := range ops {
-			err = op.Wait(ctx)
+			err = op.Wait(opCtx)
 			if err != nil {
 				return err
 			}
+		}
+
+		// The GCP API has confirmed the instances are RUNNING but sshd is not
+		// necessarily listening yet. Without an explicit ssh-ready wait, callers
+		// that immediately SSH (cluster.start -> FixMesh, client.start -> SFTP)
+		// race the boot sequence -- particularly painful through IAP, which
+		// returns code 4003 ("failed to connect to backend") when sshd isn't up.
+		//
+		// We locally flip InstanceState to Running so InstancesExec accepts the
+		// probe. The caller is expected to RefreshChangedInventory() afterwards,
+		// at which point this local mutation is overwritten by the canonical
+		// cloud state.
+		for _, inst := range instances {
+			inst.InstanceState = backends.LifeCycleStateRunning
+		}
+		log.Detail("Waiting for instances to be ssh-ready")
+		sshReady := waitForSSHReady(s, instances, waitDur-time.Since(startedAt), log)
+		if !sshReady {
+			return fmt.Errorf("instances started but failed to become ssh-ready within %s", waitDur)
 		}
 	}
 
 	retWait.Wait()
 	return reterr
+}
+
+// waitForSSHReady polls each instance via a lightweight `ls /` exec until all
+// respond successfully or the budget runs out. Returns true when every instance
+// answered at least once within the budget; false on timeout. The probe uses
+// "root" because every aerolab-managed instance (cluster, client, AGI) has
+// root SSH access provisioned at create time.
+func waitForSSHReady(s *b, instances backends.InstanceList, budget time.Duration, log *logger.Logger) bool {
+	if budget <= 0 {
+		return false
+	}
+	parallel := len(instances)
+	if parallel <= 0 {
+		return true
+	}
+	remaining := budget
+	for remaining > 0 {
+		iterStart := time.Now()
+		out := s.InstancesExec(instances, &backends.ExecInput{
+			Username:        "root",
+			ParallelThreads: parallel,
+			ConnectTimeout:  5 * time.Second,
+			ExecDetail: sshexec.ExecDetail{
+				Command:        []string{"ls", "/"},
+				SessionTimeout: 10 * time.Second,
+			},
+		})
+		success := len(out) == len(instances)
+		for _, o := range out {
+			if o.Output.Err != nil {
+				success = false
+				log.Detail("Waiting for instance %s to be ssh-ready: %s", o.Instance.InstanceID, o.Output.Err)
+			}
+		}
+		if success {
+			return true
+		}
+		remaining -= time.Since(iterStart)
+		if remaining > 0 {
+			time.Sleep(1 * time.Second)
+			remaining -= 1 * time.Second
+		}
+	}
+	return false
+}
+
+// useIAP returns true iff the operator has explicitly enabled IAP via
+// `aerolab config backend --gcp-use-iap`. It is the SOLE trigger for IAP
+// usage. Disabling public IPs (--gcp-nopublic-ip) does not implicitly enable
+// IAP -- if the operator wants no-public-IP machines without IAP, aerolab
+// will simply attempt the private IP directly and fail unless the operator
+// has VPN/peering / Cloud Interconnect into the VPC.
+func (s *b) useIAP() bool {
+	return s.credentials != nil && s.credentials.UseIAP
+}
+
+// applyIAPDialer mutates clientConf so its underlying transport runs through
+// Google IAP TCP forwarding. It does nothing when IAP is not enabled. The
+// returned error is non-nil only when IAP is enabled but the OAuth2 token
+// source could not be obtained.
+func (s *b) applyIAPDialer(clientConf *sshexec.ClientConf, i *backends.Instance, log *logger.Logger) error {
+	if !s.useIAP() {
+		return nil
+	}
+	ts, err := connect.GetTokenSource(s.credentials, log.WithPrefix("IAP-AUTH: "))
+	if err != nil {
+		return fmt.Errorf("iap: get token source: %w", err)
+	}
+	// IAP delivers traffic to the VM's private NIC; addressing the public IP
+	// would still work over the tunnel, but using the private IP keeps the
+	// known_hosts entry stable and matches what gcloud does.
+	if i.IP.Private != "" {
+		clientConf.Host = i.IP.Private
+	}
+	clientConf.Dialer = iap.MakeDialer(ts, iap.Target{
+		Project:  s.credentials.Project,
+		Zone:     i.ZoneName,
+		Instance: i.InstanceID,
+		Port:     clientConf.Port,
+	})
+	return nil
 }
 
 func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput) []*backends.ExecOutput {
@@ -883,6 +985,17 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			ConnectTimeout: e.ConnectTimeout,
 			MaxRetries:     e.MaxRetries,
 			RetrySleep:     e.RetrySleep,
+		}
+		if err := s.applyIAPDialer(&clientConf, i, log); err != nil {
+			outl.Lock()
+			out = append(out, &backends.ExecOutput{
+				Output: &sshexec.ExecOutput{
+					Err: err,
+				},
+				Instance: i,
+			})
+			outl.Unlock()
+			return
 		}
 		execInput := &sshexec.ExecInput{
 			ClientConf: clientConf,
@@ -989,6 +1102,9 @@ func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username str
 			Username:       username,
 			PrivateKey:     nKey,
 			ConnectTimeout: 30 * time.Second,
+		}
+		if err := s.applyIAPDialer(clientConf, i, log); err != nil {
+			return nil, err
 		}
 		confs = append(confs, clientConf)
 	}
@@ -1377,6 +1493,18 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	zone := backendSpecificParams.NetworkPlacement
 
 	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
+
+	// When the operator opted out of public IPs (--gcp-nopublic-ip), VMs have
+	// no outbound internet by default; apt/pip/download.aerospike.com will
+	// hang for minutes before timing out unless Cloud NAT is configured for
+	// the target subnet. Fail fast (synchronous, cached, soft-fails on its
+	// own API errors only) so the user fixes NAT before wasting a create.
+	// subnet.ZoneName is the region for GCP subnets (see networks.go).
+	if backendSpecificParams.DisablePublicIP {
+		if err := s.checkNATCoversSubnet(context.Background(), subnet.ZoneName, vpc.NetworkId, subnet.SubnetId); err != nil {
+			return nil, err
+		}
+	}
 
 	// custom image lookup
 	if backendSpecificParams.Image == nil && backendSpecificParams.CustomImageID != "" {
