@@ -81,6 +81,7 @@ type ClusterCreateCmdGcp struct {
 	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
 	VPC                 guiVpc          `long:"vpc" description:"VPC network name to use; empty=default VPC" webchoice:"method::List"`
+	Subnet              string          `long:"subnet" description:"GCP subnet name within the selected VPC; empty=auto-select first subnet in the zone's region" simplemode:"false"`
 	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
 	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	FirewallName        []string        `long:"firewall" description:"Name to use for an extra firewall, can be specified multiple times" simplemode:"false"`
@@ -336,15 +337,18 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	if templateName == "" {
 		buildTemplate := func() error {
 			tpl := &TemplateCreateCmd{
-				Distro:           c.DistroName.String(),
-				DistroVersion:    c.DistroVersion.String(),
-				Arch:             arch.String(),
-				AerospikeVersion: c.AerospikeVersion.String(),
-				Owner:            c.Owner,
-				DisablePublicIP:  system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
-				Timeout:          10,
-				NoVacuum:         c.NoVacuumOnFail,
-				DryRun:           c.PriceOnly,
+				Distro:             c.DistroName.String(),
+				DistroVersion:      c.DistroVersion.String(),
+				Arch:               arch.String(),
+				AerospikeVersion:   c.AerospikeVersion.String(),
+				Owner:              c.Owner,
+				DisablePublicIP:    system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
+				GCPDisablePublicIP: system.Opts.Config.Backend.Type == "gcp" && system.Opts.Config.Backend.GCPNoPublicIps,
+				GCPVPC:             string(c.Gcp.VPC),
+				GCPSubnet:          c.Gcp.Subnet,
+				Timeout:            10,
+				NoVacuum:           c.NoVacuumOnFail,
+				DryRun:             c.PriceOnly,
 			}
 			_, err := tpl.CreateTemplate(system, inventory, logger.WithPrefix("[template.create] "), nil)
 			return err
@@ -513,10 +517,12 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			Expire:             c.Gcp.Expires,
 			Zone:               c.Gcp.Zone,
 			VPC:                c.Gcp.VPC,
+			Subnet:             c.Gcp.Subnet,
 			InstanceType:       c.Gcp.InstanceType,
 			Disks:              c.Gcp.Disk,
 			Firewalls:          c.Gcp.FirewallName,
 			SpotInstance:       c.Gcp.SpotInstance,
+			DisablePublicIP:    system.Opts.Config.Backend.GCPNoPublicIps,
 			IAMInstanceProfile: c.Gcp.IAMInstanceProfile,
 			MinCPUPlatform:     c.Gcp.MinCPUPlatform,
 			GVNIC:              c.Gcp.GVNIC,
@@ -1116,6 +1122,15 @@ func (c *ClusterCreateCmd) SanityChecks(system *System, inventory *backends.Inve
 		if _, err := os.Stat(string(c.FeaturesFilePath)); os.IsNotExist(err) {
 			return errors.New("features-file path " + string(c.FeaturesFilePath) + " does not exist")
 		}
+	}
+	if system.Opts.Config.Backend.Type == "aws" && c.Aws.PublicIP && system.Opts.Config.Backend.AWSNoPublicIps {
+		return errors.New("cannot use --public-ip together with the aws-nopublic-ip backend setting: instances will not have a public IP")
+	}
+	if system.Opts.Config.Backend.Type == "gcp" && c.Gcp.PublicIP && system.Opts.Config.Backend.GCPNoPublicIps {
+		return errors.New("cannot use --external-ip together with the gcp-nopublic-ip backend setting: instances will not have a public IP")
+	}
+	if err := validateGCPSubnetRequiresVPC(string(c.Gcp.VPC), c.Gcp.Subnet, ""); err != nil {
+		return err
 	}
 	return nil
 }

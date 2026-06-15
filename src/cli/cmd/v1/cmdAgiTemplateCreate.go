@@ -44,21 +44,24 @@ import (
 //   - Default directory structure
 //   - Default SSL certificates
 type AgiTemplateCreateCmd struct {
-	GrafanaVersion  string         `short:"g" long:"grafana-version" description:"Grafana version to install" default:"11.2.6"`
-	ToolsVersion    string         `long:"tools-version" description:"Aerospike tools version to install ('latest' picks the newest)" default:"latest"`
-	Distro          string         `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
-	DistroVersion   string         `short:"i" long:"distro-version" description:"Distribution version to use" default:"latest"`
-	Arch            string         `short:"a" long:"arch" description:"Architecture (amd64 or arm64)" default:"amd64"`
-	Timeout         int            `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"20"`
-	NoVacuum        bool           `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
-	DryRun          bool           `long:"dry-run" description:"Validate parameters only, don't create template"`
-	Owner           string         `short:"o" long:"owner" description:"Owner tag value for the template"`
-	DisablePublicIP bool           `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
-	AerolabBinary   flags.Filename `short:"b" long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
-	WithEFS         bool           `short:"e" long:"with-efs" description:"AWS: Pre-install EFS utilities in template for faster AGI creation"`
-	MaxRetries      int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
-	RetrySleep      time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
-	Help            HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	GrafanaVersion     string         `short:"g" long:"grafana-version" description:"Grafana version to install" default:"11.2.6"`
+	ToolsVersion       string         `long:"tools-version" description:"Aerospike tools version to install ('latest' picks the newest)" default:"latest"`
+	Distro             string         `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
+	DistroVersion      string         `short:"i" long:"distro-version" description:"Distribution version to use" default:"latest"`
+	Arch               string         `short:"a" long:"arch" description:"Architecture (amd64 or arm64)" default:"amd64"`
+	Timeout            int            `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"20"`
+	NoVacuum           bool           `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
+	DryRun             bool           `long:"dry-run" description:"Validate parameters only, don't create template"`
+	Owner              string         `short:"o" long:"owner" description:"Owner tag value for the template"`
+	DisablePublicIP    bool           `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
+	GCPDisablePublicIP bool           `long:"gcp-disable-public-ip" description:"GCP: Disable public IP assignment"`
+	GCPVPC             string         `long:"gcp-vpc" description:"GCP: VPC network name to use; empty=default VPC"`
+	GCPSubnet          string         `long:"gcp-subnet" description:"GCP: subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
+	AerolabBinary      flags.Filename `short:"b" long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
+	WithEFS            bool           `short:"e" long:"with-efs" description:"AWS: Pre-install EFS utilities in template for faster AGI creation"`
+	MaxRetries         int            `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration  `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help               HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute implements the command execution for agi template create.
@@ -104,6 +107,19 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+
+	// Inherit per-backend public-IP defaults from global config when the caller has not
+	// already set them (e.g. when invoked directly via `aerolab agi template create`).
+	if system.Opts.Config.Backend.Type == "aws" && !c.DisablePublicIP {
+		c.DisablePublicIP = system.Opts.Config.Backend.AWSNoPublicIps
+	}
+	if system.Opts.Config.Backend.Type == "gcp" && !c.GCPDisablePublicIP {
+		c.GCPDisablePublicIP = system.Opts.Config.Backend.GCPNoPublicIps
+	}
+
+	if err := validateGCPSubnetRequiresVPC(c.GCPVPC, c.GCPSubnet, "gcp-"); err != nil {
+		return "", err
 	}
 
 	// Check if running unofficial build and handle local binary
@@ -294,10 +310,13 @@ func (c *AgiTemplateCreateCmd) CreateTemplate(system *System, inventory *backend
 			ImageName:          "",
 			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
+			VPC:                guiVpc(c.GCPVPC),
+			Subnet:             c.GCPSubnet,
 			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
+			DisablePublicIP:    c.GCPDisablePublicIP,
 			IAMInstanceProfile: "",
 			MinCPUPlatform:     "",
 			CustomDNS:          InstanceDNS{},

@@ -196,11 +196,14 @@ type AgiMonitorCreateCmdAws struct {
 
 // AgiMonitorCreateCmdGcp contains GCP-specific options for monitor creation.
 type AgiMonitorCreateCmdGcp struct {
-	InstanceType guiInstanceType `long:"instance" description:"Instance type to use" default:"e2-medium" webchoice:"method::List"`
-	Zone         guiZone         `long:"zone" description:"Zone name to deploy to" webrequired:"true" webchoice:"method::List"`
-	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	InstanceRole string        `long:"role" description:"Instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
-	Expires      TypeExpiry     `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
+	InstanceType    guiInstanceType `long:"instance" description:"Instance type to use" default:"e2-medium" webchoice:"method::List"`
+	Zone            guiZone         `long:"zone" description:"Zone name to deploy to" webrequired:"true" webchoice:"method::List"`
+	VPC             guiVpc          `long:"vpc" description:"VPC network name to use; empty=default VPC" webchoice:"method::List"`
+	Subnet          string          `long:"subnet" description:"GCP subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
+	NamePrefix      []string        `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	InstanceRole    string          `long:"role" description:"Instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
+	Expires         TypeExpiry      `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
+	DisablePublicIP bool            `long:"disable-public-ip" description:"Disable public IP assignment"`
 }
 
 // Monitor notification constants

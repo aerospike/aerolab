@@ -32,19 +32,22 @@ import (
 //	aerolab client template ams create
 //	aerolab client template ams create -a arm64
 type ClientTemplateAMSCreateCmd struct {
-	GrafanaVersion    string        `short:"g" long:"grafana-version" description:"Grafana version to install" default:"12.4.3"`
-	PrometheusVersion string        `short:"P" long:"prometheus-version" description:"Prometheus version to install" default:"latest"`
-	Distro            string        `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
-	DistroVersion     string        `short:"i" long:"distro-version" description:"Distribution version to use" default:"24.04"`
-	Arch              string        `short:"a" long:"arch" description:"Architecture (amd64 or arm64); auto-detected when empty (docker: backend/runtime arch, cloud: amd64)"`
-	Timeout           int           `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"30"`
-	NoVacuum          bool          `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
-	DryRun            bool          `long:"dry-run" description:"Validate parameters only, don't create template"`
-	Owner             string        `short:"o" long:"owner" description:"Owner tag value for the template"`
-	DisablePublicIP   bool          `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
-	MaxRetries        int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
-	RetrySleep        time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
-	Help              HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	GrafanaVersion     string        `short:"g" long:"grafana-version" description:"Grafana version to install" default:"12.4.3"`
+	PrometheusVersion  string        `short:"P" long:"prometheus-version" description:"Prometheus version to install" default:"latest"`
+	Distro             string        `short:"d" long:"distro" description:"Linux distribution to use" default:"ubuntu"`
+	DistroVersion      string        `short:"i" long:"distro-version" description:"Distribution version to use" default:"24.04"`
+	Arch               string        `short:"a" long:"arch" description:"Architecture (amd64 or arm64); auto-detected when empty (docker: backend/runtime arch, cloud: amd64)"`
+	Timeout            int           `short:"t" long:"timeout" description:"Timeout in minutes for template creation" default:"30"`
+	NoVacuum           bool          `short:"n" long:"no-vacuum" description:"Don't cleanup temporary instance on failure"`
+	DryRun             bool          `long:"dry-run" description:"Validate parameters only, don't create template"`
+	Owner              string        `short:"o" long:"owner" description:"Owner tag value for the template"`
+	DisablePublicIP    bool          `short:"p" long:"disable-public-ip" description:"AWS: Disable public IP assignment"`
+	GCPDisablePublicIP bool          `long:"gcp-disable-public-ip" description:"GCP: Disable public IP assignment"`
+	GCPVPC             string        `long:"gcp-vpc" description:"GCP: VPC network name to use; empty=default VPC"`
+	GCPSubnet          string        `long:"gcp-subnet" description:"GCP: subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // Execute runs `client template ams create`.
@@ -128,6 +131,18 @@ func (c *ClientTemplateAMSCreateCmd) CreateTemplate(system *System, inventory *b
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+
+	// Inherit per-backend public-IP defaults from global config when not explicitly set.
+	if system.Opts.Config.Backend.Type == "aws" && !c.DisablePublicIP {
+		c.DisablePublicIP = system.Opts.Config.Backend.AWSNoPublicIps
+	}
+	if system.Opts.Config.Backend.Type == "gcp" && !c.GCPDisablePublicIP {
+		c.GCPDisablePublicIP = system.Opts.Config.Backend.GCPNoPublicIps
+	}
+
+	if err := validateGCPSubnetRequiresVPC(c.GCPVPC, c.GCPSubnet, "gcp-"); err != nil {
+		return "", err
 	}
 
 	// Auto-detect the target architecture when the user didn't pass --arch.
@@ -296,10 +311,13 @@ func (c *ClientTemplateAMSCreateCmd) CreateTemplate(system *System, inventory *b
 			ImageName:          "",
 			Expire:             TypeExpiry(time.Duration(c.Timeout) * time.Minute),
 			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
+			VPC:                guiVpc(c.GCPVPC),
+			Subnet:             c.GCPSubnet,
 			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=30"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
+			DisablePublicIP:    c.GCPDisablePublicIP,
 			IAMInstanceProfile: "",
 			MinCPUPlatform:     "",
 			CustomDNS:          InstanceDNS{},

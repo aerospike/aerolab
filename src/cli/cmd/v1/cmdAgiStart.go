@@ -501,6 +501,9 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 	spotInstance := vol.Tags["isspot"] == "true"
 	volFips := vol.Tags["agifips"] == "true"
 	zone := vol.Tags["agizone"]
+	vpc := vol.Tags["agivpc"]
+	subnet := vol.Tags["agisubnet"]
+	disablePublicIP := vol.Tags["agidisablepubip"] == "true"
 	agiLabel := vol.Tags["agilabel"]
 	sslDisable := vol.Tags["agissldisable"] == "true"
 	monitorURL := vol.Tags["agimonitorurl"]
@@ -624,6 +627,9 @@ func (c *AgiStartCmd) reattachFromGCPVolume(system *System, inventory *backends.
 			TerminateOnPoweroff: terminateOnPoweroff,
 			SpotInstance:        spotInstance,
 			Zone:                guiZone(zone),
+			VPC:                 guiVpc(vpc),
+			Subnet:              subnet,
+			DisablePublicIP:     disablePublicIP,
 			Expires:             TypeExpiry(expireDuration),
 			VolExpires:          TypeExpiry(volExpireDuration),
 		},

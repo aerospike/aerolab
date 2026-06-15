@@ -209,10 +209,13 @@ type AgiCreateCmdGcp struct {
 	InstanceType        guiInstanceType `long:"instance" description:"Instance type" default:"c2d-standard-4" webchoice:"method::List"`
 	Disks               []string        `long:"disk" description:"Disk configuration (type=X,size=Y)" default:"type=pd-ssd,size=40"`
 	Zone                guiZone         `long:"zone" description:"GCP zone" webchoice:"method::List"`
+	VPC                 guiVpc          `long:"vpc" description:"GCP VPC network name to use; empty=default VPC" webchoice:"method::List"`
+	Subnet              string          `long:"subnet" description:"GCP subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
 	Tags                []string        `long:"tag" description:"Network tags"`
 	Labels              []string        `long:"label" description:"Labels (key=value)"`
 	SpotInstance        bool            `long:"spot-instance" description:"Request spot instance"`
 	Expires             TypeExpiry      `long:"expire" description:"Instance expiry time" default:"30h"`
+	DisablePublicIP     bool            `long:"disable-public-ip" description:"Disable public IP assignment"`
 	WithVol             bool            `long:"with-vol" description:"Use persistent volume for storage"`
 	VolName             string          `long:"vol-name" description:"Volume name" default:"{AGI_NAME}"`
 	VolExpires          TypeExpiry      `long:"vol-expire" description:"Volume expiry after last use" default:"96h"`
@@ -1018,16 +1021,19 @@ func (c *AgiCreateCmd) resolveTemplate(system *System, inventory *backends.Inven
 	withEFS := system.Opts.Config.Backend.Type == "aws"
 
 	templateCreate := &AgiTemplateCreateCmd{
-		GrafanaVersion:  c.GrafanaVersion,
-		Distro:          c.Distro,
-		DistroVersion:   c.DistroVersion,
-		Arch:            arch.String(),
-		Timeout:         c.Timeout,
-		NoVacuum:        c.NoVacuum,
-		Owner:           c.Owner,
-		DisablePublicIP: c.AWS.DisablePublicIP,
-		AerolabBinary:   c.AerolabBinary,
-		WithEFS:         withEFS,
+		GrafanaVersion:     c.GrafanaVersion,
+		Distro:             c.Distro,
+		DistroVersion:      c.DistroVersion,
+		Arch:               arch.String(),
+		Timeout:            c.Timeout,
+		NoVacuum:           c.NoVacuum,
+		Owner:              c.Owner,
+		DisablePublicIP:    c.AWS.DisablePublicIP,
+		GCPDisablePublicIP: c.GCP.DisablePublicIP,
+		GCPVPC:             string(c.GCP.VPC),
+		GCPSubnet:          c.GCP.Subnet,
+		AerolabBinary:      c.AerolabBinary,
+		WithEFS:            withEFS,
 	}
 
 	templateName, err := templateCreate.CreateTemplate(system, inventory, logger.WithPrefix("[template] "), args)
@@ -1396,13 +1402,16 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			DisablePublicIP:  c.AWS.DisablePublicIP,
 		},
 		GCP: InstancesCreateCmdGcp{
-			ImageName:    templateName,
-			Expire:       c.GCP.Expires,
-			Zone:         c.GCP.Zone,
-			InstanceType: guiInstanceType(gcpInstanceType),
-			Disks:        c.GCP.Disks,
-			Firewalls:    append([]string{agiFirewallName}, c.GCP.Tags...),
-			SpotInstance: c.GCP.SpotInstance,
+			ImageName:       templateName,
+			Expire:          c.GCP.Expires,
+			Zone:            c.GCP.Zone,
+			VPC:             c.GCP.VPC,
+			Subnet:          c.GCP.Subnet,
+			InstanceType:    guiInstanceType(gcpInstanceType),
+			Disks:           c.GCP.Disks,
+			Firewalls:       append([]string{agiFirewallName}, c.GCP.Tags...),
+			SpotInstance:    c.GCP.SpotInstance,
+			DisablePublicIP: c.GCP.DisablePublicIP,
 		},
 		Docker: InstancesCreateCmdDocker{
 			ImageName:   templateName,
@@ -1643,8 +1652,11 @@ func (c *AgiCreateCmd) updateVolumeTagsWithResolvedValues(system *System, invent
 		tags["isspot"] = fmt.Sprintf("%t", c.GCP.SpotInstance)
 		tags["agifips"] = fmt.Sprintf("%t", c.GCP.VolFips)
 		tags["agizone"] = string(c.GCP.Zone)
+		tags["agivpc"] = string(c.GCP.VPC)
+		tags["agisubnet"] = c.GCP.Subnet
 		tags["agiexpire"] = c.GCP.Expires.String()
 		tags["agifirewall"] = agiFirewallName
+		tags["agidisablepubip"] = fmt.Sprintf("%t", c.GCP.DisablePublicIP)
 
 		// GCP disk configuration (join array to string)
 		if len(c.GCP.Disks) > 0 {

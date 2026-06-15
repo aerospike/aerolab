@@ -638,3 +638,18 @@ func buildSliceFlags(shortName, longName string, fieldVal reflect.Value, preferS
 
 	return strings.Join(flagParts, " ")
 }
+
+// validateGCPSubnetRequiresVPC rejects the combination of a non-empty subnet name
+// with an empty VPC name. Subnet names are unique only within a single VPC, so
+// resolving a subnet without an explicit VPC silently restricts the search to
+// the project's default VPC(s). Force the caller to be explicit by always
+// pairing --subnet with --vpc.
+//
+// flagPrefix is the per-command long-flag prefix used in the resulting error
+// (e.g. "" for "--vpc"/"--subnet", or "gcp-" for "--gcp-vpc"/"--gcp-subnet").
+func validateGCPSubnetRequiresVPC(vpc, subnet, flagPrefix string) error {
+	if subnet == "" || vpc != "" {
+		return nil
+	}
+	return fmt.Errorf("--%[1]ssubnet requires --%[1]svpc: specifying a GCP subnet without a VPC is not allowed because subnet names are only unique within a single VPC", flagPrefix)
+}

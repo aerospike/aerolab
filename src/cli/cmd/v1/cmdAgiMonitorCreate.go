@@ -343,10 +343,13 @@ func (c *AgiMonitorCreateCmd) createBaseInstance(system *System, inventory *back
 		createCmd.GCP = InstancesCreateCmdGcp{
 			InstanceType:       c.GCP.InstanceType,
 			Zone:               c.GCP.Zone,
+			VPC:                c.GCP.VPC,
+			Subnet:             c.GCP.Subnet,
 			Firewalls:          firewalls,
 			IAMInstanceProfile: instanceRole,
 			Disks:              []string{"type=pd-ssd,size=20"}, // 20GB for monitor
 			Expire:             c.GCP.Expires,
+			DisablePublicIP:    c.GCP.DisablePublicIP,
 		}
 	}
 

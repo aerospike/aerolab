@@ -46,6 +46,9 @@ type CreateInstanceParams struct {
 	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
 	// optional: the VPC network name to use; if empty, use the default VPC
 	VPCName string `yaml:"vpcName" json:"vpcName"`
+	// optional: the subnet name to use within the selected VPC; if empty, the first subnet in the
+	// zone's region belonging to the chosen VPC is selected automatically.
+	SubnetName string `yaml:"subnetName" json:"subnetName"`
 	// instance type
 	InstanceType string `yaml:"instanceType" json:"instanceType" required:"true"`
 	// volume types and sizes, backend-specific definitions
@@ -76,6 +79,8 @@ type CreateInstanceParams struct {
 	OnHostMaintenance string `yaml:"onHostMaintenance" json:"onHostMaintenance"`
 	// optional: if true, the instance(node) will use Google Virtual NIC (gVNIC) instead of the default VirtIO NIC
 	GVNIC bool `yaml:"gvnic" json:"gvnic"`
+	// optional: if true, do not request a public IP for the instance(node); instances will operate on private IPs only
+	DisablePublicIP bool `yaml:"disablePublicIP" json:"disablePublicIP"`
 }
 
 type InstanceDetail struct {
@@ -1144,12 +1149,16 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 
 // resolve network placement based on placement string
 func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
-	return s.resolveNetworkPlacementInVPC(placement, "")
+	return s.resolveNetworkPlacementInVPC(placement, "", "")
 }
 
-// resolveNetworkPlacementInVPC resolves network placement, optionally filtering by VPC name.
-// If vpcName is empty, only default VPCs are considered.
-func (s *b) resolveNetworkPlacementInVPC(placement string, vpcName string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
+// resolveNetworkPlacementInVPC resolves network placement, optionally filtering by VPC name
+// and/or pinning a specific subnet name.
+//   - If vpcName is empty, only default VPCs are considered.
+//   - If subnetName is non-empty, the VPC's subnet with that name (matching the placement's
+//     region) is selected explicitly; otherwise the first subnet in the placement's region
+//     belonging to the chosen VPC is selected automatically.
+func (s *b) resolveNetworkPlacementInVPC(placement string, vpcName string, subnetName string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
 	regionPlacement := placement
 	if strings.Count(regionPlacement, "-") == 2 {
 		parts := strings.Split(regionPlacement, "-")
@@ -1164,22 +1173,32 @@ func (s *b) resolveNetworkPlacementInVPC(placement string, vpcName string) (vpc 
 			continue
 		}
 		for _, sub := range n.Subnets {
-			if sub.ZoneName == regionPlacement || sub.ZoneID == regionPlacement {
-				vpc = n
-				subnet = sub
-				zone = sub.ZoneID
-				break
+			if sub.ZoneName != regionPlacement && sub.ZoneID != regionPlacement {
+				continue
 			}
+			if subnetName != "" && sub.Name != subnetName && getValueFromURL(sub.SubnetId) != subnetName {
+				continue
+			}
+			vpc = n
+			subnet = sub
+			zone = sub.ZoneID
+			break
 		}
 		if subnet != nil {
 			break
 		}
 	}
 	if subnet == nil {
-		if vpcName != "" {
+		switch {
+		case subnetName != "" && vpcName != "":
+			return nil, nil, "", fmt.Errorf("no subnet %q found in zone %s for VPC %q", subnetName, placement, vpcName)
+		case subnetName != "":
+			return nil, nil, "", fmt.Errorf("no subnet %q found in zone %s within a default VPC", subnetName, placement)
+		case vpcName != "":
 			return nil, nil, "", fmt.Errorf("no subnet found in zone %s for VPC %q", placement, vpcName)
+		default:
+			return nil, nil, "", fmt.Errorf("no default subnet found in zone %s", placement)
 		}
-		return nil, nil, "", fmt.Errorf("no default subnet found in zone %s", placement)
 	}
 	return vpc, subnet, zone, nil
 }
@@ -1351,7 +1370,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as GCP Domains does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.resolveNetworkPlacementInVPC(backendSpecificParams.NetworkPlacement, backendSpecificParams.VPCName)
+	vpc, subnet, az, err := s.resolveNetworkPlacementInVPC(backendSpecificParams.NetworkPlacement, backendSpecificParams.VPCName, backendSpecificParams.SubnetName)
 	if err != nil {
 		return nil, err
 	}
@@ -1685,6 +1704,21 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		if backendSpecificParams.GVNIC {
 			nicType = new(computepb.NetworkInterface_GVNIC.String())
 		}
+		networkInterface := &computepb.NetworkInterface{
+			Network:    new(vpc.NetworkId),
+			Subnetwork: new(subnet.SubnetId),
+			StackType:  new("IPV4_ONLY"),
+			NicType:    nicType,
+			AccessConfigs: []*computepb.AccessConfig{
+				{
+					Name:        new("External NAT"),
+					NetworkTier: new("PREMIUM"),
+				},
+			},
+		}
+		if backendSpecificParams.DisablePublicIP {
+			networkInterface.AccessConfigs = nil
+		}
 		// Create instance with capacity retry logic
 		insertRequest := &computepb.InsertInstanceRequest{
 			Project: s.credentials.Project,
@@ -1709,21 +1743,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					OnHostMaintenance: new(onHostMaintenance),
 					ProvisioningModel: new(provisioning),
 				},
-				Disks: disksList,
-				NetworkInterfaces: []*computepb.NetworkInterface{
-					{
-						Network:    new(vpc.NetworkId),
-						Subnetwork: new(subnet.SubnetId),
-						StackType:  new("IPV4_ONLY"),
-						NicType:    nicType,
-						AccessConfigs: []*computepb.AccessConfig{
-							{
-								Name:        new("External NAT"),
-								NetworkTier: new("PREMIUM"),
-							},
-						},
-					},
-				},
+				Disks:             disksList,
+				NetworkInterfaces: []*computepb.NetworkInterface{networkInterface},
 			},
 		}
 

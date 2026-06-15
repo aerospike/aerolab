@@ -100,10 +100,12 @@ type InstancesCreateCmdGcp struct {
 	Expire             TypeExpiry      `long:"expire" description:"Expire the instances in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 	Zone               guiZone         `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region" webchoice:"method::List"`
 	VPC                guiVpc          `long:"vpc" description:"VPC network name to use; empty=default VPC" webchoice:"method::List"`
+	Subnet             string          `long:"subnet" description:"GCP subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
 	InstanceType       guiInstanceType `long:"instance" description:"Instance type to use for the instances" webchoice:"method::List"`
 	Disks              []string        `long:"disk" description:"Format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]\n; example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2\n; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=pd-ssd,size=20"`
 	Firewalls          []string        `long:"firewall" description:"Extra firewall names to assign to the instances"`
 	SpotInstance       bool            `long:"spot" description:"Create spot instances"`
+	DisablePublicIP    bool            `long:"no-public-ip" description:"Disable public IP assignment to the instances; if set, instances will only have a private IP"`
 	IAMInstanceProfile string          `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	MinCPUPlatform     string          `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
 	GVNIC              bool            `long:"gvnic" description:"Use Google Virtual NIC (gVNIC) instead of the default VirtIO NIC; required for highest network performance and for some newer instance types"`
@@ -192,6 +194,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 	if c.Name != "" && c.Count > 1 {
 		return nil, errors.New("name cannot be specified when count is greater than 1")
+	}
+
+	if err := validateGCPSubnetRequiresVPC(string(c.GCP.VPC), c.GCP.Subnet, ""); err != nil {
+		return nil, err
 	}
 
 	if c.Name != "" {

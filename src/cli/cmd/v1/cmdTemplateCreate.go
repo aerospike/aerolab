@@ -22,18 +22,21 @@ import (
 )
 
 type TemplateCreateCmd struct {
-	Distro           string        `short:"d" long:"distro" description:"Distro to create the template for" default:"ubuntu"`
-	DistroVersion    string        `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
-	Arch             string        `short:"a" long:"arch" description:"Architecture to create the template for; empty=auto-detect from host/backend" default:""`
-	AerospikeVersion string        `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
-	Owner            string        `short:"o" long:"owner" description:"Owner of the template"`
-	DisablePublicIP  bool          `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
-	Timeout          int           `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
-	DryRun           bool          `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
-	NoVacuum         bool          `short:"V" long:"no-vacuum" description:"Do not vacuum an existing template creation instance on failure"`
-	MaxRetries       int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
-	RetrySleep       time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
-	Help             HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	Distro             string        `short:"d" long:"distro" description:"Distro to create the template for" default:"ubuntu"`
+	DistroVersion      string        `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
+	Arch               string        `short:"a" long:"arch" description:"Architecture to create the template for; empty=auto-detect from host/backend" default:""`
+	AerospikeVersion   string        `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
+	Owner              string        `short:"o" long:"owner" description:"Owner of the template"`
+	DisablePublicIP    bool          `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
+	GCPDisablePublicIP bool          `long:"gcp-disable-public-ip" description:"Disable public IP assignment to the instances in GCP"`
+	GCPVPC             string        `long:"gcp-vpc" description:"GCP VPC network name to use; empty=default VPC"`
+	GCPSubnet          string        `long:"gcp-subnet" description:"GCP subnet name within the selected VPC; empty=auto-select first subnet in the zone's region"`
+	Timeout            int           `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
+	DryRun             bool          `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
+	NoVacuum           bool          `short:"V" long:"no-vacuum" description:"Do not vacuum an existing template creation instance on failure"`
+	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help               HelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *TemplateCreateCmd) Execute(args []string) error {
@@ -111,6 +114,19 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	}
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
+	}
+
+	// Inherit per-backend public-IP defaults from global config when the caller has not
+	// already set them (e.g. when invoked directly via `aerolab template create`).
+	if system.Opts.Config.Backend.Type == "aws" && !c.DisablePublicIP {
+		c.DisablePublicIP = system.Opts.Config.Backend.AWSNoPublicIps
+	}
+	if system.Opts.Config.Backend.Type == "gcp" && !c.GCPDisablePublicIP {
+		c.GCPDisablePublicIP = system.Opts.Config.Backend.GCPNoPublicIps
+	}
+
+	if err := validateGCPSubnetRequiresVPC(c.GCPVPC, c.GCPSubnet, "gcp-"); err != nil {
+		return "", err
 	}
 
 	// Auto-detect architecture from backend config / host, matching cluster create behavior
@@ -351,10 +367,13 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			ImageName:          "",
 			Expire:             TypeExpiry(20 * time.Minute),
 			Zone:               guiZone(system.Opts.Config.Backend.Region + "-a"),
+			VPC:                guiVpc(c.GCPVPC),
+			Subnet:             c.GCPSubnet,
 			InstanceType:       guiInstanceType(gcpInstanceType),
 			Disks:              []string{"type=pd-ssd,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
+			DisablePublicIP:    c.GCPDisablePublicIP,
 			IAMInstanceProfile: "",
 			MinCPUPlatform:     "",
 			CustomDNS:          InstanceDNS{},

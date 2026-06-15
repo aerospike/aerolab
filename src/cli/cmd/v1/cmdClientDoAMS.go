@@ -986,16 +986,19 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 	case 0:
 		logger.Info("No AMS template found for %s; creating one...", archStr)
 		templateCreate := &ClientTemplateAMSCreateCmd{
-			GrafanaVersion:    c.GrafanaVersion,
-			PrometheusVersion: c.PrometheusVersion,
-			Distro:            "ubuntu",
-			DistroVersion:     "24.04",
-			Arch:              archStr,
-			Timeout:           30,
-			Owner:             c.Owner,
-			DisablePublicIP:   c.AWS.DisablePublicIP,
-			MaxRetries:        c.MaxRetries,
-			RetrySleep:        c.RetrySleep,
+			GrafanaVersion:     c.GrafanaVersion,
+			PrometheusVersion:  c.PrometheusVersion,
+			Distro:             "ubuntu",
+			DistroVersion:      "24.04",
+			Arch:               archStr,
+			Timeout:            30,
+			Owner:              c.Owner,
+			DisablePublicIP:    c.AWS.DisablePublicIP,
+			GCPDisablePublicIP: c.GCP.DisablePublicIP,
+			GCPVPC:             string(c.GCP.VPC),
+			GCPSubnet:          c.GCP.Subnet,
+			MaxRetries:         c.MaxRetries,
+			RetrySleep:         c.RetrySleep,
 		}
 		name, err := templateCreate.CreateTemplate(system, inventory, logger.WithPrefix("[template] "), args, false)
 		if err != nil {
