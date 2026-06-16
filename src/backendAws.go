@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,30 @@ var (
 	awsTagEFSKey           = "UsedBy"
 	awsTagEFSValue         = "aerolab7"
 )
+
+// awsTerminationTimeRegex extracts the GMT timestamp embedded in
+// `instance.StateTransitionReason` for user-initiated terminations, e.g.
+// "User initiated (2024-01-15 12:34:56 GMT)". Used to freeze the running-cost
+// accounting at the actual termination moment instead of letting it tick up
+// every time the inventory is listed.
+var awsTerminationTimeRegex = regexp.MustCompile(`\((\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+GMT\)`)
+
+func parseAwsTerminationTime(inst *ec2.Instance) int {
+	if inst == nil {
+		return 0
+	}
+	if reason := aws.StringValue(inst.StateTransitionReason); reason != "" {
+		if m := awsTerminationTimeRegex.FindStringSubmatch(reason); len(m) == 2 {
+			if t, err := time.ParseInLocation("2006-01-02 15:04:05", m[1], time.UTC); err == nil {
+				return int(t.Unix())
+			}
+		}
+	}
+	if inst.UsageOperationUpdateTime != nil {
+		return int(inst.UsageOperationUpdateTime.Unix())
+	}
+	return 0
+}
 
 func (d *backendAws) WorkOnClients() {
 	d.server = false
@@ -1336,10 +1361,32 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					for _, sgss := range instance.SecurityGroups {
 						sgs = append(sgs, *sgss.GroupName)
 					}
+					// Freeze the running-cost endpoint whenever the instance is
+					// no longer accruing compute charges:
+					//   * shutting-down / terminated - AWS keeps these visible
+					//     in DescribeInstances for ~1h after termination
+					//   * stopping / stopped - the cost tag should already be
+					//     "0", but if the stop-side SetTags failed (or the
+					//     instance was stopped outside aerolab), the missing
+					//     tag triggers the LaunchTime fallback below and the
+					//     cost would otherwise tick from instance launch.
+					// Where AWS exposes a parseable transition timestamp via
+					// StateTransitionReason / UsageOperationUpdateTime we use
+					// it as the cutoff; otherwise we freeze at startTime so
+					// the running-time component is zero.
+					endTime := int(time.Now().Unix())
+					switch state {
+					case ec2.InstanceStateNameShuttingDown, ec2.InstanceStateNameTerminated,
+						ec2.InstanceStateNameStopping, ec2.InstanceStateNameStopped:
+						if t := parseAwsTerminationTime(instance); t > 0 {
+							endTime = t
+						} else if startTime != 0 {
+							endTime = startTime
+						}
+					}
 					currentCost := lastRunCost
-					if startTime != 0 {
-						now := int(time.Now().Unix())
-						delta := now - startTime
+					if startTime != 0 && endTime > startTime {
+						delta := endTime - startTime
 						deltaH := float64(delta) / 3600
 						currentCost = lastRunCost + (pricePerHour * deltaH)
 					}

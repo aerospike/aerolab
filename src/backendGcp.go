@@ -1220,8 +1220,23 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								}
 							}
 						}
+						// Freeze the running-cost endpoint whenever the instance
+						// is no longer accruing compute charges:
+						//   * DELETING  - terminate in progress
+						//   * STOPPING  - stop in progress
+						//   * TERMINATED - GCP terminology for "stopped"
+						// Without this clamp, the cost ticks up every read for
+						// stopped instances if the cost-start-time label was
+						// dropped or never written (the Atoi-fallback above
+						// substitutes instance.LastStartTimestamp, which GCP
+						// keeps set across stop/start cycles).
 						currentCost := lastRunCost
-						if startTime != 0 {
+						instStatus := ""
+						if instance.Status != nil {
+							instStatus = *instance.Status
+						}
+						isStoppedOrTerminating := instStatus == "DELETING" || instStatus == "STOPPING" || instStatus == "TERMINATED"
+						if startTime != 0 && !isStoppedOrTerminating {
 							now := int(time.Now().Unix())
 							delta := now - startTime
 							deltaH := float64(delta) / 3600
