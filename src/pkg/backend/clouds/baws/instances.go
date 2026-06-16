@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -142,6 +143,30 @@ type instanceVolume struct {
 	VolumeID string `yaml:"volumeID" json:"volumeID"`
 }
 
+// awsTerminationTimeRegex extracts the GMT timestamp embedded in
+// `instance.StateTransitionReason` for user-initiated terminations, e.g.
+// "User initiated (2024-01-15 12:34:56 GMT)".
+var awsTerminationTimeRegex = regexp.MustCompile(`\((\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+GMT\)`)
+
+// parseAwsTerminationTime returns the moment at which the EC2 instance left
+// the running state, or the zero time if it can't be determined. Used to
+// freeze cost accounting for terminated/shutting-down instances; without it,
+// `time.Since(LastStartTime)` would keep growing every time the inventory is
+// listed for an already-terminated instance.
+func parseAwsTerminationTime(inst types.Instance) time.Time {
+	if reason := aws.ToString(inst.StateTransitionReason); reason != "" {
+		if m := awsTerminationTimeRegex.FindStringSubmatch(reason); len(m) == 2 {
+			if t, err := time.ParseInLocation("2006-01-02 15:04:05", m[1], time.UTC); err == nil {
+				return t
+			}
+		}
+	}
+	if inst.UsageOperationUpdateTime != nil {
+		return *inst.UsageOperationUpdateTime
+	}
+	return time.Time{}
+}
+
 func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backends.VolumeList, networkList backends.NetworkList) *backends.Instance {
 	tags := make(map[string]string)
 	for _, t := range inst.Tags {
@@ -226,6 +251,22 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 	publicIP := aws.ToString(inst.PublicIpAddress)
 	privateIP := aws.ToString(inst.PrivateIpAddress)
 	accessURL := computeCloudAccessURL(tags["aerolab.client.type"], publicIP, privateIP)
+
+	// Freeze running-cost accounting once the instance has been terminated.
+	// AWS keeps shutting-down/terminated instances visible in DescribeInstances
+	// for ~1h after termination; without this, AccruedCost() would keep ticking
+	// up every read because LastStartTime is still set in the surviving tags.
+	// We capture the running cost up to the recorded state-transition time
+	// (when AWS gives us one) and then clear LastStartTime so further reads
+	// return a stable, frozen value.
+	if state == backends.LifeCycleStateTerminated || state == backends.LifeCycleStateTerminating {
+		if !startTime.IsZero() {
+			if transitionTime := parseAwsTerminationTime(inst); !transitionTime.IsZero() && transitionTime.After(startTime) {
+				costSoFar += pph * transitionTime.Sub(startTime).Hours()
+			}
+			startTime = time.Time{}
+		}
+	}
 
 	return &backends.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],

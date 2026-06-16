@@ -255,6 +255,16 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 	// Compute access URL for web-accessible clients
 	accessURL := computeCloudAccessURL(tags["aerolab.client.type"], publicIP, privateIP)
 
+	// Freeze running-cost accounting once the instance is being deleted.
+	// GCP's DELETING state is brief but the inventory is still visible during
+	// it, and without this AccruedCost() would tick up via time.Since(LastStartTime).
+	// GCP doesn't expose a deletion-start timestamp, so we just stop the tick;
+	// the running time during the (typically <1m) DELETING window is intentionally
+	// dropped to avoid unbounded growth.
+	if state == backends.LifeCycleStateTerminating {
+		startTime = time.Time{}
+	}
+
 	return &backends.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],
 		ClusterUUID:  tags[TAG_CLUSTER_UUID],
