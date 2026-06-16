@@ -631,7 +631,7 @@ func (s *b) deployFunction(ctx context.Context, projectID, region, token string,
 		Name:        fullName,
 		Description: string(description),
 		BuildConfig: &functionspb.BuildConfig{
-			Runtime:    "go123",
+			Runtime:    "go126",
 			EntryPoint: "aerolabExpire",
 			Source: &functionspb.Source{
 				Source: &functionspb.Source_StorageSource{
