@@ -56,6 +56,8 @@ type backendExtra struct {
 	isAgiFirewall       bool      // aws/gcp only
 	disks               []string  // gcp only; old
 	zone                string    // gcp only
+	gcpNetwork          string    // gcp only; network name, default "default"
+	gcpSubnet           string    // gcp only; subnet name, "" = auto-lookup in zone's region
 	labels              []string  // gcp only
 	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string

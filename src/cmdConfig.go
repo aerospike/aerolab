@@ -51,6 +51,7 @@ type configBackendCmd struct {
 	AWSProfile              string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
 	AWSNoPublicIps          bool           `long:"aws-nopublic-ip" description:"AWS backend: if set, aerolab will not request public IPs, and will operate on private IPs only"`
 	Project                 string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
+	GCPNoPublicIps          bool           `long:"gcp-nopublic-ip" description:"GCP backend: if set, aerolab will not request public IPs, and will operate on private IPs only"`
 	Arch                    string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
 	UseAlternateIpDiscovery bool           `long:"alt-ip-discovery" description:"Use alternate IP discovery services (in case the original one fails)"`
 	TmpDir                  flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:"" webtype:"text"`
@@ -79,6 +80,9 @@ func (c *configBackendCmd) Execute(args []string) error {
 	if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
 		c.AWSNoPublicIps = false
 	}
+	if !inslice.HasString(os.Args[1:], "--gcp-nopublic-ip") {
+		c.GCPNoPublicIps = false
+	}
 	if c.Arch != "" && c.Arch != "amd64" && c.Arch != "arm64" && c.Arch != "unset" {
 		return errors.New("docker-arch must be one of: unset, amd64, arm64")
 	}
@@ -102,6 +106,7 @@ func (c *configBackendCmd) Execute(args []string) error {
 	}
 	if c.Type == "gcp" {
 		fmt.Printf("Config.Backend.Project = %s\n", c.Project)
+		fmt.Printf("Config.Backend.GCPNoPublicIps = %v\n", c.GCPNoPublicIps)
 	}
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)

@@ -8,4 +8,8 @@ require (
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 )
 
-require github.com/jmespath/go-jmespath v0.4.0 // indirect
+require (
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+)

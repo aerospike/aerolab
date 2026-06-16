@@ -305,6 +305,8 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	}
 	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
+		extra.gcpNetwork = c.Gcp.Network
+		extra.gcpSubnet = c.Gcp.Subnet
 		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
 		extra.firewallNamePrefix = c.Aws.NamePrefix

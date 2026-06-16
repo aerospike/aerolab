@@ -1186,6 +1186,9 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								}
 							}
 						}
+						if a.opts.Config.Backend.GCPNoPublicIps {
+							pubIp = privIp
+						}
 						zoneSplit := strings.Split(*instance.Zone, "/zones/")
 						zone := ""
 						if len(zoneSplit) > 1 {
@@ -1685,7 +1688,7 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 						}
 						ip := "N/A"
 						if len(instance.NetworkInterfaces) > 0 {
-							if internalIPs {
+							if internalIPs || a.opts.Config.Backend.GCPNoPublicIps {
 								if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
 									ip = *instance.NetworkInterfaces[0].NetworkIP
 								}
@@ -2569,6 +2572,49 @@ func (d *backendGcp) validateLabels(labels map[string]string) error {
 	return nil
 }
 
+// resolveGcpSubnetwork returns the subnetwork reference to attach to a NetworkInterface for an
+// instance in the given zone. If subnet is non-empty it is used directly within the zone's region;
+// otherwise the first subnet in the zone's region belonging to network (defaulting to "default") is
+// selected. This is required because aerolab targets the raw GCP API, which - unlike the gcloud CLI
+// - does not auto-select a subnet for custom subnet-mode VPCs, producing "No default subnetwork was
+// found in the region of the instance".
+func (d *backendGcp) resolveGcpSubnetwork(zone, network, subnet string) (string, error) {
+	if network == "" {
+		network = "default"
+	}
+	idx := strings.LastIndex(zone, "-")
+	if idx < 1 {
+		return "", fmt.Errorf("invalid gcp zone %q, cannot derive region", zone)
+	}
+	region := zone[:idx]
+	if subnet != "" {
+		return fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", a.opts.Config.Backend.Project, region, subnet), nil
+	}
+	ctx := context.Background()
+	client, err := compute.NewSubnetworksRESTClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("NewSubnetworksRESTClient: %w", err)
+	}
+	defer client.Close()
+	it := client.List(ctx, &computepb.ListSubnetworksRequest{
+		Project: a.opts.Config.Backend.Project,
+		Region:  region,
+	})
+	for {
+		sn, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if strings.HasSuffix(sn.GetNetwork(), "/networks/"+network) {
+			return sn.GetSelfLink(), nil
+		}
+	}
+	return "", fmt.Errorf("no subnet found in region %s for network %q; specify one with --gcp-subnet", region, network)
+}
+
 func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
@@ -2641,6 +2687,24 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	}
 	fnp := append(extra.firewallNamePrefix, "aerolab-server")
 	tags := append(extra.tags, fnp...)
+	templateNetworkInterface := &computepb.NetworkInterface{
+		StackType: proto.String("IPV4_ONLY"),
+		AccessConfigs: []*computepb.AccessConfig{
+			{
+				Name:        proto.String("External NAT"),
+				NetworkTier: proto.String("PREMIUM"),
+			},
+		},
+	}
+	if a.opts.Config.Backend.GCPNoPublicIps {
+		// do not request a public IP; operate on private IPs only
+		templateNetworkInterface.AccessConfigs = nil
+	}
+	subnetURL, snErr := d.resolveGcpSubnetwork(extra.zone, extra.gcpNetwork, extra.gcpSubnet)
+	if snErr != nil {
+		return snErr
+	}
+	templateNetworkInterface.Subnetwork = proto.String(subnetURL)
 	req := &computepb.InsertInstanceRequest{
 		Project: a.opts.Config.Backend.Project,
 		Zone:    extra.zone,
@@ -2679,17 +2743,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 					Type:       proto.String(computepb.AttachedDisk_PERSISTENT.String()),
 				},
 			},
-			NetworkInterfaces: []*computepb.NetworkInterface{
-				{
-					StackType: proto.String("IPV4_ONLY"),
-					AccessConfigs: []*computepb.AccessConfig{
-						{
-							Name:        proto.String("External NAT"),
-							NetworkTier: proto.String("PREMIUM"),
-						},
-					},
-				},
-			},
+			NetworkInterfaces: []*computepb.NetworkInterface{templateNetworkInterface},
 		},
 	}
 
@@ -2716,10 +2770,18 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if err != nil {
 		return fmt.Errorf("failed to poll new instance: %s", err)
 	}
-	if len(inst.NetworkInterfaces) < 1 || len(inst.NetworkInterfaces[0].AccessConfigs) < 1 || inst.NetworkInterfaces[0].AccessConfigs[0].NatIP == nil {
-		return errors.New("instance failed to obtain public IP")
+	var instIp string
+	if a.opts.Config.Backend.GCPNoPublicIps {
+		if len(inst.NetworkInterfaces) < 1 || inst.NetworkInterfaces[0].NetworkIP == nil {
+			return errors.New("instance failed to obtain private IP")
+		}
+		instIp = *inst.NetworkInterfaces[0].NetworkIP
+	} else {
+		if len(inst.NetworkInterfaces) < 1 || len(inst.NetworkInterfaces[0].AccessConfigs) < 1 || inst.NetworkInterfaces[0].AccessConfigs[0].NatIP == nil {
+			return errors.New("instance failed to obtain public IP")
+		}
+		instIp = *inst.NetworkInterfaces[0].AccessConfigs[0].NatIP
 	}
-	instIp := *inst.NetworkInterfaces[0].AccessConfigs[0].NatIP
 	if len(deployGcpTemplateShutdownMaking) > 0 {
 		for {
 			time.Sleep(time.Second)
@@ -3287,6 +3349,24 @@ type gcpMakeOps struct {
 	op  *compute.Operation
 }
 
+func gcpRequiresHyperdiskBootDisk(instanceType string) bool {
+	return strings.HasPrefix(instanceType, "n4-") || strings.HasPrefix(instanceType, "c4a-")
+}
+
+func gcpAdjustDisksForInstanceType(disks []*cloudDisk, instanceType string) []*cloudDisk {
+	if len(disks) == 0 || !gcpRequiresHyperdiskBootDisk(instanceType) {
+		return disks
+	}
+	if !strings.HasPrefix(disks[0].Type, "pd-") {
+		return disks
+	}
+	disks[0].Type = "hyperdisk-balanced"
+	if disks[0].Size == 0 {
+		disks[0].Size = 20
+	}
+	return disks
+}
+
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
 	name = strings.Trim(name, "\r\n\t ")
 	if extra.zone == "" {
@@ -3328,7 +3408,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	// this whole IF block is to handle old formatting and defaults if disks are not specified
 	if len(disksInt) == 0 {
 		if len(extra.disks) == 0 {
-			if strings.HasPrefix(extra.instanceType, "n4-") {
+			if gcpRequiresHyperdiskBootDisk(extra.instanceType) {
 				extra.disks = []string{"hyperdisk-balanced:20"}
 			} else {
 				extra.disks = []string{"pd-balanced:20"}
@@ -3359,29 +3439,31 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			}
 			if strings.HasPrefix(disk, "hyperdisk-balanced:") {
 				diska := strings.Split(disk, ":")
-				if len(diska) == 2 {
-					diska = append(diska, []string{"3060", "155"}...)
-				}
-				if len(diska) != 4 {
-					return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+				if len(diska) != 2 && len(diska) != 4 {
+					return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20 hyperdisk-balanced:20:3060:155)")
 				}
 				dsize, err := strconv.Atoi(diska[1])
 				if err != nil {
 					return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
 				}
-				diops, err := strconv.Atoi(diska[2])
-				if err != nil {
-					return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
-				}
-				dthroughput, err := strconv.Atoi(diska[3])
-				if err != nil {
-					return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+				var diops, dthroughput int64
+				if len(diska) == 4 {
+					iopsVal, err := strconv.Atoi(diska[2])
+					if err != nil {
+						return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+					}
+					throughputVal, err := strconv.Atoi(diska[3])
+					if err != nil {
+						return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+					}
+					diops = int64(iopsVal)
+					dthroughput = int64(throughputVal)
 				}
 				disksInt = append(disksInt, &cloudDisk{
 					Type:                  diska[0],
 					Size:                  int64(dsize),
-					ProvisionedIOPS:       int64(diops),
-					ProvisionedThroughput: int64(dthroughput),
+					ProvisionedIOPS:       diops,
+					ProvisionedThroughput: dthroughput,
 				})
 				continue
 			}
@@ -3416,6 +3498,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			})
 		}
 	}
+	disksInt = gcpAdjustDisksForInstanceType(disksInt, extra.instanceType)
 
 	var imageName string
 	if d.client {
@@ -3520,6 +3603,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			serviceAccounts[0].Scopes = append(serviceAccounts[0].Scopes, "https://www.googleapis.com/auth/cloud-billing.readonly")
 		}
 	}
+	clusterSubnetURL, snErr := d.resolveGcpSubnetwork(extra.zone, extra.gcpNetwork, extra.gcpSubnet)
+	if snErr != nil {
+		return snErr
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
@@ -3616,6 +3703,21 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			return err
 		}
 
+		networkInterface := &computepb.NetworkInterface{
+			StackType: proto.String("IPV4_ONLY"),
+			AccessConfigs: []*computepb.AccessConfig{
+				{
+					Name:        proto.String("External NAT"),
+					NetworkTier: proto.String("PREMIUM"),
+				},
+			},
+		}
+		if a.opts.Config.Backend.GCPNoPublicIps {
+			// do not request a public IP; operate on private IPs only
+			networkInterface.AccessConfigs = nil
+		}
+		networkInterface.Subnetwork = proto.String(clusterSubnetURL)
+
 		req := &computepb.InsertInstanceRequest{
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
@@ -3636,18 +3738,8 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					OnHostMaintenance: proto.String(onHostMaintenance),
 					ProvisioningModel: proto.String(provisioning),
 				},
-				Disks: disksList,
-				NetworkInterfaces: []*computepb.NetworkInterface{
-					{
-						StackType: proto.String("IPV4_ONLY"),
-						AccessConfigs: []*computepb.AccessConfig{
-							{
-								Name:        proto.String("External NAT"),
-								NetworkTier: proto.String("PREMIUM"),
-							},
-						},
-					},
-				},
+				Disks:             disksList,
+				NetworkInterfaces: []*computepb.NetworkInterface{networkInterface},
 			},
 		}
 

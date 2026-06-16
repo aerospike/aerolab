@@ -117,6 +117,8 @@ type agiMonitorCreateCmd struct {
 type agiMonitorCreateCmdGcp struct {
 	InstanceType string   `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
 	Zone         string   `long:"zone" description:"zone name to deploy to" webrequired:"true"`
+	Network      string   `long:"gcp-network" description:"GCP network name to use" default:"default"`
+	Subnet       string   `long:"gcp-subnet" description:"GCP subnet name; default: auto-select a subnet in the zone's region of the chosen network"`
 	NamePrefix   []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	InstanceRole string   `hidden:"true" long:"gcp-role" description:"instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 }
@@ -228,6 +230,8 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.Gcp.InstanceType = guiInstanceType(c.Gcp.InstanceType)
 	a.opts.Client.Create.None.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Client.Create.None.Gcp.Zone = guiZone(c.Gcp.Zone)
+	a.opts.Client.Create.None.Gcp.Network = c.Gcp.Network
+	a.opts.Client.Create.None.Gcp.Subnet = c.Gcp.Subnet
 	_, err = a.opts.Client.Create.None.createBase(nil, "agimonitor")
 	if err != nil {
 		return err

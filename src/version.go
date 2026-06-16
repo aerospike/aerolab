@@ -26,6 +26,6 @@ var telemetryVersion = "5" // remember to modify this when changing the telemetr
 var simulateArmInstaller = false
 
 var awsExpiryVersion = 10 // remember to change this when modifying the expiry system version
-var gcpExpiryVersion = 7  // remember to change this when modifying the expiry system version
+var gcpExpiryVersion = 8  // remember to change this when modifying the expiry system version
 
 var isWebuiBeta = true // switch to false to prevent the beta tag and log message for webUI
