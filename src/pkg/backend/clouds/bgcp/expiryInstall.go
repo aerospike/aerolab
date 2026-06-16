@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	compute "cloud.google.com/go/compute/apiv1"
-	"cloud.google.com/go/compute/apiv1/computepb"
 	functions "cloud.google.com/go/functions/apiv2"
 	functionspb "cloud.google.com/go/functions/apiv2/functionspb"
 	"cloud.google.com/go/iam"
@@ -547,25 +545,61 @@ func getLRO(ctx context.Context, cli *http.Client, opName string) (bool, error, 
 	return op.Done, nil, nil
 }
 
+// getProjectNumber returns the GCP project number for the given project ID.
+//
+// Note: the Compute Engine v1 Project.Id field is *not* the GCP project
+// number -- its proto comment explicitly states it is "the unique identifier
+// for the resource ... defined by the server ... *not* the project ID, and is
+// just a unique ID used by Compute Engine to identify resources." Using that
+// value to construct a service-agent address such as
+// `service-<n>@gcf-admin-robot.iam.gserviceaccount.com` yields a 19-digit
+// identifier that does not exist in IAM, which is why earlier versions of
+// this code produced
+// `400 Service account service-<n>@gcf-admin-robot.iam.gserviceaccount.com
+// does not exist., invalid` from grantGCFServiceAgentBucketAccess.
+//
+// The correct number is exposed by Cloud Resource Manager. We use v3 over
+// raw HTTP (same pattern as generateServiceIdentity) to avoid pulling in
+// another vendored client; v3 returns `name: "projects/<NUMBER>"` where
+// NUMBER is the real project number.
 func (s *b) getProjectNumber(ctx context.Context, projectID string) (string, error) {
 	log := s.log.WithPrefix("getProjectNumber: ")
-	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
-		return "", fmt.Errorf("get credentials: %w", err)
+		return "", fmt.Errorf("get auth client: %w", err)
 	}
-	projClient, err := compute.NewProjectsRESTClient(ctx, option.WithCredentials(cli))
+	url := fmt.Sprintf("https://cloudresourcemanager.googleapis.com/v3/projects/%s", projectID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("create projects client: %w", err)
+		return "", fmt.Errorf("build resourcemanager request: %w", err)
 	}
-	defer projClient.Close()
-	proj, err := projClient.Get(ctx, &computepb.GetProjectRequest{Project: projectID})
+	resp, err := cli.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("get project: %w", err)
+		return "", fmt.Errorf("get project from resourcemanager: %w", err)
 	}
-	if proj.Id == nil {
-		return "", fmt.Errorf("project %s has no numeric ID", projectID)
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("resourcemanager HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
-	return strconv.FormatUint(*proj.Id, 10), nil
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return "", fmt.Errorf("decode resourcemanager response: %w", err)
+	}
+	const prefix = "projects/"
+	if !strings.HasPrefix(body.Name, prefix) {
+		return "", fmt.Errorf("unexpected resourcemanager name format %q for project %s", body.Name, projectID)
+	}
+	number := strings.TrimPrefix(body.Name, prefix)
+	if number == "" {
+		return "", fmt.Errorf("empty project number for project %s", projectID)
+	}
+	if _, err := strconv.ParseUint(number, 10, 64); err != nil {
+		return "", fmt.Errorf("non-numeric project number %q for project %s: %w", number, projectID, err)
+	}
+	return number, nil
 }
 
 func (s *b) deployFunction(ctx context.Context, projectID, region, token string, logLevel int, cleanupDNS bool) error {
