@@ -1,5 +1,4 @@
 //go:build !js
-// +build !js
 
 package websocket
 
@@ -11,11 +10,11 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket/internal/errd"
 	"github.com/coder/websocket/internal/util"
-	"github.com/coder/websocket/internal/xsync"
 )
 
 // Reader reads from the connection until there is a WebSocket
@@ -91,7 +90,8 @@ func (c *Conn) CloseRead(ctx context.Context) context.Context {
 //
 // By default, the connection has a message read limit of 32768 bytes.
 //
-// When the limit is hit, the connection will be closed with StatusMessageTooBig.
+// When the limit is hit, reads return an error wrapping ErrMessageTooBig and
+// the connection is closed with StatusMessageTooBig.
 //
 // Set to -1 to disable.
 func (c *Conn) SetReadLimit(n int64) {
@@ -217,60 +217,74 @@ func (c *Conn) readLoop(ctx context.Context) (header, error) {
 	}
 }
 
-func (c *Conn) readFrameHeader(ctx context.Context) (header, error) {
+// prepareRead sets the read timeout and checks whether the connection is closed.
+func (c *Conn) prepareRead(ctx context.Context) (bool, error) {
 	select {
 	case <-c.closed:
-		return header{}, net.ErrClosed
-	case c.readTimeout <- ctx:
+		return false, net.ErrClosed
+	default:
 	}
+	timeoutSet := c.setupReadTimeout(ctx)
+
+	c.closeStateMu.Lock()
+	closeReceivedErr := c.closeReceivedErr
+	c.closeStateMu.Unlock()
+	if closeReceivedErr != nil {
+		if timeoutSet {
+			c.clearReadTimeout()
+		}
+		return false, closeReceivedErr
+	}
+
+	return timeoutSet, nil
+}
+
+// finishRead clears the read timeout and reports whether the connection or
+// operation context ended while the read was in progress.
+func (c *Conn) finishRead(ctx context.Context, err *error, timeoutSet bool) {
+	if timeoutSet {
+		c.clearReadTimeout()
+	}
+	select {
+	case <-c.closed:
+		if *err != nil {
+			*err = net.ErrClosed
+		}
+	default:
+	}
+	if *err != nil && ctx.Err() != nil {
+		*err = ctx.Err()
+	}
+}
+
+func (c *Conn) readFrameHeader(ctx context.Context) (_ header, err error) {
+	timeoutSet, err := c.prepareRead(ctx)
+	if err != nil {
+		return header{}, err
+	}
+	defer c.finishRead(ctx, &err, timeoutSet)
 
 	h, err := readFrameHeader(c.br, c.readHeaderBuf[:])
 	if err != nil {
-		select {
-		case <-c.closed:
-			return header{}, net.ErrClosed
-		case <-ctx.Done():
-			return header{}, ctx.Err()
-		default:
-			return header{}, err
-		}
-	}
-
-	select {
-	case <-c.closed:
-		return header{}, net.ErrClosed
-	case c.readTimeout <- context.Background():
+		return header{}, err
 	}
 
 	return h, nil
 }
 
-func (c *Conn) readFramePayload(ctx context.Context, p []byte) (int, error) {
-	select {
-	case <-c.closed:
-		return 0, net.ErrClosed
-	case c.readTimeout <- ctx:
+func (c *Conn) readFramePayload(ctx context.Context, p []byte) (_ int, err error) {
+	timeoutSet, err := c.prepareRead(ctx)
+	if err != nil {
+		return 0, err
 	}
+	defer c.finishRead(ctx, &err, timeoutSet)
 
 	n, err := io.ReadFull(c.br, p)
 	if err != nil {
-		select {
-		case <-c.closed:
-			return n, net.ErrClosed
-		case <-ctx.Done():
-			return n, ctx.Err()
-		default:
-			return n, fmt.Errorf("failed to read frame payload: %w", err)
-		}
+		return n, fmt.Errorf("failed to read frame payload: %w", err)
 	}
 
-	select {
-	case <-c.closed:
-		return n, net.ErrClosed
-	case c.readTimeout <- context.Background():
-	}
-
-	return n, err
+	return n, nil
 }
 
 func (c *Conn) handleControl(ctx context.Context, h header) (err error) {
@@ -301,8 +315,16 @@ func (c *Conn) handleControl(ctx context.Context, h header) (err error) {
 
 	switch h.opcode {
 	case opPing:
+		if c.onPingReceived != nil {
+			if !c.onPingReceived(ctx, b) {
+				return nil
+			}
+		}
 		return c.writeControl(ctx, opPong, b)
 	case opPong:
+		if c.onPongReceived != nil {
+			c.onPongReceived(ctx, b)
+		}
 		c.activePingsMu.Lock()
 		pong, ok := c.activePings[string(b)]
 		c.activePingsMu.Unlock()
@@ -325,9 +347,22 @@ func (c *Conn) handleControl(ctx context.Context, h header) (err error) {
 	}
 
 	err = fmt.Errorf("received close frame: %w", ce)
-	c.writeClose(ce.Code, ce.Reason)
-	c.readMu.unlock()
-	c.close()
+	c.closeStateMu.Lock()
+	c.closeReceivedErr = err
+	closeSent := c.closeSentErr != nil
+	c.closeStateMu.Unlock()
+
+	// Only unlock readMu if this connection is being closed becaue
+	// c.close will try to acquire the readMu lock. We unlock for
+	// writeClose as well because it may also call c.close.
+	if !closeSent {
+		c.readMu.unlock()
+		_ = c.writeClose(ce.Code, ce.Reason)
+	}
+	if !c.casClosing() {
+		c.readMu.unlock()
+		_ = c.close()
+	}
 	return err
 }
 
@@ -465,7 +500,7 @@ func (mr *msgReader) read(p []byte) (int, error) {
 type limitReader struct {
 	c     *Conn
 	r     io.Reader
-	limit xsync.Int64
+	limit atomic.Int64
 	n     int64
 }
 
@@ -489,9 +524,9 @@ func (lr *limitReader) Read(p []byte) (int, error) {
 	}
 
 	if lr.n == 0 {
-		err := fmt.Errorf("read limited at %v bytes", lr.limit.Load())
-		lr.c.writeError(StatusMessageTooBig, err)
-		return 0, err
+		reason := fmt.Errorf("read limited at %d bytes", lr.limit.Load())
+		lr.c.writeError(StatusMessageTooBig, reason)
+		return 0, fmt.Errorf("%w: %v", ErrMessageTooBig, reason)
 	}
 
 	if int64(len(p)) > lr.n {
