@@ -168,12 +168,30 @@ func DeleteLateCleanupJob(name string) {
 	})
 }
 
+// Exit codes for signal-driven shutdown. These follow the conventional
+// "128 + signal number" UNIX convention so that shell `&&` / `||` chains and
+// CI systems can tell that the process was aborted by a signal rather than
+// completing successfully. Using exit code 0 here (the previous behavior)
+// silently fooled callers into treating a Ctrl+C as a successful run.
+const (
+	// exitCodeSIGINT is the exit code used when shutdown is triggered by
+	// SIGINT (Ctrl+C). 130 = 128 + 2 (SIGINT signal number).
+	exitCodeSIGINT = 130
+	// exitCodeSIGTERM is the exit code used when shutdown is triggered by
+	// SIGTERM. 143 = 128 + 15 (SIGTERM signal number).
+	exitCodeSIGTERM = 143
+)
+
 func init() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigChan
+		sig := <-sigChan
 		waitJobs(true)
-		os.Exit(0)
+		exitCode := exitCodeSIGINT
+		if sig == syscall.SIGTERM {
+			exitCode = exitCodeSIGTERM
+		}
+		os.Exit(exitCode)
 	}()
 }

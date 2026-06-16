@@ -30,6 +30,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+// functionDeployWaitTimeout bounds how long we wait for a Cloud Functions v2
+// Create/Update LRO. Gen2 deployments usually finish in 1-3min; allow generous
+// headroom for slow Cloud Build / Cloud Run cold starts but never block
+// forever.
+const functionDeployWaitTimeout = 10 * time.Minute
+
 // getExpirySystemDetail safely extracts *ExpirySystemDetail from BackendSpecific, initializing it if needed.
 // This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
 // or already the correct type.
@@ -101,10 +107,12 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 	if err != nil {
 		return err
 	}
+	log.Detail("Listing existing expiry systems")
 	expirySystems, err := s.ExpiryList()
 	if err != nil {
 		return err
 	}
+	log.Detail("Found %d existing expiry systems", len(expirySystems))
 	toRemove := []string{}
 	if force {
 		// if force is true, first remove all existing expiry systems, we will be reinstalling them
@@ -116,6 +124,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 			}
 		}
 		if len(toRemove) > 0 {
+			log.Detail("Force=true, removing expiry systems in regions: %v", toRemove)
 			err = s.ExpiryRemove(toRemove...)
 			if err != nil {
 				return err
@@ -151,6 +160,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		}
 		zones = newZones
 		if len(toRemove) > 0 {
+			log.Detail("Removing outdated/failed expiry systems in regions: %v", toRemove)
 			err = s.ExpiryRemove(toRemove...)
 			if err != nil {
 				return err
@@ -158,6 +168,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		}
 	}
 	for _, region := range zones {
+		log.Detail("Installing expiry system in region: %s", region)
 		// any region that exists in toRemove is being reinstalled; if onUpdateKeepOriginalSettings is set, copy settings from previous installation instead of deploying new ones
 		newLogLevel := logLevel
 		newCleanupDNS := cleanupDNS
@@ -165,6 +176,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		newCron := cron
 		if onUpdateKeepOriginalSettings {
 			if slices.Contains(toRemove, region) {
+				log.Detail("Keeping original settings on update for region %s", region)
 				for _, expirySystem := range expirySystems {
 					if expirySystem.Zone == region {
 						if expirySystem.FrequencyMinutes > 0 {
@@ -185,34 +197,45 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 			}
 		}
 		ctx := context.Background()
+		log.Detail("[%s] Deploying function bucket code", region)
 		err = s.deployFunctionBucketCode(ctx, s.credentials.Project, region)
 		if err != nil {
 			return err
 		}
+		log.Detail("[%s] Function bucket code deployed", region)
+		log.Detail("[%s] Deploying Cloud Function", region)
 		err = s.deployFunction(ctx, s.credentials.Project, region, genToken, newLogLevel, newCleanupDNS)
 		if err != nil {
 			return err
 		}
+		log.Detail("[%s] Cloud Function deployed", region)
+		log.Detail("[%s] Allowing unauthenticated access to Cloud Run service", region)
 		err = s.allowUnauthenticated(ctx, s.credentials.Project, region)
 		if err != nil {
 			return err
 		}
+		log.Detail("[%s] Unauthenticated access granted", region)
+		log.Detail("[%s] Creating Cloud Scheduler job", region)
 		err = s.createSchedulerJob(ctx, s.credentials.Project, region, genToken, newCron)
 		if err != nil {
 			return err
 		}
+		log.Detail("[%s] Cloud Scheduler job created", region)
+		log.Detail("Installed expiry system in region: %s", region)
 	}
 	return nil
 }
 
 func (s *b) allowUnauthenticated(ctx context.Context, projectID, region string) error {
 	log := s.log.WithPrefix("allowUnauthenticated: job=" + shortuuid.New() + " ")
-	log.Detail("Start")
-	defer log.Detail("End")
+	log.Detail("Start (region=%s)", region)
+	defer log.Detail("End (region=%s)", region)
+	log.Detail("Getting credentials")
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return err
 	}
+	log.Detail("Creating Cloud Run services client")
 	client, err := run.NewServicesClient(ctx, option.WithCredentials(cli))
 	if err != nil {
 		return fmt.Errorf("failed to create functions client: %w", err)
@@ -222,6 +245,7 @@ func (s *b) allowUnauthenticated(ctx context.Context, projectID, region string) 
 	serviceName := fmt.Sprintf("projects/%s/locations/%s/services/aerolab-expiry", projectID, region)
 
 	// Fetch current IAM policy
+	log.Detail("Calling GetIamPolicy for %s", serviceName)
 	policyResp, err := client.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
 		Resource: serviceName,
 	})
@@ -246,6 +270,7 @@ func (s *b) allowUnauthenticated(ctx context.Context, projectID, region string) 
 	})
 
 	// Set updated policy
+	log.Detail("Calling SetIamPolicy for %s", serviceName)
 	_, err = client.SetIamPolicy(ctx, &iampb.SetIamPolicyRequest{
 		Resource: serviceName,
 		Policy:   policyResp,
@@ -260,16 +285,18 @@ func (s *b) allowUnauthenticated(ctx context.Context, projectID, region string) 
 
 func (s *b) deployFunctionBucketCode(ctx context.Context, projectID, region string) error {
 	log := s.log.WithPrefix("deployFunctionBucketCode: job=" + shortuuid.New() + " ")
-	log.Detail("Start")
-	defer log.Detail("End")
+	log.Detail("Start (region=%s)", region)
+	defer log.Detail("End (region=%s)", region)
 
 	// Get credentials
+	log.Detail("Getting credentials")
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 
 	// Create Storage client
+	log.Detail("Creating Cloud Storage client")
 	client, err := storage.NewClient(ctx, option.WithCredentials(cli))
 	if err != nil {
 		return fmt.Errorf("failed to create storage client: %w", err)
@@ -282,22 +309,26 @@ func (s *b) deployFunctionBucketCode(ctx context.Context, projectID, region stri
 	bucket := client.Bucket(bucketName)
 
 	// Check if bucket exists
+	log.Detail("Checking bucket %s exists", bucketName)
 	_, err = bucket.Attrs(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrBucketNotExist) {
-			log.Detail("Bucket does not exist, creating...")
+			log.Detail("Bucket %s does not exist, creating in %s", bucketName, region)
 			if err := bucket.Create(ctx, projectID, &storage.BucketAttrs{
 				Location: region,
 			}); err != nil {
 				return fmt.Errorf("failed to create bucket: %w", err)
 			}
+			log.Detail("Bucket %s created", bucketName)
 		} else {
 			return fmt.Errorf("failed to check bucket attributes: %w", err)
 		}
+	} else {
+		log.Detail("Bucket %s exists", bucketName)
 	}
 
 	// Upload the binary as "expiry.zip"
-	log.Detail("Uploading expiry.zip...")
+	log.Detail("Uploading %s/%s (%d bytes)", bucketName, objectName, len(backends.ExpiryBinary))
 	obj := bucket.Object(objectName)
 	writer := obj.NewWriter(ctx)
 	defer writer.Close()
@@ -307,10 +338,13 @@ func (s *b) deployFunctionBucketCode(ctx context.Context, projectID, region stri
 		return fmt.Errorf("failed to write to object: %w", err)
 	}
 
-	log.Detail("Upload complete.")
+	log.Detail("Upload complete for %s/%s", bucketName, objectName)
 
+	log.Detail("Granting GCF service agent bucket access")
 	if err := s.grantGCFServiceAgentBucketAccess(ctx, bucket, projectID); err != nil {
 		log.Warn("Failed to grant GCF service agent bucket access (function deployment may still succeed): %s", err)
+	} else {
+		log.Detail("GCF service agent bucket access granted")
 	}
 
 	return nil
@@ -604,12 +638,14 @@ func (s *b) getProjectNumber(ctx context.Context, projectID string) (string, err
 
 func (s *b) deployFunction(ctx context.Context, projectID, region, token string, logLevel int, cleanupDNS bool) error {
 	log := s.log.WithPrefix("deployFunction: job=" + shortuuid.New() + " ")
-	log.Detail("Start")
-	defer log.Detail("End")
+	log.Detail("Start (region=%s)", region)
+	defer log.Detail("End (region=%s)", region)
+	log.Detail("Getting credentials")
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return err
 	}
+	log.Detail("Creating Cloud Functions client")
 	client, err := functions.NewFunctionClient(ctx, option.WithCredentials(cli))
 	if err != nil {
 		return fmt.Errorf("failed to create functions v2 client: %w", err)
@@ -666,10 +702,11 @@ func (s *b) deployFunction(ctx context.Context, projectID, region, token string,
 		FunctionId: functionName,
 	}
 
+	log.Detail("Calling CreateFunction %s", fullName)
 	op, err := client.CreateFunction(ctx, createReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
-			log.Detail("Function already exists. Updating...")
+			log.Detail("Function %s already exists, calling UpdateFunction", fullName)
 			updateReq := &functionspb.UpdateFunctionRequest{
 				Function: function,
 			}
@@ -677,29 +714,39 @@ func (s *b) deployFunction(ctx context.Context, projectID, region, token string,
 			if err != nil {
 				return fmt.Errorf("update function failed: %w", err)
 			}
-			if _, err := updateOp.Wait(ctx); err != nil {
+			log.Detail("Waiting for UpdateFunction operation to complete (timeout=%s)", functionDeployWaitTimeout)
+			waitCtx, cancel := context.WithTimeout(ctx, functionDeployWaitTimeout)
+			defer cancel()
+			if _, err := updateOp.Wait(waitCtx); err != nil {
 				return fmt.Errorf("update operation failed: %w", err)
 			}
+			log.Detail("UpdateFunction operation complete for %s", fullName)
 			return nil
 		}
 		return fmt.Errorf("create function failed: %w", err)
 	}
 
-	if _, err := op.Wait(ctx); err != nil {
+	log.Detail("Waiting for CreateFunction operation to complete (timeout=%s)", functionDeployWaitTimeout)
+	waitCtx, cancel := context.WithTimeout(ctx, functionDeployWaitTimeout)
+	defer cancel()
+	if _, err := op.Wait(waitCtx); err != nil {
 		return fmt.Errorf("create operation failed: %w", err)
 	}
+	log.Detail("CreateFunction operation complete for %s", fullName)
 
 	return nil
 }
 
 func (s *b) createSchedulerJob(ctx context.Context, projectID, region, token string, cron string) error {
 	log := s.log.WithPrefix("createSchedulerJob: job=" + shortuuid.New() + " ")
-	log.Detail("Start")
-	defer log.Detail("End")
+	log.Detail("Start (region=%s)", region)
+	defer log.Detail("End (region=%s)", region)
+	log.Detail("Getting credentials")
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return err
 	}
+	log.Detail("Creating Cloud Scheduler client")
 	client, err := scheduler.NewCloudSchedulerClient(ctx, option.WithCredentials(cli))
 	if err != nil {
 		return fmt.Errorf("failed to create scheduler client: %w", err)
@@ -749,10 +796,12 @@ func (s *b) createSchedulerJob(ctx context.Context, projectID, region, token str
 		Job:    job,
 	}
 
+	log.Detail("Calling CreateJob %s", job.Name)
 	_, err = client.CreateJob(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to create scheduler job: %w", err)
 	}
+	log.Detail("CreateJob complete for %s", job.Name)
 
 	return nil
 }

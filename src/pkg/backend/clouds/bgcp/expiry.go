@@ -64,8 +64,15 @@ func (s *b) ExpiryChangeConfiguration(logLevel int, expireEksctl bool, cleanupDN
 			return fmt.Errorf("failed to update function: %w", err)
 		}
 
-		if _, err := op.Wait(ctx); err != nil {
-			return fmt.Errorf("update operation failed: %w", err)
+		if err := func() error {
+			waitCtx, cancel := context.WithTimeout(ctx, functionDeployWaitTimeout)
+			defer cancel()
+			if _, err := op.Wait(waitCtx); err != nil {
+				return fmt.Errorf("update operation failed: %w", err)
+			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 	}
 	return nil
