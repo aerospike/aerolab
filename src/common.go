@@ -29,15 +29,15 @@ func chDir(dir string) error {
 func getLatestVersionForDistro(distro string) string {
 	switch distro {
 	case "ubuntu":
-		return "24.04"
+		return "26.04"
 	case "centos":
-		return "9"
+		return "10"
 	case "rocky":
-		return "9"
+		return "10"
 	case "amazon":
 		return "2023"
 	case "debian":
-		return "12"
+		return "13"
 	}
 	return ""
 }
@@ -46,7 +46,7 @@ func checkDistroVersion(distro string, version string) error {
 	switch distro {
 	case "ubuntu":
 		switch version {
-		case "24.04", "22.04", "20.04", "18.04":
+		case "26.04", "24.04", "22.04", "20.04", "18.04":
 			return nil
 		}
 	case "centos":

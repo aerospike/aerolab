@@ -31,7 +31,7 @@ chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
 systemctl daemon-reload
 export DEBIAN_FRONTEND=noninteractive
 apt-get update || exit 1
-grep DISTRIB_RELEASE=24.04 /etc/lsb-release
+grep -E 'DISTRIB_RELEASE=(24|26)\.04' /etc/lsb-release
 if [ $? -ne 0 ]; then apt-get -y install python3-distutils || apt-get update && apt-get -y install python3-distutils || exit 1; fi
 apt-get -y install libcurl4 || apt-get update && apt-get -y install libcurl4 || exit 1
 apt-get -y install ldap-utils || apt-get update && apt-get -y install ldap-utils || exit 1
@@ -64,9 +64,11 @@ force-confold
 EOF
 `
 
+	aerospikeInstallScript["aws:ubuntu:26.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:ubuntu:24.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:ubuntu:18.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:ubuntu:26.04"] = aerospikeInstallScript["aws:ubuntu:26.04"]
 	aerospikeInstallScript["gcp:ubuntu:24.04"] = aerospikeInstallScript["aws:ubuntu:24.04"]
 	aerospikeInstallScript["gcp:ubuntu:22.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["gcp:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:20.04"]
@@ -265,7 +267,7 @@ cd aerospike-server-* ; ./asinstall || exit 1
 	aerospikeInstallScript["docker:ubuntu:22.04"] = `#!/bin/bash
 export DEBIAN_FRONTEND=noninteractive
 apt-get update || exit 1
-grep DISTRIB_RELEASE=24.04 /etc/lsb-release
+grep -E 'DISTRIB_RELEASE=(24|26)\.04' /etc/lsb-release
 if [ $? -ne 0 ]; then apt-get -y install python3-distutils || exit 1; fi
 apt-get -y install procps || exit 1
 apt-get -y install libcurl4 || exit 1
@@ -369,6 +371,7 @@ EOF
 chmod 755 /etc/init.d/aerospike
 `
 
+	aerospikeInstallScript["docker:ubuntu:26.04"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:ubuntu:24.04"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:ubuntu:20.04"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:ubuntu:18.04"] = aerospikeInstallScript["docker:ubuntu:22.04"]
