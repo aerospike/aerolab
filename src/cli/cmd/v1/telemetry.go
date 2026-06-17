@@ -321,14 +321,49 @@ func getTelemetryUUID(telemetryDir string) (string, error) {
 	return strings.TrimSpace(string(uuidBytes)), nil
 }
 
+// aerospikeInternalMarker is a one-way switch: once it has been written, the
+// user is treated as an Aerospike internal user forever and every aerolab
+// command sends telemetry. ExpiryDate is recorded for informational purposes
+// only - it is never consulted to gate telemetry.
+type aerospikeInternalMarker struct {
+	LastUsed        time.Time `json:"lastUsed"`        // wall-clock time at which an aerospike-internal feature file was last seen
+	FeatureFilePath string    `json:"featureFilePath"` // path of the most recently-seen aerospike-internal feature file
+	ExpiryDate      time.Time `json:"expiryDate"`      // valid-until-date from that feature file (informational only)
+}
+
+const aerospikeInternalMarkerFileName = "aerospike-internal.json"
+
+// telemetryFeatureKeyFileCheck enables telemetry whenever the user has ever
+// been observed using an aerospike-internal feature file (account-name=aerospike*).
+//
+// When the current command supplies a feature file path, every file under that
+// path is inspected and the marker is (re)written when an aerospike-internal
+// file is found.
+//
+// Telemetry eligibility is decided purely by the presence of the marker file -
+// once written, it stays. The recorded ExpiryDate is informational and is not
+// consulted here.
 func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
-	// only enable if a feature file is present and belongs to Aerospike internal users
-	if system.Opts.Cluster.Create.FeaturesFilePath == "" {
-		logger.Detail("No feature file path provided, skipping telemetry")
+	if fp := string(system.Opts.Cluster.Create.FeaturesFilePath); fp != "" {
+		recordAerospikeInternalFeatureFiles(fp, logger)
+	}
+
+	if _, err := readAerospikeInternalMarker(); err != nil {
+		if os.IsNotExist(err) {
+			logger.Detail("No aerospike-internal telemetry marker found, skipping telemetry")
+		} else {
+			logger.Detail("Failed to read aerospike-internal telemetry marker, skipping telemetry: %s", err)
+		}
 		return false
 	}
-	enableTelemetry := false
-	err := filepath.WalkDir(string(system.Opts.Cluster.Create.FeaturesFilePath), func(path string, d fs.DirEntry, err error) error {
+	return true
+}
+
+// recordAerospikeInternalFeatureFiles walks featuresPath (a file or directory)
+// and, for every regular file that belongs to an Aerospike internal account,
+// refreshes the marker file in the aerolab home directory.
+func recordAerospikeInternalFeatureFiles(featuresPath string, logger *logger.Logger) {
+	err := filepath.WalkDir(featuresPath, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -338,34 +373,107 @@ func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		file, err := os.Open(path)
-		if err != nil {
-			return err
+		isInternal, expiry, perr := parseFeatureFileMetadata(p)
+		if perr != nil {
+			return perr
 		}
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			if err = scanner.Err(); err != nil {
-				return err
-			}
-			line := strings.ToLower(strings.Trim(scanner.Text(), "\r\n\t "))
-			if strings.HasPrefix(line, "account-name") && (strings.HasSuffix(line, "aerospike") || strings.Contains(line, " aerospike") || strings.Contains(line, "aerospike_test") || strings.Contains(line, "\taerospike")) {
-				enableTelemetry = true
-			}
+		if !isInternal {
+			return nil
 		}
-		if err := scanner.Err(); err != nil {
-			return err
+		if uerr := refreshAerospikeInternalMarker(p, expiry); uerr != nil {
+			logger.Detail("Failed to update aerospike-internal telemetry marker for %s: %s", p, uerr)
 		}
 		return nil
 	})
 	if err != nil {
-		logger.Detail("Failed to check feature key file, skipping telemetry: %s", err)
-		return false
+		logger.Detail("Failed to scan feature key file path %s: %s", featuresPath, err)
 	}
-	if !enableTelemetry {
-		logger.Detail("Telemetry is disabled by feature key file, skipping telemetry event")
+}
+
+// parseFeatureFileMetadata reads a feature file and returns whether the file
+// belongs to an Aerospike internal account (account-name=aerospike*) plus the
+// parsed valid-until-date when present. The expiry is recorded into the marker
+// for informational purposes only; a missing or unparseable date yields a zero
+// time.Time and is harmless.
+func parseFeatureFileMetadata(p string) (bool, time.Time, error) {
+	file, err := os.Open(p)
+	if err != nil {
+		return false, time.Time{}, err
 	}
-	return enableTelemetry
+	defer file.Close()
+
+	var isInternal bool
+	var expiry time.Time
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.ToLower(strings.Trim(scanner.Text(), "\r\n\t "))
+		if strings.HasPrefix(line, "account-name") {
+			if strings.HasSuffix(line, "aerospike") || strings.Contains(line, " aerospike") || strings.Contains(line, "aerospike_test") || strings.Contains(line, "\taerospike") {
+				isInternal = true
+			}
+			continue
+		}
+		if after, ok := strings.CutPrefix(line, "valid-until-date"); ok {
+			if t, perr := time.Parse("2006-01-02", strings.TrimSpace(after)); perr == nil {
+				expiry = t
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return false, time.Time{}, err
+	}
+	return isInternal, expiry, nil
+}
+
+func aerospikeInternalMarkerPath() (string, error) {
+	rootDir, err := AerolabRootDir()
+	if err != nil {
+		return "", err
+	}
+	return path.Join(rootDir, "telemetry", aerospikeInternalMarkerFileName), nil
+}
+
+func readAerospikeInternalMarker() (*aerospikeInternalMarker, error) {
+	p, err := aerospikeInternalMarkerPath()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		return nil, err
+	}
+	var m aerospikeInternalMarker
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", p, err)
+	}
+	return &m, nil
+}
+
+func writeAerospikeInternalMarker(m *aerospikeInternalMarker) error {
+	p, err := aerospikeInternalMarkerPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(path.Dir(p), 0700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p, raw, 0600)
+}
+
+// refreshAerospikeInternalMarker writes (or rewrites) the marker file each
+// time an aerospike-internal feature file is seen. The marker is a one-way
+// switch on telemetry, so the only purpose of rewriting it is to keep the
+// informational fields (LastUsed, FeatureFilePath, ExpiryDate) up to date.
+func refreshAerospikeInternalMarker(featurePath string, expiry time.Time) error {
+	return writeAerospikeInternalMarker(&aerospikeInternalMarker{
+		LastUsed:        time.Now().UTC(),
+		FeatureFilePath: featurePath,
+		ExpiryDate:      expiry,
+	})
 }
 
 // IsTelemetryEnabled checks if telemetry is enabled based on the system configuration.
