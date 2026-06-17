@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"golang.org/x/term"
 )
 
@@ -22,7 +21,7 @@ type CloudAuthGetTokenCmd struct {
 }
 
 func (c *CloudAuthGetTokenCmd) Execute(args []string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

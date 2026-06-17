@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -72,7 +71,7 @@ type FlattenedInstanceType struct {
 }
 
 func (c *CloudListInstanceTypesCmd) Execute(args []string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

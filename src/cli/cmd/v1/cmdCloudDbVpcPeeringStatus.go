@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/rglonek/logger"
 )
@@ -95,7 +94,7 @@ func (c *CloudClustersVPCPeeringStatusCmd) GetVPCPeeringStatus(system *System, i
 	}
 
 	// Get peerings from cloud API
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cloud client: %w", err)
 	}

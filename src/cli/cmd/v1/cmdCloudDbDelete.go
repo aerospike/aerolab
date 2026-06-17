@@ -48,7 +48,7 @@ func (c *CloudClustersDeleteCmd) Execute(args []string) error {
 		}
 	}
 
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

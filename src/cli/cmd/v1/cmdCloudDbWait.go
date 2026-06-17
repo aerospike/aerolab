@@ -6,8 +6,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 )
 
 type CloudClustersWaitCmd struct {
@@ -32,7 +30,7 @@ func (c *CloudClustersWaitCmd) Execute(args []string) error {
 		return Error(fmt.Errorf("at least one --status or --status-ne must be provided"), system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

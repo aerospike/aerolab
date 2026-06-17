@@ -310,7 +310,7 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 // waitForClusterReady waits for the cluster to finish provisioning
 // VPC peering can only be initiated after the cluster is ready
 func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *logger.Logger) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -370,7 +370,7 @@ func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *log
 }
 
 func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[string]any, error) {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return nil, err
 	}
@@ -405,7 +405,7 @@ func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[s
 }
 
 func (c *CloudClustersPeerVPCCmd) initiateVPCPeering(clusterID string, cidr string, accountId string, vpcRegion string, log *logger.Logger) (string, error) {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return "", err
 	}
@@ -557,7 +557,7 @@ func (c *CloudClustersPeerVPCCmd) retry(fn func() error, clusterID string) error
 
 // createRoute creates a route in the VPC route table
 func (c *CloudClustersPeerVPCCmd) createRoute(system *System, logger *logger.Logger, peeringConnectionID string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -603,7 +603,7 @@ func (c *CloudClustersPeerVPCCmd) createRoute(system *System, logger *logger.Log
 
 // associateHostedZone associates the VPC with the hosted zone
 func (c *CloudClustersPeerVPCCmd) associateHostedZone(system *System, logger *logger.Logger, vpcRegion string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

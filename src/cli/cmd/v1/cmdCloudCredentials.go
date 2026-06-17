@@ -18,7 +18,7 @@ func (c *CloudClustersCredentialsListCmd) Execute(args []string) error {
 	if c.ClusterID == "" {
 		return fmt.Errorf("cluster ID is required")
 	}
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *CloudClustersCredentialsCreateCmd) CreateCloudCredentials(system *Syste
 	if len(c.Password) < 8 {
 		return fmt.Errorf("password must be at least 8 characters long")
 	}
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (c *CloudClustersCredentialsDeleteCmd) Execute(args []string) error {
 	if c.CredentialsID == "" {
 		return fmt.Errorf("credentials ID is required")
 	}
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

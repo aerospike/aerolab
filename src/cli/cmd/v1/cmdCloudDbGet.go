@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 )
 
 type CloudClustersGetCmd struct {
@@ -31,7 +29,7 @@ func (c *CloudClustersGetHostCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -66,7 +64,7 @@ func (c *CloudClustersGetTlsCertCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
@@ -125,7 +124,7 @@ func (c *CloudClustersListCmd) Execute(args []string) error {
 //   - map[string]interface{}: The raw JSON response for JSON output formats
 //   - error: nil on success, or an error describing what failed
 func (c *CloudClustersListCmd) GetClusters() ([]Cluster, map[string]any, error) {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return nil, nil, err
 	}

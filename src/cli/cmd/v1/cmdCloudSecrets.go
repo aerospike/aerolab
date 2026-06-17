@@ -11,7 +11,7 @@ type CloudSecretsListCmd struct {
 }
 
 func (c *CloudSecretsListCmd) Execute(args []string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ type CloudSecretsCreateCmd struct {
 }
 
 func (c *CloudSecretsCreateCmd) Execute(args []string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *CloudSecretsDeleteCmd) Execute(args []string) error {
 	if c.SecretID == "" {
 		return fmt.Errorf("secret ID is required")
 	}
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

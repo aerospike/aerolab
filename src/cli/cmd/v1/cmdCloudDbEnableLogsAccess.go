@@ -85,7 +85,7 @@ func (c *CloudClustersEnableLogsAccessCmd) EnableLogsAccess(system *System, inve
 	}
 
 	// Create cloud client
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

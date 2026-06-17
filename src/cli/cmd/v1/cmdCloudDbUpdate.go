@@ -66,7 +66,7 @@ func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *b
 	logger.Info("Updating cloud cluster: %s", c.ClusterID)
 
 	// create cloud client
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		return err
 	}

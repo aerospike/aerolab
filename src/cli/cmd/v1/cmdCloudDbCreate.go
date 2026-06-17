@@ -212,7 +212,7 @@ func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backen
 	}
 
 	// create cloud DB
-	client, err := cloud.NewClient(cloudVersion)
+	client, err := newCloudClient()
 	if err != nil {
 		cleanupBlackhole()
 		return err

@@ -129,6 +129,14 @@ func TelemetrySend(logger *logger.Logger) {
 }
 
 func TelemetryEvent(command []string, params any, args []string, system *System, err error) {
+	// Hard denylist: never telemeter commands that may carry secrets in their
+	// Params struct or CLI args (passwords, secret values, access tokens).
+	// This is independent of the user being internal - we never want this
+	// material in the telemetry pipeline at all.
+	if isCommandSensitive(command) {
+		return
+	}
+
 	// get err value
 	var errString *string
 	if err != nil {
@@ -170,8 +178,8 @@ func TelemetryEvent(command []string, params any, args []string, system *System,
 		return
 	}
 
-	// test if telemetry is disabled by feature key file
-	enabled := telemetryFeatureKeyFileCheck(system, logger)
+	// test if telemetry is disabled by feature key file / cloud org check
+	enabled := telemetryFeatureKeyFileCheck(command, system, logger)
 	if !enabled {
 		return
 	}
@@ -333,19 +341,41 @@ type aerospikeInternalMarker struct {
 
 const aerospikeInternalMarkerFileName = "aerospike-internal.json"
 
-// telemetryFeatureKeyFileCheck enables telemetry whenever the user has ever
-// been observed using an aerospike-internal feature file (account-name=aerospike*).
+// telemetryFeatureKeyFileCheck decides whether the current invocation should
+// emit telemetry. Two detection paths feed the decision:
 //
-// When the current command supplies a feature file path, every file under that
-// path is inspected and the marker is (re)written when an aerospike-internal
-// file is found.
+//  1. Feature files. When the current command supplies a feature file path,
+//     every file under that path is inspected and the one-way machine-wide
+//     marker is (re)written when an aerospike-internal file is found.
+//  2. Aerospike Cloud organization. The cloud probe runs inside newCloudClient
+//     for cloud subcommands and stashes the current org's internal/external
+//     verdict in package state; internal verdicts also refresh the marker.
 //
-// Telemetry eligibility is decided purely by the presence of the marker file -
-// once written, it stays. The recorded ExpiryDate is informational and is not
-// consulted here.
-func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
+// The gate then splits along the command axis:
+//
+//   - Cloud subcommands ("aerolab cloud ..."): telemetered ONLY when the
+//     current org has been probed as internal. The machine-wide marker is
+//     deliberately not consulted - we must not ship customer-org cloud
+//     activity to Aerospike telemetry just because the same machine has
+//     previously been seen with an internal feature file or internal org.
+//   - All other commands: telemetered when the machine-wide marker exists,
+//     i.e. the machine has ever been seen as internal.
+func telemetryFeatureKeyFileCheck(command []string, system *System, logger *logger.Logger) bool {
 	if fp := string(system.Opts.Cluster.Create.FeaturesFilePath); fp != "" {
 		recordAerospikeInternalFeatureFiles(fp, logger)
+	}
+
+	if isCloudCommand(command) {
+		internal, known := isCurrentCloudOrgInternal()
+		if !known {
+			logger.Detail("Cloud org has not been classified for this invocation, skipping telemetry")
+			return false
+		}
+		if !internal {
+			logger.Detail("Current cloud org is not aerospike-internal, skipping telemetry for cloud command")
+			return false
+		}
+		return true
 	}
 
 	if _, err := readAerospikeInternalMarker(); err != nil {
@@ -357,6 +387,72 @@ func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
 		return false
 	}
 	return true
+}
+
+// isCloudCommand reports whether command targets the Aerospike Cloud SaaS
+// command tree (i.e. "aerolab cloud ..."). All other commands - cluster,
+// inventory, client, etc. - are treated as non-cloud for telemetry gating.
+func isCloudCommand(command []string) bool {
+	return len(command) > 0 && command[0] == "cloud"
+}
+
+// isCommandSensitive reports whether the given command path may carry
+// secrets, passwords, or tokens in its Params struct, CLI args, or
+// CmdLine. Such commands MUST never be telemetered, regardless of
+// whether the user is identified as Aerospike internal.
+//
+// The telemetry pipeline captures three things that can leak secrets:
+//   - telemetryItem.Params   (json.Marshal of the command struct, so any
+//     Password/Token/Secret/etc. string field is shipped verbatim)
+//   - telemetryItem.CmdLine  (os.Args[1:], so `-p mypassword` is shipped)
+//   - telemetryItem.Args     (positional args)
+//
+// Keep this list aligned with any command that declares a flag for a
+// secret-shaped input. When adding such flags to a command, either add
+// the command path here or make sure the command never calls Initialize
+// + Error (and therefore never produces a telemetry event).
+func isCommandSensitive(command []string) bool {
+	if len(command) == 0 {
+		return false
+	}
+	switch command[0] {
+	case "cloud":
+		if len(command) < 2 {
+			return false
+		}
+		switch command[1] {
+		// `aerolab cloud secrets *` - --value on create may be a real secret.
+		case "secrets":
+			return true
+		// `aerolab cloud auth *` - access tokens are printed and may end up
+		// in stdout-related fields; future subcommands likely take tokens.
+		case "auth":
+			return true
+		case "clusters":
+			if len(command) < 3 {
+				return false
+			}
+			switch command[2] {
+			// `aerolab cloud clusters credentials *` - --password.
+			case "credentials":
+				return true
+			// `aerolab cloud clusters create` - --credentials USER:PASSWORD.
+			case "create":
+				return true
+			}
+		}
+	case "agi":
+		if len(command) >= 2 && command[1] == "add-auth-token" {
+			// --token is a 64+ char auth token.
+			return true
+		}
+	case "data":
+		if len(command) >= 2 && (command[1] == "insert" || command[1] == "delete") {
+			// --password is the Aerospike user password.
+			return true
+		}
+	}
+	return false
 }
 
 // recordAerospikeInternalFeatureFiles walks featuresPath (a file or directory)
@@ -513,8 +609,11 @@ func IsTelemetryEnabled(system *System) (bool, string) {
 		return false, ""
 	}
 
-	// check feature key file for Aerospike internal users
-	if !telemetryFeatureKeyFileCheck(system, logger) {
+	// check feature key file / cloud org status. IsTelemetryEnabled is called
+	// from non-cloud command paths (e.g. instances create, volumes create) so
+	// we pass a nil command - the gate then uses the machine-wide marker
+	// branch rather than the cloud-org branch.
+	if !telemetryFeatureKeyFileCheck(nil, system, logger) {
 		return false, ""
 	}
 

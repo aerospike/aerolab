@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -200,4 +201,53 @@ func (c *Client) PrettyPrint(data any) error {
 // GetAccessToken returns the current access token
 func (c *Client) GetAccessToken() string {
 	return c.accessToken
+}
+
+// GetStatus performs an authenticated GET and returns the HTTP status code
+// along with the raw response body. Unlike Get, it does not synthesize an
+// error for 4xx/5xx responses; callers inspect the status code themselves.
+// Only network-level failures are surfaced via the returned error.
+func (c *Client) GetStatus(path string) (int, []byte, error) {
+	resp, err := c.httpClient.R().Get(path)
+	if err != nil {
+		return 0, nil, fmt.Errorf("request failed: %w", err)
+	}
+	return resp.StatusCode(), resp.Body(), nil
+}
+
+// OrgID extracts the Aerospike Cloud organization id from the access token.
+// The id is published by the auth server as the "dbaas.aerospike.com/org_id"
+// JWT claim (see https://api.aerospike.com docs). An empty string is returned
+// when the token is unset, malformed, or the claim is absent.
+func (c *Client) OrgID() string {
+	return parseOrgIDFromJWT(c.accessToken)
+}
+
+// parseOrgIDFromJWT decodes the JWT payload (second dot-separated segment) and
+// looks for the Aerospike Cloud org-id claim. Returns "" on any parse failure.
+func parseOrgIDFromJWT(token string) string {
+	if token == "" {
+		return ""
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	// JWT payloads use base64url without padding; tolerate both that and
+	// padded base64 for robustness against future encoder changes.
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		payload, err = base64.URLEncoding.DecodeString(parts[1])
+		if err != nil {
+			return ""
+		}
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	if v, ok := claims["dbaas.aerospike.com/org_id"].(string); ok && v != "" {
+		return v
+	}
+	return ""
 }
