@@ -515,7 +515,7 @@ func (t *TypeDistro) Complete(match string) []flags.Completion {
 }
 
 func (t *TypeDistroVersion) Complete(match string) []flags.Completion {
-	clist := []string{"24.04", "22.04", "20.04", "18.04", "10", "9", "8", "7", "2", "2023", "13", "12", "11"}
+	clist := []string{"26.04", "24.04", "22.04", "20.04", "18.04", "10", "9", "8", "7", "2", "2023", "13", "12", "11"}
 	out := []flags.Completion{}
 	for _, item := range clist {
 		if match == "" || strings.HasPrefix(item, match) {

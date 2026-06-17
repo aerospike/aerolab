@@ -178,7 +178,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		var versionList []string
 		switch osName {
 		case "ubuntu":
-			versionList = []string{"24.04", "22.04", "20.04", "18.04"}
+			versionList = []string{"26.04", "24.04", "22.04", "20.04", "18.04"}
 		case "centos":
 			versionList = []string{"10", "9", "8", "7"}
 		case "rocky":

@@ -226,7 +226,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	var versionList []string
 	switch c.DistroName.String() {
 	case "ubuntu":
-		versionList = []string{"24.04", "22.04", "20.04", "18.04"}
+		versionList = []string{"26.04", "24.04", "22.04", "20.04", "18.04"}
 	case "centos":
 		versionList = []string{"10", "9", "8", "7"}
 	case "rocky":
