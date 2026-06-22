@@ -3,6 +3,8 @@ package bgcp
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +37,26 @@ import (
 // headroom for slow Cloud Build / Cloud Run cold starts but never block
 // forever.
 const functionDeployWaitTimeout = 10 * time.Minute
+
+// expiryCodeBucketName returns the GCS bucket name used to host the expiry
+// Cloud Function source code for a given project and region.
+//
+// GCS bucket names live in a single global namespace, so a fixed name like
+// "aerolab-expiry-code-<region>" gets claimed by whichever GCP project runs
+// expiry-install first and then blocks every other project in the same
+// region: subsequent installs see a 403 on storage.buckets.get
+// ("projects/_/buckets/<name>") because the bucket exists in someone else's
+// project. To keep the name globally unique per GCP project we incorporate a
+// truncated SHA-1 of the project ID (same approach v7 used for its single
+// expiry bucket). 12 hex chars (48 bits) of SHA-1 gives ~2.8e14 distinct
+// names, far more than enough to disambiguate GCP projects, and keeps the
+// total length safely under GCS's 63-char limit for non-dotted bucket names
+// even with the longest current region name "northamerica-northeast2"
+// (15 + 12 + 1 + 23 = 51 chars).
+func expiryCodeBucketName(projectID, region string) string {
+	h := sha1.Sum([]byte(projectID))
+	return fmt.Sprintf("aerolab-expiry-%s-%s", hex.EncodeToString(h[:6]), region)
+}
 
 // getExpirySystemDetail safely extracts *ExpirySystemDetail from BackendSpecific, initializing it if needed.
 // This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
@@ -304,7 +326,7 @@ func (s *b) deployFunctionBucketCode(ctx context.Context, projectID, region stri
 	defer client.Close()
 
 	// Bucket and object names
-	bucketName := "aerolab-expiry-code-" + region
+	bucketName := expiryCodeBucketName(projectID, region)
 	objectName := "expiry.zip"
 	bucket := client.Bucket(bucketName)
 
@@ -672,7 +694,7 @@ func (s *b) deployFunction(ctx context.Context, projectID, region, token string,
 			Source: &functionspb.Source{
 				Source: &functionspb.Source_StorageSource{
 					StorageSource: &functionspb.StorageSource{
-						Bucket: "aerolab-expiry-code-" + region,
+						Bucket: expiryCodeBucketName(projectID, region),
 						Object: "expiry.zip",
 					},
 				},
