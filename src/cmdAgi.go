@@ -332,6 +332,48 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	// `aerolab config defaults` stores values via reflection and always allocates
+	// a non-nil pointer for *string / *flags.Filename / *TypeClusterName fields,
+	// even when the saved value is empty. That breaks the "user didn't pass this
+	// flag" sentinel below, causing the apply block to clobber the existing
+	// ingest.yaml on the remote AGI instance. Coerce empties back to nil so
+	// only explicitly-set, non-empty flags participate in the update.
+	nilIfEmpty := func(s *string) *string {
+		if s != nil && *s == "" {
+			return nil
+		}
+		return s
+	}
+	nilIfEmptyFilename := func(s *flags.Filename) *flags.Filename {
+		if s != nil && *s == "" {
+			return nil
+		}
+		return s
+	}
+	nilIfEmptyClusterName := func(s *TypeClusterName) *TypeClusterName {
+		if s != nil && *s == "" {
+			return nil
+		}
+		return s
+	}
+	c.SftpHost = nilIfEmpty(c.SftpHost)
+	c.SftpUser = nilIfEmpty(c.SftpUser)
+	c.SftpPass = nilIfEmpty(c.SftpPass)
+	c.SftpPath = nilIfEmpty(c.SftpPath)
+	c.SftpRegex = nilIfEmpty(c.SftpRegex)
+	c.SftpKey = nilIfEmptyFilename(c.SftpKey)
+	c.S3Region = nilIfEmpty(c.S3Region)
+	c.S3Bucket = nilIfEmpty(c.S3Bucket)
+	c.S3KeyID = nilIfEmpty(c.S3KeyID)
+	c.S3Secret = nilIfEmpty(c.S3Secret)
+	c.S3path = nilIfEmpty(c.S3path)
+	c.S3Regex = nilIfEmpty(c.S3Regex)
+	c.TimeRangesFrom = nilIfEmpty(c.TimeRangesFrom)
+	c.TimeRangesTo = nilIfEmpty(c.TimeRangesTo)
+	c.CustomSourceName = nilIfEmpty(c.CustomSourceName)
+	c.PatternsFile = nilIfEmptyFilename(c.PatternsFile)
+	c.LocalSource = nilIfEmptyFilename(c.LocalSource)
+	c.ClusterSource = nilIfEmptyClusterName(c.ClusterSource)
 	if c.SftpUser != nil && strings.HasPrefix(*c.SftpUser, "ENV::") {
 		aa := os.Getenv(strings.Split(*c.SftpUser, "::")[1])
 		c.SftpUser = &aa
