@@ -119,6 +119,14 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 		inventory = system.Backend.GetInventory()
 	}
 
+	// `aerolab config defaults` stores values via reflection and always allocates
+	// a non-nil pointer for *string / *flags.Filename fields, even when the saved
+	// value is empty. That breaks the "user didn't pass this flag" sentinel used
+	// by updateConfig below, causing the apply block to clobber the existing
+	// ingest.yaml on the remote AGI instance. Coerce empties back to nil so only
+	// explicitly-set, non-empty flags participate in the update.
+	c.coerceEmptyPointersToNil()
+
 	// Process ENV:: variables
 	c.processEnvVariables()
 
@@ -469,6 +477,44 @@ func (c *AgiRetriggerCmd) Retrigger(system *System, inventory *backends.Inventor
 
 	logger.Info("Ingest retriggered successfully")
 	return nil
+}
+
+// coerceEmptyPointersToNil resets *string / *flags.Filename fields that point
+// to an empty value back to nil. The `aerolab config defaults` mechanism
+// allocates a non-nil pointer for any *string-typed config key it can find,
+// regardless of whether the saved value is empty. Without this coercion, an
+// empty saved default (e.g. AGI.Retrigger.S3Region = "") would still satisfy
+// the `!= nil` checks in updateConfig and overwrite the existing ingest.yaml
+// fields on the remote AGI instance.
+func (c *AgiRetriggerCmd) coerceEmptyPointersToNil() {
+	nilIfEmpty := func(s *string) *string {
+		if s != nil && *s == "" {
+			return nil
+		}
+		return s
+	}
+	nilIfEmptyFilename := func(s *flags.Filename) *flags.Filename {
+		if s != nil && *s == "" {
+			return nil
+		}
+		return s
+	}
+	c.SftpHost = nilIfEmpty(c.SftpHost)
+	c.SftpUser = nilIfEmpty(c.SftpUser)
+	c.SftpPass = nilIfEmpty(c.SftpPass)
+	c.SftpKey = nilIfEmpty(c.SftpKey)
+	c.SftpPath = nilIfEmpty(c.SftpPath)
+	c.SftpRegex = nilIfEmpty(c.SftpRegex)
+	c.S3Region = nilIfEmpty(c.S3Region)
+	c.S3Bucket = nilIfEmpty(c.S3Bucket)
+	c.S3KeyID = nilIfEmpty(c.S3KeyID)
+	c.S3Secret = nilIfEmpty(c.S3Secret)
+	c.S3Path = nilIfEmpty(c.S3Path)
+	c.S3Regex = nilIfEmpty(c.S3Regex)
+	c.TimeRangesFrom = nilIfEmpty(c.TimeRangesFrom)
+	c.TimeRangesTo = nilIfEmpty(c.TimeRangesTo)
+	c.CustomSourceName = nilIfEmpty(c.CustomSourceName)
+	c.PatternsFile = nilIfEmptyFilename(c.PatternsFile)
 }
 
 // processEnvVariables processes ENV::VAR_NAME patterns in configuration fields.
