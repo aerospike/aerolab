@@ -54,7 +54,7 @@ jobs:
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make pkg-linux
             - name: setup GPG
-              uses: aerospike/shared-workflows/devops/setup-gpg@ed780e9928d56ef074532dbc6877166d5460587a # v0.1.0
+              uses: aerospike/shared-workflows/devops/setup-gpg@489212b8911ea431131ed468599db705f0767274 # v3.0.0
               with:
                 gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
                 gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
@@ -240,7 +240,7 @@ jobs:
                 ls |while read f; do shasum -a 256 $f > $f.sha256; done
                 cd ..
             - name: setup GPG
-              uses: aerospike/shared-workflows/devops/setup-gpg@ed780e9928d56ef074532dbc6877166d5460587a # v0.1.0
+              uses: aerospike/shared-workflows/devops/setup-gpg@489212b8911ea431131ed468599db705f0767274 # v3.0.0
               with:
                 gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
                 gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
