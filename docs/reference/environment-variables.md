@@ -360,6 +360,8 @@ aerolab cluster create -n dev -c 1 -d ubuntu -i 24.04 -v 8.1.3.0-28-g302194ebc
 - Install and test pre-release / CI dev builds not published on the public download site
 - Pull artifacts from an internal mirror in air-gapped or egress-restricted environments
 
+> See the [Deploying JFrog Dev Builds](jfrog-dev-builds.md) guide for a full walkthrough.
+
 ## AEROLAB_ARTIFACTS_AUTH
 
 Credentials for `AEROLAB_ARTIFACTS_URL` when it points at a JFrog Artifactory instance. The format is auto-detected:

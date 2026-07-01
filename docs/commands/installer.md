@@ -360,4 +360,5 @@ aerolab installer download -v 8.*    ...  # Bad
 - [Cluster Management](cluster.md) - Automated cluster deployment
 - [Templates](templates.md) - Pre-configured deployment images
 - [Configuration](config.md) - Configure Aerolab backends
+- [Deploying JFrog Dev Builds](../reference/jfrog-dev-builds.md) - List and install pre-release builds from JFrog Artifactory
 
