@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -63,6 +64,8 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		{Key: "AEROSPIKE_CLOUD_SECRET", Value: getEnvValue("AEROSPIKE_CLOUD_SECRET", true), Description: "Set the API secret for Aerospike Cloud API"},
 		{Key: "AEROLAB_SIMPLE_MODE", Value: getEnvValue("AEROLAB_SIMPLE_MODE", false), Description: "Path to a simple mode config file that overrides which commands/parameters are visible in simple mode"},
 		{Key: "AEROLAB_FORCE_SIMPLE_MODE", Value: getEnvValue("AEROLAB_FORCE_SIMPLE_MODE", false), Description: "Set to 'true' to enforce simple mode: blocked commands cannot be run, blocked parameters cannot be changed from defaults"},
+		{Key: jfrog.EnvArtifactsURL, Value: getEnvValue(jfrog.EnvArtifactsURL, false), Description: "Alternative source for Aerospike server install artifacts. Set to a JFrog Artifactory base URL (e.g. https://<org>.jfrog.io) to fetch pre-release/dev builds via the JFrog API, or to a plain HTTP mirror of download.aerospike.com"},
+		{Key: jfrog.EnvArtifactsAuth, Value: getEnvValue(jfrog.EnvArtifactsAuth, true), Description: "Credentials for " + jfrog.EnvArtifactsURL + " when it points at JFrog. Accepts a bearer token, a 'Bearer ...'/'Basic ...' header value, a JFrog API key, or 'user:pass'"},
 	}
 
 	if c.Pager && page == nil {

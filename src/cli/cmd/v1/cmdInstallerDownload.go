@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/rglonek/go-wget"
 	"github.com/rglonek/logger"
 )
@@ -36,6 +38,10 @@ func (c *InstallerDownloadCmd) Execute(args []string) error {
 }
 
 func (c *InstallerDownloadCmd) FindAndDownloadAerospikeServerInstaller(log *logger.Logger) (err error) {
+	if cfg := jfrog.FromEnv(); cfg != nil {
+		return c.findAndDownloadJFrog(log, cfg)
+	}
+
 	fileName, installURL, err := c.FindAerospikeInstaller(log)
 	if err != nil {
 		return err
@@ -54,6 +60,78 @@ func (c *InstallerDownloadCmd) FindAndDownloadAerospikeServerInstaller(log *logg
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// findAndDownloadJFrog resolves the requested build via JFrog AQL,
+// matches one artifact against the requested OS/arch/edition and
+// streams it into the current working directory. Unlike the
+// public-flow download, this writes a .deb or .rpm rather than a tgz.
+func (c *InstallerDownloadCmd) findAndDownloadJFrog(log *logger.Logger, cfg *jfrog.Config) error {
+	if c.DistroVersion.String() == "latest" {
+		return fmt.Errorf("JFrog mode requires --distro-version to be explicit (not 'latest')")
+	}
+	edition, cleanVer := jfrog.EditionFromInput(c.AerospikeVersion.String(), "enterprise")
+	build, err := cfg.ResolveBuild(cleanVer)
+	if err != nil {
+		return err
+	}
+	log.Info("Querying JFrog build %q number %q", build.Name, build.Number)
+	files, err := build.Files(context.Background())
+	if err != nil {
+		return err
+	}
+
+	arch := "x86_64"
+	if c.IsArm {
+		arch = "aarch64"
+	}
+	osName := c.DistroName.String()
+	if osName == "rocky" {
+		osName = "centos"
+	}
+	match, err := files.Match(jfrog.MatchCriteria{
+		Edition:   edition,
+		OSName:    osName,
+		OSVersion: c.DistroVersion.String(),
+		Arch:      arch,
+	})
+	if err != nil {
+		return err
+	}
+	log.Info("Selected %s/%s/%s (%d bytes)", match.Repo, match.Path, match.Name, match.Size)
+	if c.DryRun {
+		log.Info("Dry run: download URL is %s", match.DownloadURL)
+		return nil
+	}
+	if err := os.MkdirAll(".", 0o755); err != nil {
+		return err
+	}
+	dest := filepath.Join(".", match.Name)
+	tmp := dest + ".part"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return fmt.Errorf("could not create %s: %w", tmp, err)
+	}
+	written, getErr := cfg.Get(context.Background(), match.DownloadURL, out)
+	closeErr := out.Close()
+	if getErr != nil {
+		_ = os.Remove(tmp)
+		return getErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if match.Size > 0 && written != match.Size {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("download size mismatch: got %d, want %d", written, match.Size)
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	log.Info("Downloaded %s (%d bytes)", dest, written)
 	return nil
 }
 

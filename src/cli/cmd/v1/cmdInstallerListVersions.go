@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/rglonek/logger"
 )
 
@@ -42,6 +44,48 @@ func (c *InstallerListVersionsCmd) ListVersions(log *logger.Logger, out io.Write
 		edition = "federal"
 	}
 	version := strings.TrimSuffix(c.Prefix, "*")
+
+	// JFrog dev-build mode: enumerate the builds registered under the
+	// configured build name via the AQL builds domain. Edition/format/arch
+	// are not surfaced at this level because every build run publishes all
+	// editions and OS variants; the version prefix (if any) is pushed to
+	// JFrog as a "$match" glob on the build number.
+	if cfg := jfrog.FromEnv(); cfg != nil {
+		_ = edition // edition filter has no effect in JFrog mode
+		match := strings.TrimSuffix(version, "-artifacts")
+		builds, err := cfg.ListBuilds(context.Background(), match)
+		if err != nil {
+			return fmt.Errorf("could not list JFrog builds: %s", err)
+		}
+		if len(builds) == 0 {
+			return fmt.Errorf("no JFrog builds found for %q", cfg.BuildName)
+		}
+		// Every build run publishes a canonical "-artifacts" entry plus a
+		// non-suffixed alias. Keep only the "-artifacts" entries (so we
+		// list builds that actually have artifacts) and strip the suffix
+		// for a clean, copy-pasteable version name.
+		builds = builds.OnlyArtifacts()
+		if len(builds) == 0 {
+			return fmt.Errorf("no JFrog builds with artifacts found for %q", cfg.BuildName)
+		}
+		// JFrog returns descending-by-number; reverse for oldest-first
+		// parity with the public flow unless --reverse was requested.
+		if !c.Reverse {
+			for i, j := 0, len(builds)-1; i < j; i, j = i+1, j-1 {
+				builds[i], builds[j] = builds[j], builds[i]
+			}
+		}
+		for _, b := range builds {
+			name := strings.TrimSuffix(b.Number, "-artifacts")
+			if c.Url {
+				fmt.Fprintln(out, cfg.BuildInfoURL(b.Name, b.Number)) //nolint:errcheck
+			} else {
+				fmt.Fprintln(out, name) //nolint:errcheck
+			}
+		}
+		return nil
+	}
+
 	products, err := aerospike.GetProducts(time.Second * 10)
 	if err != nil {
 		return fmt.Errorf("could not get products: %s", err)

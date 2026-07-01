@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
@@ -130,6 +131,13 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 	// Check if custom source file is provided
 	if string(c.CustomSourceFile) != "" {
 		return c.customUpgrade(cluster.Describe(), system, logger)
+	}
+
+	// JFrog dev-build mode: download package locally, SFTP-upload to each
+	// instance and run the matching rpm/deb install script (auth token
+	// never reaches the target instance).
+	if cfg := jfrog.FromEnv(); cfg != nil {
+		return c.upgradeJFrog(cluster.Describe(), system, logger, cfg)
 	}
 
 	// Resolve Aerospike version and get install script

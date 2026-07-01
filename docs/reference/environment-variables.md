@@ -21,6 +21,8 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROLAB_SIMPLE_MODE` | FILEPATH | Path to a simple mode config file that overrides which commands/parameters are visible in simple mode |
 | `AEROLAB_FORCE_SIMPLE_MODE` | true | Enforce simple mode: blocked commands cannot be run, blocked parameters cannot be changed from defaults |
 | `AEROLAB_SKIP_NAT_CHECK` | 1 | GCP only. Bypass the Cloud NAT pre-check that blocks `--gcp-nopublic-ip` creates when no Cloud NAT covers the target subnet. Set when egress is provided through VPN, VPC peering, an internal proxy, or another mechanism aerolab cannot detect via `compute.routers.list` |
+| `AEROLAB_ARTIFACTS_URL` | URL | Alternative source for Aerospike server install artifacts. Set to a JFrog Artifactory base URL (e.g. `https://<org>.jfrog.io`) to fetch pre-release/dev builds via the JFrog API, or to a plain HTTP mirror of `download.aerospike.com` |
+| `AEROLAB_ARTIFACTS_AUTH` | CREDENTIALS | Credentials for `AEROLAB_ARTIFACTS_URL` when it points at JFrog. Accepts a bearer token, a `Bearer ...`/`Basic ...` header value, a JFrog API key, or `user:pass` |
 
 ## AEROLAB_HOME
 
@@ -322,6 +324,66 @@ aerolab cluster create -n iaptest -c 2 --gcp-disable-public-ip ...
 - Egress is provided through Cloud VPN, VPC peering through a transit VPC, an internal HTTP proxy, or a hand-rolled NAT VM — none of which `compute.routers.list` can see
 - The caller's service account lacks `compute.routers.list` permission and you accept the risk that NAT may be missing (the check itself soft-fails on API errors and lets the create proceed in this case, but the env var is the explicit way to silence it)
 - Air-gapped environments where image-baked dependencies make outbound internet unnecessary
+
+## AEROLAB_ARTIFACTS_URL
+
+Point Aerolab at an alternative source for Aerospike server install artifacts instead of the public `download.aerospike.com`.
+
+Two modes are supported, selected automatically from the URL:
+
+- **JFrog Artifactory** — when the host ends in `.jfrog.io`, Aerolab talks to the JFrog REST/AQL API to resolve *build numbers* (including pre-release / dev builds) rather than public release versions. Downloads are `.rpm` / `.deb` packages, fetched to the operator's machine and uploaded to instances over SFTP (the auth token never reaches the target VM).
+- **Plain HTTP mirror** — any other URL is treated as a mirror of the `download.aerospike.com/artifacts` HTML directory structure.
+
+This affects `cluster create`, `template create`, `aerospike upgrade`, `installer list-versions`, and `installer download`.
+
+### JFrog version selection
+
+In JFrog mode, `-v` takes a build number rather than a release version. `latest` is not supported. The canonical build entry always carries an `-artifacts` suffix; Aerolab appends it automatically, so `-v 8.1.3.0-28-g302194ebc` resolves to `8.1.3.0-28-g302194ebc-artifacts`. Append `:c`, `:f`, or `:e` to force community/federal/enterprise (a plain trailing `c`/`f` is not used, since JFrog build numbers can end in a git SHA).
+
+Use `installer list-versions` to enumerate the available build numbers.
+
+### Optional companion variable
+
+- `AEROLAB_ARTIFACTS_BUILD_NAME` — the JFrog build name to query. Defaults to `aerospike-server`.
+
+### Example
+
+```bash
+export AEROLAB_ARTIFACTS_URL=https://myorg.jfrog.io
+export AEROLAB_ARTIFACTS_AUTH="Bearer <token>"
+aerolab installer list-versions -v 8.1.3
+aerolab cluster create -n dev -c 1 -d ubuntu -i 24.04 -v 8.1.3.0-28-g302194ebc
+```
+
+### Use Cases
+
+- Install and test pre-release / CI dev builds not published on the public download site
+- Pull artifacts from an internal mirror in air-gapped or egress-restricted environments
+
+## AEROLAB_ARTIFACTS_AUTH
+
+Credentials for `AEROLAB_ARTIFACTS_URL` when it points at a JFrog Artifactory instance. The format is auto-detected:
+
+- `Bearer ...` or `Basic ...` — used verbatim as the `Authorization` header
+- a JWT (starts with `eyJ`) — sent as a `Bearer` token
+- a JFrog reference / API key (e.g. `AKC...`, `cmVm...`) — sent as the `X-JFrog-Art-Api` header
+- `user:pass` — encoded into a `Basic` `Authorization` header
+- anything else — treated as a bearer token
+
+The value is redacted (`[REDACTED]`) in `aerolab config env-vars` output and never written to logs or uploaded to instances.
+
+### Example
+
+```bash
+export AEROLAB_ARTIFACTS_URL=https://myorg.jfrog.io
+export AEROLAB_ARTIFACTS_AUTH="Bearer <token>"
+# or
+export AEROLAB_ARTIFACTS_AUTH="myuser:mypassword"
+```
+
+### Use Cases
+
+- Authenticate to a private JFrog repository hosting Aerospike dev builds
 
 ## Common Usage Patterns
 

@@ -5,11 +5,38 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 )
+
+// EnvArtifactsURL lets the operator override the default
+// https://download.aerospike.com/artifacts base. When the override points
+// at a JFrog Artifactory ("*.jfrog.io") it is handled by the jfrog
+// subpackage instead; this fall-through path only applies to a mirror
+// that exposes the same HTML directory listings as the public site.
+const EnvArtifactsURL = "AEROLAB_ARTIFACTS_URL"
+
+// DefaultArtifactsURL is the production location of the Aerospike public
+// artifacts mirror.
+const DefaultArtifactsURL = "https://download.aerospike.com/artifacts"
+
+// ArtifactsBaseURL returns the URL the GetProducts crawler will hit.
+// Returns the default unless an explicit non-JFrog override is set.
+func ArtifactsBaseURL() string {
+	v := strings.TrimRight(strings.TrimSpace(os.Getenv(EnvArtifactsURL)), "/")
+	if v == "" {
+		return DefaultArtifactsURL
+	}
+	if strings.Contains(strings.ToLower(v), ".jfrog.io") {
+		// JFrog is handled by the jfrog subpackage; the HTML crawler
+		// cannot read JFrog UI pages.
+		return DefaultArtifactsURL
+	}
+	return v
+}
 
 type Products []Product
 
@@ -19,7 +46,7 @@ type Product struct {
 }
 
 func GetProducts(timeout time.Duration) (Products, error) {
-	req, err := http.NewRequest("GET", "https://download.aerospike.com/artifacts", nil)
+	req, err := http.NewRequest("GET", ArtifactsBaseURL(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +74,7 @@ func GetProducts(timeout time.Duration) (Products, error) {
 		if item.link == "" {
 			continue
 		}
-		link, err := url.JoinPath("https://download.aerospike.com/artifacts", item.link)
+		link, err := url.JoinPath(ArtifactsBaseURL(), item.link)
 		if err != nil {
 			return nil, err
 		}

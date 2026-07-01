@@ -256,7 +256,27 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	var registryEntries []RegistryEntry
 	var preResolvedEntry *RegistryEntry
 
-	if isLatestVersion && templateSource == "only-registry" {
+	// JFrog dev-build mode short-circuits both the registry and the public
+	// downloads. We just need the canonical build number + edition; the
+	// actual artifact lookup and SFTP upload happen inside CreateTemplate.
+	if active, canonicalVer, jfrogEd, err := jfrogResolveLight(c.AerospikeVersion.String()); err != nil {
+		return nil, err
+	} else if active {
+		flavor = jfrogEd
+		// Re-encode the edition as a ":c"/":f"/":e" suffix so that when we
+		// pass c.AerospikeVersion through to TemplateCreateCmd the edition
+		// survives a round-trip through jfrog.EditionFromInput.
+		editionSuffix := ""
+		switch flavor {
+		case "community":
+			editionSuffix = ":c"
+		case "federal":
+			editionSuffix = ":f"
+		}
+		c.AerospikeVersion = TypeAerospikeVersion(canonicalVer + editionSuffix)
+		av = canonicalVer + "-" + flavor
+		logger.Info("JFrog version: %s, flavor: %s", canonicalVer, flavor)
+	} else if isLatestVersion && templateSource == "only-registry" {
 		// For only-registry with latest, resolve the newest version available
 		// in the registry rather than consulting the Aerospike downloads website.
 		flavor = "enterprise"

@@ -148,105 +148,79 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		logger.Info("Auto-detected architecture: %s", c.Arch)
 	}
 
-	version, flavor, err := resolveAerospikeServerVersion(c.AerospikeVersion)
-	if err != nil {
-		return "", err
-	}
-	c.AerospikeVersion = version.Name
-
-	// get the installer URL
-	files, err := aerospike.GetFiles(time.Second*10, *version)
-	if err != nil {
-		return "", fmt.Errorf("could not get files: %s", err)
-	}
-	arch := aerospike.ArchitectureTypeX86_64
-	if c.Arch == "arm64" {
-		arch = aerospike.ArchitectureTypeAARCH64
-	}
-	osName := aerospike.OSName(c.Distro)
-	if osName == "rocky" {
-		osName = "centos"
-	}
-	osVersion := c.DistroVersion
 	var installScript []byte
-	if osVersion != "latest" {
-		installScript, err = files.GetInstallScript(arch, osName, osVersion, system.logLevel >= 5, true, true, false)
-		if err != nil {
-			return "", fmt.Errorf("could not get install script: %s", err)
-		}
+	var flavor string
+	var osVersion string
+	// jfrogPkg is non-nil when we are in JFrog mode and need to upload a
+	// pre-downloaded .rpm/.deb to every instance before running the script.
+	var jfrogPkg *jfrogPlan
+
+	if plan, err := resolveJFrogPlan(system, logger, c.AerospikeVersion, c.Distro, c.DistroVersion, c.Arch, system.logLevel >= 5); err != nil {
+		return "", err
+	} else if plan != nil {
+		installScript = plan.script
+		flavor = plan.edition
+		c.AerospikeVersion = plan.version
+		osVersion = plan.osVersion
+		jfrogPkg = plan
 	} else {
-		var versionList []string
-		switch osName {
-		case "ubuntu":
-			versionList = []string{"26.04", "24.04", "22.04", "20.04", "18.04"}
-		case "centos":
-			versionList = []string{"10", "9", "8", "7"}
-		case "rocky":
-			versionList = []string{"10", "9", "8"}
-		case "debian":
-			versionList = []string{"13", "12", "11", "10", "9", "8"}
-		case "amazon":
-			versionList = []string{"2023", "2"}
-		default:
-			return "", fmt.Errorf("unsupported distro: %s", osName)
+		version, flavorResolved, err := resolveAerospikeServerVersion(c.AerospikeVersion)
+		if err != nil {
+			return "", err
 		}
-		for _, version := range versionList {
-			installScript, err = files.GetInstallScript(arch, osName, version, system.logLevel >= 5, true, true, false)
-			if err == nil {
-				osVersion = version
-				break
+		flavor = flavorResolved
+		c.AerospikeVersion = version.Name
+
+		files, err := aerospike.GetFiles(time.Second*10, *version)
+		if err != nil {
+			return "", fmt.Errorf("could not get files: %s", err)
+		}
+		arch := aerospike.ArchitectureTypeX86_64
+		if c.Arch == "arm64" {
+			arch = aerospike.ArchitectureTypeAARCH64
+		}
+		osName := aerospike.OSName(c.Distro)
+		if osName == "rocky" {
+			osName = "centos"
+		}
+		osVersion = c.DistroVersion
+		if osVersion != "latest" {
+			installScript, err = files.GetInstallScript(arch, osName, osVersion, system.logLevel >= 5, true, true, false)
+			if err != nil {
+				return "", fmt.Errorf("could not get install script: %s", err)
+			}
+		} else {
+			var versionList []string
+			switch osName {
+			case "ubuntu":
+				versionList = []string{"26.04", "24.04", "22.04", "20.04", "18.04"}
+			case "centos":
+				versionList = []string{"10", "9", "8", "7"}
+			case "rocky":
+				versionList = []string{"10", "9", "8"}
+			case "debian":
+				versionList = []string{"13", "12", "11", "10", "9", "8"}
+			case "amazon":
+				versionList = []string{"2023", "2"}
+			default:
+				return "", fmt.Errorf("unsupported distro: %s", osName)
+			}
+			for _, ov := range versionList {
+				installScript, err = files.GetInstallScript(arch, osName, ov, system.logLevel >= 5, true, true, false)
+				if err == nil {
+					osVersion = ov
+					break
+				}
+			}
+			if installScript == nil {
+				return "", fmt.Errorf("could not get install script: could not find a matching OS Version and Architecture for the given aerospike version %s %s", flavor, c.AerospikeVersion)
 			}
 		}
-		if installScript == nil {
-			return "", fmt.Errorf("could not get install script: could not find a matching OS Version and Architecture for the given aerospike version %s %s", flavor, c.AerospikeVersion)
-		}
-	}
 
-	// add basic tools to the install script
-	installScript, err = installers.GetInstallScript(installers.Software{
-		Debug: system.logLevel >= 5,
-		Optional: installers.Installs{
-			Dependencies: []installers.Dependency{
-				{Command: "curl", Package: "curl"},
-				{Command: "jq", Package: "jq"},
-				{Command: "unzip", Package: "unzip"},
-				{Command: "zip", Package: "zip"},
-				{Command: "wget", Package: "wget"},
-				{Command: "git", Package: "git"},
-				{Command: "vim", Package: "vim"},
-				{Command: "nano", Package: "nano"},
-				{Command: "less", Package: "less"},
-				{Command: "lnav", Package: "lnav"},
-				{Command: "iptables", Package: "iptables"},
-				{Command: "tcpdump", Package: "tcpdump"},
-				{Command: "telnet", Package: "telnet"},
-				{Command: "mpstat", Package: "sysstat"},
-				{Command: "dig", Package: "dnsutils"},   // apt
-				{Command: "dig", Package: "bind-utils"}, // yum
-				{Command: "strings", Package: "binutils"},
-				{Command: "which", Package: "which"},
-				{Command: "ip", Package: "iproute2"},       // apt
-				{Command: "ip", Package: "iproute"},        // yum
-				{Command: "ip", Package: "iproute-tc"},     // yum
-				{Command: "python3", Package: "python3"},   // apt and some yum
-				{Command: "python3", Package: "python"},    // yum
-				{Command: "nc", Package: "netcat"},         // apt
-				{Command: "nc", Package: "nc"},             // yum
-				{Command: "ping", Package: "iputils-ping"}, // apt
-				{Command: "ping", Package: "iputils"},      // yum
-				{Command: "ldapsearch", Package: "ldap-utils"},
-				{Command: "netstat", Package: "net-tools"},
-				{Command: "lsb_release", Package: "lsb-release"},     // apt
-				{Command: "lsb_release", Package: "redhat-lsb-core"}, // yum
-				{Command: "lsb_release", Package: "redhat-lsb"},      // yum
-				{Command: "ps", Package: "procps"},                   // apt
-				{Command: "ps", Package: "procps-ng"},                // yum
-			},
-			Packages: []string{"python3-setuptools", "python3-distutils", "libcurl4", "libcurl4-openssl-dev", "libldap-common", "libcurl-openssl-devel", "initscripts"},
-		},
-	}, installScript)
-	if err != nil {
-		return "", fmt.Errorf("could not add basic tools to the install script: %s", err)
+		installScript, err = installers.GetInstallScript(templateOptionalDeps(system.logLevel >= 5), installScript)
+		if err != nil {
+			return "", fmt.Errorf("could not add basic tools to the install script: %s", err)
+		}
 	}
 
 	// check if the template already exists
@@ -488,6 +462,24 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return "", fmt.Errorf("could not create sftp client: %s", err)
+		}
+		if jfrogPkg != nil {
+			logger.Info("Uploading JFrog package %s to %s:%s", jfrogPkg.pkgLocalPath, conf.Host, jfrogPkg.pkgRemotePath)
+			f, err := os.Open(jfrogPkg.pkgLocalPath)
+			if err != nil {
+				cli.Close()
+				return "", fmt.Errorf("could not open cached JFrog package: %s", err)
+			}
+			err = cli.WriteFile(true, &sshexec.FileWriter{
+				DestPath:    jfrogPkg.pkgRemotePath,
+				Source:      f,
+				Permissions: 0644,
+			})
+			f.Close()
+			if err != nil {
+				cli.Close()
+				return "", fmt.Errorf("could not upload JFrog package: %s", err)
+			}
 		}
 		err = cli.WriteFile(true, &sshexec.FileWriter{
 			DestPath:    "/opt/aerolab/scripts/template-install.sh",
