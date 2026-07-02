@@ -26,6 +26,14 @@ This command will:
 
 **Note**: If you see an authentication error, ensure you've run `gcloud auth application-default login` first. See the [troubleshooting section](#authentication-issues) for more details.
 
+### Required GCP Services (APIs)
+
+AeroLab relies on several Google Cloud APIs (Compute Engine, Service Usage,
+Cloud Billing, IAP, and the Cloud Functions stack used for resource expiry).
+AeroLab can enable the ones it needs for you, or you can enable them ahead of
+time. For the full list of services, what each is used for, and how automatic
+enablement works, see [GCP Services (APIs) Required by AeroLab](gcp-services.md).
+
 ## Initial Setup
 
 ### 1. Authenticate with GCP
@@ -68,6 +76,21 @@ aerolab config backend -t gcp -r us-central1 -o your-project-id --inventory-cach
 ```
 
 **Note**: Only use inventory cache if you're the sole user of the GCP project, as it caches resource state locally.
+
+### Optional: Automatically Enable Required Services
+
+By default, if a required GCP service (API) is not enabled, AeroLab prompts you
+interactively for confirmation before enabling it, and errors out in
+non-interactive contexts. To let AeroLab enable missing services automatically
+without prompting (including in non-interactive contexts), add
+`--gcp-auto-enable-services`:
+
+```bash
+aerolab config backend -t gcp -r us-central1 -o your-project-id --gcp-auto-enable-services
+```
+
+See [GCP Services (APIs) Required by AeroLab](gcp-services.md) for the full list
+of services and the required IAM permission.
 
 ### Optional: Specify Multiple Regions
 
@@ -149,13 +172,15 @@ IAP just because public IPs were disabled. The four combinations:
 
 1. The IAP API (`iap.googleapis.com`) must be enabled in the project. aerolab
    enables it for you the first time you run `aerolab config backend ...
-   --gcp-use-iap`, provided the calling principal has
-   `roles/serviceusage.serviceUsageAdmin` (or the equivalent
+   --gcp-use-iap` (prompting for confirmation when interactive, or
+   automatically when `--gcp-auto-enable-services` is set), provided the calling
+   principal has `roles/serviceusage.serviceUsageAdmin` (or the equivalent
    `serviceusage.services.enable` permission). If your principal cannot enable
    APIs, ask a project owner to run:
    ```bash
    gcloud services enable iap.googleapis.com --project=your-project-id
    ```
+   See [GCP Services (APIs) Required by AeroLab](gcp-services.md) for details.
 2. Grant `roles/iap.tunnelResourceAccessor` to the principal aerolab runs as
    (your user, or a service account):
    ```bash
@@ -386,6 +411,12 @@ aerolab config gcp expiry-install
 ```
 
 This installs a Cloud Function that automatically cleans up expired resources.
+It requires several GCP services (Cloud Functions, Cloud Run, Cloud Build,
+Artifact Registry, Pub/Sub, Cloud Scheduler, Cloud Storage, and Cloud Logging).
+AeroLab enables any that are missing — prompting when interactive, or
+automatically when the backend was configured with `--gcp-auto-enable-services`.
+See [GCP Services (APIs) Required by AeroLab](gcp-services.md) for the full
+list and manual-enable commands.
 
 ### List Expiry Rules
 

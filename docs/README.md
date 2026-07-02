@@ -26,6 +26,7 @@ Choose your backend and follow the appropriate getting started guide:
 - **[Docker Backend](getting-started/docker.md)** - Quick start with Docker, Docker Desktop, Podman, or Podman Desktop
 - **[AWS Backend](getting-started/aws.md)** - Set up with AWS credentials and EC2
 - **[GCP Backend](getting-started/gcp.md)** - Set up with Google Cloud Platform (Application Default Credentials)
+  - **[GCP Services (APIs) Required by AeroLab](getting-started/gcp-services.md)** - Which Google Cloud APIs AeroLab uses, what for, and how automatic enablement works
 
 ### Upgrading from v7
 
