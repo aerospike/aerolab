@@ -190,6 +190,27 @@ func (AuthenticationMode) Values() []AuthenticationMode {
 	}
 }
 
+type CancellationStatus string
+
+// Enum values for CancellationStatus
+const (
+	CancellationStatusInProgress CancellationStatus = "InProgress"
+	CancellationStatusFailed     CancellationStatus = "Failed"
+	CancellationStatusSuccessful CancellationStatus = "Successful"
+)
+
+// Values returns all known values for CancellationStatus. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (CancellationStatus) Values() []CancellationStatus {
+	return []CancellationStatus{
+		"InProgress",
+		"Failed",
+		"Successful",
+	}
+}
+
 type CapabilityDeletePropagationPolicy string
 
 // Enum values for CapabilityDeletePropagationPolicy
@@ -302,8 +323,9 @@ type Category string
 
 // Enum values for Category
 const (
-	CategoryUpgradeReadiness Category = "UPGRADE_READINESS"
-	CategoryMisconfiguration Category = "MISCONFIGURATION"
+	CategoryUpgradeReadiness  Category = "UPGRADE_READINESS"
+	CategoryMisconfiguration  Category = "MISCONFIGURATION"
+	CategoryRollbackReadiness Category = "ROLLBACK_READINESS"
 )
 
 // Values returns all known values for Category. Note that this can be expanded in
@@ -314,6 +336,7 @@ func (Category) Values() []Category {
 	return []Category{
 		"UPGRADE_READINESS",
 		"MISCONFIGURATION",
+		"ROLLBACK_READINESS",
 	}
 }
 
@@ -469,6 +492,27 @@ func (ConnectorConfigProvider) Values() []ConnectorConfigProvider {
 		"RANCHER",
 		"EC2",
 		"OTHER",
+	}
+}
+
+type ControlPlaneEgressModeType string
+
+// Enum values for ControlPlaneEgressModeType
+const (
+	ControlPlaneEgressModeTypeAwsManaged       ControlPlaneEgressModeType = "AWS_MANAGED"
+	ControlPlaneEgressModeTypeCustomerRouted   ControlPlaneEgressModeType = "CUSTOMER_ROUTED"
+	ControlPlaneEgressModeTypeCustomerIsolated ControlPlaneEgressModeType = "CUSTOMER_ISOLATED"
+)
+
+// Values returns all known values for ControlPlaneEgressModeType. Note that this
+// can be expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (ControlPlaneEgressModeType) Values() []ControlPlaneEgressModeType {
+	return []ControlPlaneEgressModeType{
+		"AWS_MANAGED",
+		"CUSTOMER_ROUTED",
+		"CUSTOMER_ISOLATED",
 	}
 }
 
@@ -1055,6 +1099,7 @@ const (
 	UpdateParamTypeWarmPoolMinSize                  UpdateParamType = "WarmPoolMinSize"
 	UpdateParamTypeWarmPoolState                    UpdateParamType = "WarmPoolState"
 	UpdateParamTypeWarmPoolReuseOnScaleIn           UpdateParamType = "WarmPoolReuseOnScaleIn"
+	UpdateParamTypeControlPlaneEgressMode           UpdateParamType = "ControlPlaneEgressMode"
 )
 
 // Values returns all known values for UpdateParamType. Note that this can be
@@ -1113,6 +1158,7 @@ func (UpdateParamType) Values() []UpdateParamType {
 		"WarmPoolMinSize",
 		"WarmPoolState",
 		"WarmPoolReuseOnScaleIn",
+		"ControlPlaneEgressMode",
 	}
 }
 
@@ -1161,6 +1207,8 @@ const (
 	UpdateTypeCapabilityUpdate                   UpdateType = "CapabilityUpdate"
 	UpdateTypeControlPlaneScalingConfigUpdate    UpdateType = "ControlPlaneScalingConfigUpdate"
 	UpdateTypeVendedLogsUpdate                   UpdateType = "VendedLogsUpdate"
+	UpdateTypeControlPlaneEgressUpdate           UpdateType = "ControlPlaneEgressUpdate"
+	UpdateTypeVersionRollback                    UpdateType = "VersionRollback"
 )
 
 // Values returns all known values for UpdateType. Note that this can be expanded
@@ -1187,6 +1235,8 @@ func (UpdateType) Values() []UpdateType {
 		"CapabilityUpdate",
 		"ControlPlaneScalingConfigUpdate",
 		"VendedLogsUpdate",
+		"ControlPlaneEgressUpdate",
+		"VersionRollback",
 	}
 }
 

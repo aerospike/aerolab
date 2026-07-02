@@ -1,3 +1,16 @@
+# v1.94.1 (2026-07-01)
+
+* **Bug Fix**: Bump smithy-go to 1.27.3, fix JSON encorder for document.Number, endpoint host label format validation and CBOR union serialization on new serde
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.94.0 (2026-06-29)
+
+* **Feature**: Lambda now supports self-managed S3 buckets for Lambda code storage giving you the option for Lambda to reference a copy of your source code from your own S3 buckets. This allows you to maintain a single copy of your source code and manage your own code storage limits.
+
+# v1.93.0 (2026-06-18)
+
+* **Feature**: Converging and fixing existing documentation gaps in Lambda SDK
+
 # v1.92.3 (2026-06-08)
 
 * **Dependency Update**: Updated to the latest SDK module versions

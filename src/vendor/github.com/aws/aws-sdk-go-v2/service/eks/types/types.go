@@ -512,6 +512,21 @@ type BlockStorage struct {
 	noSmithyDocumentSerde
 }
 
+// Contains information about the latest cancellation of an update to an Amazon
+// EKS cluster.
+type Cancellation struct {
+
+	// A message providing additional details about the cancellation, such as the
+	// reason for the cancellation or failure details.
+	Reason *string
+
+	// The current status of the cancellation. Valid values are InProgress , Failed ,
+	// and Successful .
+	Status CancellationStatus
+
+	noSmithyDocumentSerde
+}
+
 // An object representing a managed capability in an Amazon EKS cluster. This
 // includes all configuration, status, and health information for the capability.
 type Capability struct {
@@ -2610,6 +2625,18 @@ type RemotePodNetwork struct {
 	noSmithyDocumentSerde
 }
 
+// The rollback configuration for the cluster version rollback.
+type RollbackConfig struct {
+
+	// The length of time in minutes to wait before cancelling the update. Timeout is
+	// a minimum-bound property, meaning the timeout occurs no sooner than the time you
+	// specify, but can occur shortly thereafter. This value can be between 120 (2
+	// hours) and 10080 (7 days). Default: 720 (12 hours) if not specified.
+	TimeoutMinutes *int32
+
+	noSmithyDocumentSerde
+}
+
 // An IAM Identity CenterIAM; Identity Center identity (user or group) that can be
 // assigned permissions in a capability.
 type SsoIdentity struct {
@@ -2670,6 +2697,10 @@ type Taint struct {
 
 // An object representing an asynchronous update.
 type Update struct {
+
+	// The latest cancellation information for the update. This field is present only
+	// if any cancellation is attempted for the update.
+	Cancellation *Cancellation
 
 	// The Unix epoch timestamp at object creation.
 	CreatedAt *time.Time
@@ -2827,6 +2858,21 @@ type UpgradePolicyResponse struct {
 // An object representing the VPC configuration to use for an Amazon EKS cluster.
 type VpcConfigRequest struct {
 
+	// Specifies the control plane egress routing mode for the cluster. If the cluster
+	// is set to AWS_MANAGED , Amazon EKS manages the egress path from the control
+	// plane and you don't need to configure NAT gateways or other routing
+	// infrastructure for control plane traffic. If the cluster is set to
+	// CUSTOMER_ROUTED , you manage the egress path from the control plane in your VPC
+	// subnets. You are responsible for ensuring that the control plane can reach
+	// required endpoints such as webhook servers and OIDC providers. The default value
+	// is AWS_MANAGED . Once set to CUSTOMER_ROUTED , this setting cannot be changed
+	// back to AWS_MANAGED on the same cluster.
+	//
+	// [Learn more about control plane egress routing in the Amazon EKS User Guide.]
+	//
+	// [Learn more about control plane egress routing in the Amazon EKS User Guide.]: https://docs.aws.amazon.com/eks/latest/userguide/control-plane-egress.html
+	ControlPlaneEgressMode ControlPlaneEgressModeType
+
 	// Set this value to true to enable private access for your cluster's Kubernetes
 	// API server endpoint. If you enable private access, Kubernetes API requests from
 	// within your cluster's VPC use the private VPC endpoint. The default value for
@@ -2890,6 +2936,16 @@ type VpcConfigResponse struct {
 	// Managed node groups use this security group for control-plane-to-data-plane
 	// communication.
 	ClusterSecurityGroupId *string
+
+	// The current control plane egress routing mode for the cluster. If the cluster
+	// is set to AWS_MANAGED , Amazon EKS manages the egress path from the control
+	// plane. If the cluster is set to CUSTOMER_ROUTED , you manage the egress path
+	// from the control plane in your VPC subnets.
+	//
+	// [Learn more about control plane egress routing in the Amazon EKS User Guide.]
+	//
+	// [Learn more about control plane egress routing in the Amazon EKS User Guide.]: https://docs.aws.amazon.com/eks/latest/userguide/control-plane-egress.html
+	ControlPlaneEgressMode ControlPlaneEgressModeType
 
 	// This parameter indicates whether the Amazon EKS private API server endpoint is
 	// enabled. If the Amazon EKS private API server endpoint is enabled, Kubernetes
