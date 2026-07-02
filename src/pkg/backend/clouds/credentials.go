@@ -52,6 +52,11 @@ type GCP struct {
 	// instance IP directly. This is the SOLE trigger for IAP usage; it is
 	// intentionally independent of whether instances have public IPs.
 	UseIAP bool `yaml:"useIAP" json:"useIAP"`
+	// AutoEnableServices, when true, allows aerolab to enable required GCP
+	// services (APIs) in the project without prompting, even in
+	// non-interactive contexts. When false, aerolab prompts interactively and
+	// errors in non-interactive contexts if a required service is not enabled.
+	AutoEnableServices bool `yaml:"autoEnableServices" json:"autoEnableServices"`
 }
 
 type GCPAuthMethod string

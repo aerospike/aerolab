@@ -89,16 +89,17 @@ type Init struct {
 }
 
 type InitBackend struct {
-	PollInventoryHourly bool                 // whether the backend(s) should refresh inventory hourly - this is useful if running the project as a long-running service instead of CLI app
-	PollInterval        time.Duration        // custom poll interval for inventory refresh; 0 means use the default (1 hour)
-	UseCache            bool                 // whether to use local cache for the backend inventory - only use if not sharing the GCP/AWS project/account with other users
-	LogMillisecond      bool                 // whether to log milliseconds - whether to enable millisecond logging
-	ListAllProjects     bool                 // whether to list all projects - set to list all GCP projects in the backend inventory
-	GCPAuthMethod       clouds.GCPAuthMethod // GCP authentication method to use - if not set, a default auth account will be used
-	GCPBrowser          bool                 // whether to open a browser to authenticate with GCP - if false, the user will need to manually visit the auth URL with GCP
-	GCPClientID         string               // GCP client ID used for authentication - if not set, a default auth account will be used
-	GCPClientSecret     string               // GCP client secret used for authentication - if not set, a default auth account will be used
-	GCPUseIAP           bool                 // whether to route SSH/SFTP through Google IAP TCP forwarding instead of dialing the routable instance IP
+	PollInventoryHourly   bool                 // whether the backend(s) should refresh inventory hourly - this is useful if running the project as a long-running service instead of CLI app
+	PollInterval          time.Duration        // custom poll interval for inventory refresh; 0 means use the default (1 hour)
+	UseCache              bool                 // whether to use local cache for the backend inventory - only use if not sharing the GCP/AWS project/account with other users
+	LogMillisecond        bool                 // whether to log milliseconds - whether to enable millisecond logging
+	ListAllProjects       bool                 // whether to list all projects - set to list all GCP projects in the backend inventory
+	GCPAuthMethod         clouds.GCPAuthMethod // GCP authentication method to use - if not set, a default auth account will be used
+	GCPBrowser            bool                 // whether to open a browser to authenticate with GCP - if false, the user will need to manually visit the auth URL with GCP
+	GCPClientID           string               // GCP client ID used for authentication - if not set, a default auth account will be used
+	GCPClientSecret       string               // GCP client secret used for authentication - if not set, a default auth account will be used
+	GCPUseIAP             bool                 // whether to route SSH/SFTP through Google IAP TCP forwarding instead of dialing the routable instance IP
+	GCPAutoEnableServices bool                 // whether to auto-enable required GCP services without prompting
 }
 
 func Initialize(i *Init, command []string, params any, args ...string) (*System, error) {
@@ -391,15 +392,16 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 	}
 	if i.Backend == nil {
 		i.Backend = &InitBackend{
-			PollInventoryHourly: pollInventoryHourly,
-			UseCache:            s.Opts.Config.Backend.InventoryCache,
-			LogMillisecond:      false,
-			ListAllProjects:     false,
-			GCPAuthMethod:       clouds.GCPAuthMethod(s.Opts.Config.Backend.GCPAuthMethod),
-			GCPBrowser:          !s.Opts.Config.Backend.GCPNoBrowser,
-			GCPClientID:         s.Opts.Config.Backend.GCPClientID,
-			GCPClientSecret:     s.Opts.Config.Backend.GCPClientSecret,
-			GCPUseIAP:           s.Opts.Config.Backend.GCPUseIAP,
+			PollInventoryHourly:   pollInventoryHourly,
+			UseCache:              s.Opts.Config.Backend.InventoryCache,
+			LogMillisecond:        false,
+			ListAllProjects:       false,
+			GCPAuthMethod:         clouds.GCPAuthMethod(s.Opts.Config.Backend.GCPAuthMethod),
+			GCPBrowser:            !s.Opts.Config.Backend.GCPNoBrowser,
+			GCPClientID:           s.Opts.Config.Backend.GCPClientID,
+			GCPClientSecret:       s.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:             s.Opts.Config.Backend.GCPUseIAP,
+			GCPAutoEnableServices: s.Opts.Config.Backend.GCPAutoEnableServices,
 		}
 	}
 	if s.Opts.Config.Backend.Type == "" || s.Opts.Config.Backend.Type == "none" {
@@ -447,7 +449,8 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 					Browser:            i.Backend.GCPBrowser,
 					TokenCacheFilePath: path.Join(tokenCacheFilePath, "token-cache.json"),
 				},
-				UseIAP: i.Backend.GCPUseIAP,
+				UseIAP:             i.Backend.GCPUseIAP,
+				AutoEnableServices: i.Backend.GCPAutoEnableServices,
 			},
 			DOCKER: clouds.DOCKER{
 				EnableDefaultFromEnv: true,

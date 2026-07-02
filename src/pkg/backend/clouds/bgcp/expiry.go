@@ -305,10 +305,16 @@ func (s *b) enableService(names ...string) error {
 		return nil
 	}
 
-	// When running interactively, ask the operator before enabling anything in
-	// their project. In non-interactive contexts (web UI, MCP, CI, piped I/O)
-	// we proceed without prompting.
-	if termutil.IsInteractive() {
+	// Decide whether we may enable the missing services:
+	//   - --gcp-auto-enable-services set: enable automatically, no prompt (works
+	//     in non-interactive contexts such as web UI, MCP, CI).
+	//   - interactive terminal: ask the operator for confirmation; abort on no.
+	//   - otherwise (non-interactive, flag not set): refuse and tell the user
+	//     how to proceed.
+	switch {
+	case s.credentials.AutoEnableServices:
+		log.Detail("Auto-enabling services (--gcp-auto-enable-services): %s", strings.Join(toEnable, ", "))
+	case termutil.IsInteractive():
 		fmt.Printf("The following Google Cloud services need to be enabled in project %q:\n", s.credentials.Project)
 		for _, name := range toEnable {
 			fmt.Printf("  - %s\n", name)
@@ -324,6 +330,8 @@ func (s *b) enableService(names ...string) error {
 		default:
 			return fmt.Errorf("cannot continue: the following required services were not enabled in project %q: %s", s.credentials.Project, strings.Join(toEnable, ", "))
 		}
+	default:
+		return fmt.Errorf("cannot continue: the following required Google Cloud services are not enabled in project %q: %s; enable them manually or re-run `aerolab config backend` with --gcp-auto-enable-services", s.credentials.Project, strings.Join(toEnable, ", "))
 	}
 
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))

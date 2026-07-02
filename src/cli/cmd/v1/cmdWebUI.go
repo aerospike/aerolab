@@ -262,14 +262,15 @@ func (c *WebUICmd) Execute(args []string) error {
 	if c.refreshIntervalDur > 0 {
 		system.InitOptions.Backend = nil // force fresh InitBackend with poll settings
 		system.InitOptions.Backend = &InitBackend{
-			PollInventoryHourly: true,
-			PollInterval:        c.refreshIntervalDur,
-			UseCache:            system.Opts.Config.Backend.InventoryCache,
-			GCPAuthMethod:       clouds.GCPAuthMethod(system.Opts.Config.Backend.GCPAuthMethod),
-			GCPBrowser:          !system.Opts.Config.Backend.GCPNoBrowser,
-			GCPClientID:         system.Opts.Config.Backend.GCPClientID,
-			GCPClientSecret:     system.Opts.Config.Backend.GCPClientSecret,
-			GCPUseIAP:           system.Opts.Config.Backend.GCPUseIAP,
+			PollInventoryHourly:   true,
+			PollInterval:          c.refreshIntervalDur,
+			UseCache:              system.Opts.Config.Backend.InventoryCache,
+			GCPAuthMethod:         clouds.GCPAuthMethod(system.Opts.Config.Backend.GCPAuthMethod),
+			GCPBrowser:            !system.Opts.Config.Backend.GCPNoBrowser,
+			GCPClientID:           system.Opts.Config.Backend.GCPClientID,
+			GCPClientSecret:       system.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:             system.Opts.Config.Backend.GCPUseIAP,
+			GCPAutoEnableServices: system.Opts.Config.Backend.GCPAutoEnableServices,
 		}
 		if err := system.GetBackend(true); err != nil {
 			return Error(fmt.Errorf("failed to reinitialize backend with polling: %w", err), system, cmd, c, args)
@@ -563,14 +564,15 @@ func (c *WebUICmd) reinitializeBackend() error {
 	system.InitOptions.Backend = nil
 	if pollEnabled {
 		system.InitOptions.Backend = &InitBackend{
-			PollInventoryHourly: true,
-			PollInterval:        c.refreshIntervalDur,
-			UseCache:            system.Opts.Config.Backend.InventoryCache,
-			GCPAuthMethod:       clouds.GCPAuthMethod(system.Opts.Config.Backend.GCPAuthMethod),
-			GCPBrowser:          !system.Opts.Config.Backend.GCPNoBrowser,
-			GCPClientID:         system.Opts.Config.Backend.GCPClientID,
-			GCPClientSecret:     system.Opts.Config.Backend.GCPClientSecret,
-			GCPUseIAP:           system.Opts.Config.Backend.GCPUseIAP,
+			PollInventoryHourly:   true,
+			PollInterval:          c.refreshIntervalDur,
+			UseCache:              system.Opts.Config.Backend.InventoryCache,
+			GCPAuthMethod:         clouds.GCPAuthMethod(system.Opts.Config.Backend.GCPAuthMethod),
+			GCPBrowser:            !system.Opts.Config.Backend.GCPNoBrowser,
+			GCPClientID:           system.Opts.Config.Backend.GCPClientID,
+			GCPClientSecret:       system.Opts.Config.Backend.GCPClientSecret,
+			GCPUseIAP:             system.Opts.Config.Backend.GCPUseIAP,
+			GCPAutoEnableServices: system.Opts.Config.Backend.GCPAutoEnableServices,
 		}
 	}
 	if err := system.GetBackend(pollEnabled); err != nil {
@@ -1130,10 +1132,10 @@ func (c *WebUICmd) executeCommand(w http.ResponseWriter, r *http.Request, path s
 			_ = c.jobManager.UpdateJobStatus(job.ID, JobStatusFailed, "Too many jobs queued. Please wait for some to complete.")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-		json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
-			"error": "Too many jobs queued",
-			"jobId": job.ID,
-		})
+			json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
+				"error": "Too many jobs queued",
+				"jobId": job.ID,
+			})
 			return
 		}
 	}

@@ -30,13 +30,14 @@ type ConfigBackendCmd struct {
 	AWSProfile     string `short:"P" long:"aws-profile" description:"AWS: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
 	AWSNoPublicIps bool   `long:"aws-nopublic-ip" description:"AWS: if set, aerolab will not request public IPs, and will operate on private IPs only"`
 
-	Project         string `short:"o" long:"project" description:"GCP: specify a GCP project to use" default:""`
-	GCPAuthMethod   string `short:"m" long:"gcp-auth-method" description:"GCP: specify the authentication method to use (any|login|service-account)" default:"service-account" webchoice:"any,login,service-account" hidden:"true"`
-	GCPNoBrowser    bool   `short:"b" long:"gcp-no-browser" description:"GCP: if set, aerolab will not open a browser to authenticate with GCP when using login method" hidden:"true"`
-	GCPClientID     string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use" hidden:"true"`
-	GCPClientSecret string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use" hidden:"true"`
-	GCPNoPublicIps  bool   `long:"gcp-nopublic-ip" description:"GCP: if set, aerolab will not request public IPs, and will operate on private IPs only"`
-	GCPUseIAP       bool   `long:"gcp-use-iap" description:"GCP: route SSH/SFTP through IAP TCP forwarding instead of dialing the routable instance IP. Independent of --gcp-nopublic-ip; aerolab does NOT auto-enable IAP when public IPs are disabled."`
+	Project               string `short:"o" long:"project" description:"GCP: specify a GCP project to use" default:""`
+	GCPAuthMethod         string `short:"m" long:"gcp-auth-method" description:"GCP: specify the authentication method to use (any|login|service-account)" default:"service-account" webchoice:"any,login,service-account" hidden:"true"`
+	GCPNoBrowser          bool   `short:"b" long:"gcp-no-browser" description:"GCP: if set, aerolab will not open a browser to authenticate with GCP when using login method" hidden:"true"`
+	GCPClientID           string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use" hidden:"true"`
+	GCPClientSecret       string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use" hidden:"true"`
+	GCPNoPublicIps        bool   `long:"gcp-nopublic-ip" description:"GCP: if set, aerolab will not request public IPs, and will operate on private IPs only"`
+	GCPUseIAP             bool   `long:"gcp-use-iap" description:"GCP: route SSH/SFTP through IAP TCP forwarding instead of dialing the routable instance IP. Independent of --gcp-nopublic-ip; aerolab does NOT auto-enable IAP when public IPs are disabled."`
+	GCPAutoEnableServices bool   `long:"gcp-auto-enable-services" description:"GCP: automatically enable required GCP services (APIs) in the project when missing, without prompting. When unset, aerolab prompts interactively and errors in non-interactive contexts, listing the services to enable manually."`
 
 	Arch                 string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
 	DockerRegistryRegion string         `long:"docker-registry-region" description:"DOCKER: region for pre-built template image registry; values: na, eu, disabled" default:"na"`
@@ -76,6 +77,9 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		if !slices.Contains(webParams, "gcp-use-iap") {
 			c.GCPUseIAP = false
 		}
+		if !slices.Contains(webParams, "gcp-auto-enable-services") {
+			c.GCPAutoEnableServices = false
+		}
 	} else {
 		if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
 			c.AWSNoPublicIps = false
@@ -85,6 +89,9 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		}
 		if !inslice.HasString(os.Args[1:], "--gcp-use-iap") {
 			c.GCPUseIAP = false
+		}
+		if !inslice.HasString(os.Args[1:], "--gcp-auto-enable-services") {
+			c.GCPAutoEnableServices = false
 		}
 	}
 
@@ -158,6 +165,7 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 		fmt.Printf("Config.Backend.GCPNoBrowser = %v\n", c.GCPNoBrowser)
 		fmt.Printf("Config.Backend.GCPNoPublicIps = %v\n", c.GCPNoPublicIps)
 		fmt.Printf("Config.Backend.GCPUseIAP = %v\n", c.GCPUseIAP)
+		fmt.Printf("Config.Backend.GCPAutoEnableServices = %v\n", c.GCPAutoEnableServices)
 	}
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
@@ -268,6 +276,9 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		if !slices.Contains(webParams, "gcp-use-iap") {
 			c.GCPUseIAP = false
 		}
+		if !slices.Contains(webParams, "gcp-auto-enable-services") {
+			c.GCPAutoEnableServices = false
+		}
 		if !slices.Contains(webParams, "gcp-no-browser") {
 			c.GCPNoBrowser = false
 		}
@@ -286,6 +297,9 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		}
 		if !slices.Contains(os.Args, "--gcp-use-iap") {
 			c.GCPUseIAP = false
+		}
+		if !slices.Contains(os.Args, "--gcp-auto-enable-services") {
+			c.GCPAutoEnableServices = false
 		}
 		if !slices.Contains(os.Args, "--gcp-no-browser") && !slices.Contains(os.Args, "-b") {
 			c.GCPNoBrowser = false
@@ -324,15 +338,16 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 
 	system.Logger.Info("Initializing backend")
 	system.InitOptions.Backend = &InitBackend{
-		PollInventoryHourly: false,
-		UseCache:            false,
-		LogMillisecond:      false,
-		ListAllProjects:     false,
-		GCPAuthMethod:       clouds.GCPAuthMethod(c.GCPAuthMethod),
-		GCPBrowser:          !c.GCPNoBrowser,
-		GCPClientID:         c.GCPClientID,
-		GCPClientSecret:     c.GCPClientSecret,
-		GCPUseIAP:           c.GCPUseIAP,
+		PollInventoryHourly:   false,
+		UseCache:              false,
+		LogMillisecond:        false,
+		ListAllProjects:       false,
+		GCPAuthMethod:         clouds.GCPAuthMethod(c.GCPAuthMethod),
+		GCPBrowser:            !c.GCPNoBrowser,
+		GCPClientID:           c.GCPClientID,
+		GCPClientSecret:       c.GCPClientSecret,
+		GCPUseIAP:             c.GCPUseIAP,
+		GCPAutoEnableServices: c.GCPAutoEnableServices,
 	}
 	err = system.GetBackend(false)
 	if err != nil {
