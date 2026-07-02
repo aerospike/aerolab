@@ -16,7 +16,6 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/termutil"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
-	"github.com/mattn/go-isatty"
 )
 
 func GetSelfPath() (string, error) {
@@ -132,7 +131,7 @@ func getip2() string {
 }
 
 func IsInteractive() bool {
-	return os.Getenv("AEROLAB_NONINTERACTIVE") == "" && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) && termutil.IsForegroundNoError(os.Stdout.Fd(), true)
+	return termutil.IsInteractive()
 }
 
 func AskForString(prompt string) (string, error) {

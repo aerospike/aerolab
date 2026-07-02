@@ -1,10 +1,12 @@
 package bgcp
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	serviceusagepb "cloud.google.com/go/serviceusage/apiv1/serviceusagepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike/aerolab/pkg/termutil"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
@@ -281,6 +284,48 @@ func (s *b) enableService(names ...string) error {
 	defer log.Detail("End")
 	ctx := context.Background()
 
+	// Always check which services are already enabled before enabling anything.
+	// GCP's EnableService is idempotent, but checking first avoids needless
+	// API calls and the serviceusage.services.enable permission requirement
+	// when the requested services are already on.
+	enabledServices, err := s.listEnabledServices()
+	if err != nil {
+		return fmt.Errorf("failed to list enabled services: %w", err)
+	}
+	var toEnable []string
+	for _, name := range names {
+		if slices.Contains(enabledServices, name) {
+			log.Detail("Service %s already enabled, skipping", name)
+			continue
+		}
+		toEnable = append(toEnable, name)
+	}
+	if len(toEnable) == 0 {
+		log.Detail("All requested services already enabled")
+		return nil
+	}
+
+	// When running interactively, ask the operator before enabling anything in
+	// their project. In non-interactive contexts (web UI, MCP, CI, piped I/O)
+	// we proceed without prompting.
+	if termutil.IsInteractive() {
+		fmt.Printf("The following Google Cloud services need to be enabled in project %q:\n", s.credentials.Project)
+		for _, name := range toEnable {
+			fmt.Printf("  - %s\n", name)
+		}
+		fmt.Print("Please confirm you want to enable them [y/N]: ")
+		answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("cannot continue: failed to read confirmation: %w", err)
+		}
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes":
+			// proceed
+		default:
+			return fmt.Errorf("cannot continue: the following required services were not enabled in project %q: %s", s.credentials.Project, strings.Join(toEnable, ", "))
+		}
+	}
+
 	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return err
@@ -292,14 +337,14 @@ func (s *b) enableService(names ...string) error {
 	defer client.Close()
 
 	var ops []*serviceusage.EnableServiceOperation
-	for _, name := range names {
+	for _, name := range toEnable {
 		log.Detail("Enabling service: %s", name)
-		name := fmt.Sprintf("projects/%s/services/%s", s.credentials.Project, name)
+		fullName := fmt.Sprintf("projects/%s/services/%s", s.credentials.Project, name)
 		op, err := client.EnableService(ctx, &serviceusagepb.EnableServiceRequest{
-			Name: name,
+			Name: fullName,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to enable cloud-billing API: %w", err)
+			return fmt.Errorf("failed to enable %s API: %w", name, err)
 		}
 		ops = append(ops, op)
 	}

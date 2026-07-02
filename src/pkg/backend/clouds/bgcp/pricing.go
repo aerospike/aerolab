@@ -14,8 +14,6 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	serviceusage "cloud.google.com/go/serviceusage/apiv1"
-	serviceusagepb "cloud.google.com/go/serviceusage/apiv1/serviceusagepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/lithammer/shortuuid"
@@ -422,32 +420,12 @@ func (s *b) getInstancePricesEnableService(out backends.InstanceTypeList) (backe
 	log := s.log.WithPrefix("getInstancePricesEnableService: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	ctx := context.Background()
 
-	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
-	if err != nil {
-		return nil, err
-	}
-	defer cli.CloseIdleConnections()
-	client, err := serviceusage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	name := fmt.Sprintf("projects/%s/services/cloudbilling.googleapis.com", s.credentials.Project)
-	op, err := client.EnableService(ctx, &serviceusagepb.EnableServiceRequest{
-		Name: name,
-	})
-	if err != nil {
+	// enableService checks which services are already enabled and only enables
+	// the missing ones before proceeding.
+	if err := s.enableService("cloudbilling.googleapis.com"); err != nil {
 		return nil, fmt.Errorf("failed to enable cloud-billing API: %w", err)
 	}
-	log.Detail("Waiting for cloud-billing API to be enabled")
-	_, err = op.Wait(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to wait for cloud-billing API to be enabled: %w", err)
-	}
-	log.Detail("Cloud-billing API enabled")
 	return s.getInstancePrices(out)
 }
 

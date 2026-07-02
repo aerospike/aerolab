@@ -92,19 +92,10 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 	log := s.log.WithPrefix("ExpiryInstall: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	enabledServices, err := s.listEnabledServices()
-	if err != nil {
+	// enableExpiryServices checks which services are already enabled and only
+	// enables the missing ones, so we can call it unconditionally here.
+	if err := s.enableExpiryServices(); err != nil {
 		return err
-	}
-	for _, service := range expiryServices {
-		if !slices.Contains(enabledServices, service) {
-			log.Detail("Service %s is not enabled, enabling services", service)
-			err = s.enableExpiryServices()
-			if err != nil {
-				return err
-			}
-			break
-		}
 	}
 	// EnableService returning ENABLED does NOT guarantee the per-project
 	// service agent SAs (e.g. service-<num>@gcf-admin-robot.iam.gserviceaccount.com)
