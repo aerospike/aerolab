@@ -63,13 +63,26 @@ if [ -n "$TO_INSTALL" ]; then
     echo "Installing dependencies: $TO_INSTALL"
     if command -v apt-get >/dev/null 2>&1; then
         if [ ! -e /etc/localtime ]; then ln -fs /usr/share/zoneinfo/UTC /etc/localtime; fi
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y $TO_INSTALL || exit 1
+        if ! apt-get update; then
+            echo "ERROR: 'apt-get update' failed; check network egress and apt sources"
+            exit 1
+        fi
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y $TO_INSTALL; then
+            echo "ERROR: failed to install dependencies via apt-get: $TO_INSTALL"
+            exit 1
+        fi
     elif command -v yum >/dev/null 2>&1; then
-        yum install -y $TO_INSTALL || exit 1
+        if ! yum install -y $TO_INSTALL; then
+            echo "ERROR: failed to install dependencies via yum: $TO_INSTALL"
+            exit 1
+        fi
     elif command -v dnf >/dev/null 2>&1; then
-        dnf install -y $TO_INSTALL || exit 1
+        if ! dnf install -y $TO_INSTALL; then
+            echo "ERROR: failed to install dependencies via dnf: $TO_INSTALL"
+            exit 1
+        fi
     else
-        echo "No supported package manager found"
+        echo "ERROR: no supported package manager (apt-get/yum/dnf) found to install: $TO_INSTALL"
         exit 1
     fi
     echo "Cleaning up to reduce image size..."
@@ -96,15 +109,64 @@ if ! command -v init-docker-systemd >/dev/null 2>&1; then
         ARCH="arm64"
     fi
     FN=systemd-$ARCH
-    set -e
-    DLURL=$(curl -s https://api.github.com/repos/aerospike-community/docker-systemd/releases/latest | jq -r ".assets[] | select(.name == \"$FN\") | .browser_download_url")
-    set +e
-    if [ -z "$DLURL" ]; then
-        echo "Failed to get docker-systemd download URL"
+    API_URL="https://api.github.com/repos/aerospike-community/docker-systemd/releases/latest"
+
+    # Fetch the release metadata, keeping the HTTP status and body so we can
+    # surface the real problem (network failure, GitHub API rate limiting,
+    # missing asset, ...) instead of leaking a bare jq/curl exit code.
+    API_RESP=$(curl -sS -w $'\n%{http_code}' "$API_URL" 2>/tmp/aerolab_curl_err)
+    CURL_RC=$?
+    if [ $CURL_RC -ne 0 ]; then
+        echo "ERROR: could not reach GitHub API to locate docker-systemd."
+        echo "       URL: $API_URL"
+        echo "       curl exit code: $CURL_RC"
+        echo "       curl stderr: $(cat /tmp/aerolab_curl_err 2>/dev/null)"
+        rm -f /tmp/aerolab_curl_err
         exit 1
     fi
-    curl -s -L -o /usr/local/bin/init-docker-systemd "$DLURL" || exit 1
-    chmod +x /usr/local/bin/init-docker-systemd || exit 1
+    rm -f /tmp/aerolab_curl_err
+    HTTP_CODE=$(printf '%s' "$API_RESP" | tail -n1)
+    API_BODY=$(printf '%s' "$API_RESP" | sed '$d')
+    if [ "$HTTP_CODE" != "200" ]; then
+        echo "ERROR: GitHub API returned HTTP $HTTP_CODE while locating docker-systemd."
+        echo "       URL: $API_URL"
+        echo "       Response: $API_BODY"
+        if printf '%s' "$API_BODY" | grep -qi "rate limit"; then
+            echo "       Hint: GitHub API rate limit reached (unauthenticated limit is 60 requests/hour per IP)."
+            echo "             Wait and retry, run from an IP with higher quota, or pre-install"
+            echo "             /usr/local/bin/init-docker-systemd so this lookup is skipped."
+        fi
+        exit 1
+    fi
+
+    DLURL=$(printf '%s' "$API_BODY" | jq -r ".assets[]? | select(.name == \"$FN\") | .browser_download_url" 2>/tmp/aerolab_jq_err)
+    JQ_RC=$?
+    if [ $JQ_RC -ne 0 ]; then
+        echo "ERROR: failed to parse GitHub API response for docker-systemd (jq exit $JQ_RC)."
+        echo "       jq stderr: $(cat /tmp/aerolab_jq_err 2>/dev/null)"
+        echo "       Response: $API_BODY"
+        rm -f /tmp/aerolab_jq_err
+        exit 1
+    fi
+    rm -f /tmp/aerolab_jq_err
+    if [ -z "$DLURL" ] || [ "$DLURL" = "null" ]; then
+        echo "ERROR: no asset named '$FN' found in the latest docker-systemd release."
+        echo "       Response: $API_BODY"
+        exit 1
+    fi
+
+    echo "Downloading docker-systemd ($FN) from $DLURL"
+    if ! curl -sS -L -o /usr/local/bin/init-docker-systemd "$DLURL" 2>/tmp/aerolab_curl_err; then
+        echo "ERROR: failed to download docker-systemd from $DLURL"
+        echo "       curl stderr: $(cat /tmp/aerolab_curl_err 2>/dev/null)"
+        rm -f /tmp/aerolab_curl_err
+        exit 1
+    fi
+    rm -f /tmp/aerolab_curl_err
+    if ! chmod +x /usr/local/bin/init-docker-systemd; then
+        echo "ERROR: failed to make /usr/local/bin/init-docker-systemd executable"
+        exit 1
+    fi
 else
     echo "docker-systemd is already installed"
 fi

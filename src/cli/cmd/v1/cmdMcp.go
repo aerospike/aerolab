@@ -22,11 +22,12 @@ import (
 //
 // Two transports are supported: stdio (default, for local agents like
 // Claude Desktop and Cursor) and streamable HTTP (for remote agents).
-// Optional bearer-token auth is enforced on the HTTP transport.
+// Bearer-token auth is mandatory on the HTTP transport: the server
+// refuses to start unless --auth-token (or AEROLAB_MCP_AUTH_TOKEN) is set.
 type McpCmd struct {
 	Transport              string   `long:"transport" description:"MCP transport: stdio|http" default:"stdio" webchoice:"stdio,http"`
 	Addr                   string   `long:"addr" description:"HTTP listen address (used when --transport=http)" default:"localhost:9190"`
-	AuthToken              string   `long:"auth-token" env:"AEROLAB_MCP_AUTH_TOKEN" description:"Optional bearer token required by HTTP transport. If empty, no auth is enforced"`
+	AuthToken              string   `long:"auth-token" env:"AEROLAB_MCP_AUTH_TOKEN" description:"Bearer token for the HTTP transport. Required when --transport=http; the server refuses to start without it. Unused by the stdio transport"`
 	Profile                string   `long:"profile" description:"Tool profile controlling what operations are permitted" default:"standard" webchoice:"read-only,standard,admin"`
 	Binary                 string   `long:"binary" description:"Path to the aerolab binary invoked for tool execution (defaults to the current executable)"`
 	InitBackend            bool     `long:"init-backend" description:"Initialize the configured backend on startup so dynamic choices (zones, instance types, VPCs) can be resolved"`
@@ -96,6 +97,13 @@ func (c *McpCmd) applySimpleModeFlags(system *System) error {
 }
 
 func (c *McpCmd) runServer(system *System) error {
+	// The HTTP transport is remotely reachable, so it must never be
+	// served without authentication. Refuse to start unless a bearer
+	// token is supplied (via --auth-token or AEROLAB_MCP_AUTH_TOKEN).
+	if aerolabmcp.Transport(strings.ToLower(c.Transport)) == aerolabmcp.TransportHTTP && strings.TrimSpace(c.AuthToken) == "" {
+		return fmt.Errorf("--auth-token is required when --transport=http (set it via --auth-token or the AEROLAB_MCP_AUTH_TOKEN environment variable); refusing to start")
+	}
+
 	profile, err := aerolabmcp.ParseProfile(c.Profile)
 	if err != nil {
 		return err

@@ -28,8 +28,10 @@ aerolab mcp [OPTIONS]
 
   --transport=stdio|http           Transport to use (default: stdio)
   --addr=HOST:PORT                 HTTP listen address (default: localhost:9190)
-  --auth-token=TOKEN               Optional bearer token required on HTTP requests
-                                   (also read from $AEROLAB_MCP_AUTH_TOKEN)
+  --auth-token=TOKEN               Bearer token for the HTTP transport.
+                                   REQUIRED when --transport=http (the server
+                                   refuses to start without it); ignored for
+                                   stdio. Also read from $AEROLAB_MCP_AUTH_TOKEN
   --profile=read-only|standard|admin
                                    Tool profile (default: standard)
   --binary=PATH                    aerolab binary to exec for tool calls
@@ -120,12 +122,12 @@ You should see a JSON response with all tools listed.
 
 ## Quickstart — HTTP
 
-Start the server:
+Start the server. The HTTP transport requires a bearer token (`--auth-token`
+or `$AEROLAB_MCP_AUTH_TOKEN`) and refuses to start without one:
 
 ```bash
-aerolab mcp --transport http --addr 0.0.0.0:9190 --profile standard
-# or with bearer auth:
-aerolab mcp --transport http --addr 0.0.0.0:9190 --auth-token "$(openssl rand -hex 32)"
+aerolab mcp --transport http --addr 0.0.0.0:9190 --profile standard \
+  --auth-token "$(openssl rand -hex 32)"
 ```
 
 Health check:
@@ -252,7 +254,7 @@ Soft simple mode (only `AEROLAB_SIMPLE_MODE` set, no force flag) does not filter
 ## Safety model
 
 - **No persistent state** — the MCP server is a thin multiplexer; every call re-execs the Aerolab binary with your existing config.
-- **Bearer token for HTTP** — constant-time compared, so timing attacks are not a concern.
+- **Bearer token for HTTP** — mandatory on the HTTP transport (the server refuses to start without `--auth-token`/`$AEROLAB_MCP_AUTH_TOKEN`) and constant-time compared, so timing attacks are not a concern.
 - **Destructive gating** — the `confirm` requirement forces the model to be explicit, which also makes logs easier to audit.
 - **Bounded output** — `--max-output-bytes` prevents a chatty subcommand from blowing up the MCP response.
 - **Bounded time** — `--timeout` / `timeout_sec` cap every call.
