@@ -37,10 +37,6 @@ func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) e
 	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "VolumesChangeExpiry")
 }
 
-func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.Time) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesChangeExpiry")
-}
-
 func (s *b) GetVolumePrices() (backends.VolumePriceList, error) {
 	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "GetVolumePrices")
 }
@@ -51,10 +47,6 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 
 func (s *b) GetVolumes() (backends.VolumeList, error) {
 	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "GetVolumes")
-}
-
-func (s *b) GetInstances(volumes backends.VolumeList, networks backends.NetworkList, firewalls backends.FirewallList) (backends.InstanceList, error) {
-	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "GetInstances")
 }
 
 func (s *b) GetImages() (backends.ImageList, error) {
@@ -81,32 +73,8 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "CreateImage")
 }
 
-func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Duration) (*backends.CreateInstanceOutput, error) {
-	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "CreateInstances")
-}
-
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
 	return 0, 0, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "CreateInstancesGetPrice")
-}
-
-func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]string) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesAddTags")
-}
-
-func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []string) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesRemoveTags")
-}
-
-func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Duration) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesTerminate")
-}
-
-func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur time.Duration) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesStop")
-}
-
-func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duration) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesStart")
 }
 
 func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput) []*backends.ExecOutput {
@@ -159,8 +127,4 @@ func (s *b) ImagesAddTags(images backends.ImageList, tags map[string]string) err
 
 func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "ImagesRemoveTags")
-}
-
-func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
-	return nil, nil, "", backends.ReturnNotImplemented(backends.BackendTypeVagrant, "ResolveNetworkPlacement")
 }
