@@ -29,6 +29,33 @@ type preflightResult struct {
 	Issues         []string  `json:"issues"`
 }
 
+// PreflightInfo is an exported, stable view of preflightResult for callers outside this
+// package (e.g. the CLI) that cannot name the unexported preflightResult type directly.
+type PreflightInfo struct {
+	VagrantVersion string
+	Plugins        []string
+	Providers      []string
+	OK             bool
+	Issues         []string
+}
+
+// PreflightCheck runs Preflight and returns its result as the exported PreflightInfo type.
+// It exists so callers outside this package (which cannot reference preflightResult) can
+// still drive a preflight check, e.g. before persisting a vagrant backend configuration.
+func (s *b) PreflightCheck(force bool) (*PreflightInfo, error) {
+	res, err := s.Preflight(force)
+	if err != nil {
+		return nil, err
+	}
+	return &PreflightInfo{
+		VagrantVersion: res.VagrantVersion,
+		Plugins:        res.Plugins,
+		Providers:      res.Providers,
+		OK:             res.OK,
+		Issues:         res.Issues,
+	}, nil
+}
+
 func (s *b) preflightCacheFile() string {
 	return filepath.Join(s.configDir, preflightCacheFileName)
 }

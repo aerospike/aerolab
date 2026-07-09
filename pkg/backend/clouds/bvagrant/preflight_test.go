@@ -103,6 +103,47 @@ func TestPreflightVersionTooOld(t *testing.T) {
 	}
 }
 
+func TestPreflightCheckMirrorsPreflight(t *testing.T) {
+	flp := newFakeLookPath("vagrant", "VBoxManage")
+	s := &b{
+		configDir: t.TempDir(),
+		runner:    &fakeRunner{versionResult: "2.4.1", pluginListResult: []string{}},
+		lookPath:  flp.lookPath,
+	}
+	info, err := s.PreflightCheck(true)
+	if err != nil {
+		t.Fatalf("PreflightCheck returned error: %v", err)
+	}
+	if !info.OK {
+		t.Fatalf("expected OK=true, got issues: %v", info.Issues)
+	}
+	if info.VagrantVersion != "2.4.1" {
+		t.Fatalf("expected VagrantVersion=2.4.1, got %q", info.VagrantVersion)
+	}
+	if len(info.Providers) != 1 || info.Providers[0] != "virtualbox" {
+		t.Fatalf("expected providers=[virtualbox], got %v", info.Providers)
+	}
+}
+
+func TestPreflightCheckPropagatesFailure(t *testing.T) {
+	flp := newFakeLookPath() // nothing resolves
+	s := &b{
+		configDir: t.TempDir(),
+		runner:    &fakeRunner{versionResult: "2.4.0"},
+		lookPath:  flp.lookPath,
+	}
+	info, err := s.PreflightCheck(true)
+	if err != nil {
+		t.Fatalf("PreflightCheck returned error: %v", err)
+	}
+	if info.OK {
+		t.Fatalf("expected OK=false when vagrant binary is missing")
+	}
+	if len(info.Issues) == 0 {
+		t.Fatalf("expected at least one issue")
+	}
+}
+
 func TestPreflightProviderDetection(t *testing.T) {
 	cases := []struct {
 		name      string

@@ -22,6 +22,7 @@ type VolumesCreateCmd struct {
 	AWS             VolumesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
 	GCP             VolumesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
 	Docker          VolumesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Vagrant         VolumesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
 	DryRun          bool                   `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
 	Help            HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -48,6 +49,9 @@ type VolumesCreateCmdGcp struct {
 
 type VolumesCreateCmdDocker struct {
 	Driver string `long:"driver" description:"Driver to use for the volume"`
+}
+
+type VolumesCreateCmdVagrant struct {
 }
 
 func (c *VolumesCreateCmd) Execute(args []string) error {

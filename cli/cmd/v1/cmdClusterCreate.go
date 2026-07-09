@@ -45,6 +45,7 @@ type ClusterCreateCmd struct {
 	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
 	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
 	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
+	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
 	// Retry configuration
 	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
 	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
@@ -121,6 +122,14 @@ type ClusterCreateCmdDocker struct {
 	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	Disks             []string `long:"docker-disk" description:"Mount a host path or named volume into each container; format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: /host/data:/mnt/data or myvol:/data:ro; can be specified multiple times" simplemode:"false"`
 	TemplateSource    string   `long:"template-source" description:"Template acquisition strategy: best-option (try registry then build), only-registry (registry only, fail if unavailable), only-build (local build only)" default:"best-option" webchoice:"best-option,only-registry,only-build"`
+}
+
+type ClusterCreateCmdVagrant struct {
+	Box      string   `long:"vagrant-box" description:"Explicit Vagrant box override (e.g. bento/ubuntu-24.04); ignores image resolution entirely"`
+	Provider string   `long:"vagrant-provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv); empty falls back to the configured default provider"`
+	CPUs     int      `long:"cpus" description:"vCPUs per VM" default:"2"`
+	RAM      int      `long:"ram" description:"RAM per VM in MB" default:"2048"`
+	Disks    []string `long:"vagrant-disk" description:"Format: {volumeName}:{guestPath}[:ro]; mounts an aerolab volume as a synced folder"`
 }
 
 type ClusterGrowCmd struct {
@@ -573,6 +582,13 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			RamLimit:           c.Docker.RamLimit,
 			SwapLimit:          c.Docker.SwapLimit,
 			AdvancedConfigPath: "",
+		},
+		Vagrant: InstancesCreateCmdVagrant{
+			Box:      c.Vagrant.Box,
+			Provider: c.Vagrant.Provider,
+			CPUs:     c.Vagrant.CPUs,
+			RAMMB:    c.Vagrant.RAM,
+			Disks:    c.Vagrant.Disks,
 		},
 		NoInstallExpiry:           false,
 		MaxRetries:                c.MaxRetries,

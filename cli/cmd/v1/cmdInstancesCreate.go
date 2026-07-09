@@ -30,26 +30,27 @@ import (
 )
 
 type InstancesCreateCmd struct {
-	ClusterName        string                   `short:"n" long:"cluster-name" description:"Name of the cluster to create" default:"mydc"`
-	Count              int                      `short:"c" long:"count" description:"Number of instances to create" default:"1"`
-	Name               string                   `short:"N" long:"name" description:"Name of the instance to create (since count instances only)"`
-	Owner              string                   `short:"o" long:"owner" description:"Owner of the instances"`
-	Type               string                   `short:"e" long:"type" description:"Type of the instances (aerospike, client, etc.), will create aerolab.type tag" default:"none"`
-	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
-	Description        string                   `short:"d" long:"description" description:"Description of the instances"`
-	TerminateOnStop    bool                     `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
-	ParallelSSHThreads int                      `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
-	SSHKeyName         string                   `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
-	OS                 string                   `long:"os" description:"OS to use for the instances" default:"ubuntu"`
-	Version            string                   `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
-	Arch               string                   `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
-	ImageType          string                   `long:"image-type" description:"Image software type to search for"`
-	ImageVersion       string                   `long:"image-version" description:"Version of the image software to search for"`
-	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
-	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
-	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
-	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
-	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
+	ClusterName        string                    `short:"n" long:"cluster-name" description:"Name of the cluster to create" default:"mydc"`
+	Count              int                       `short:"c" long:"count" description:"Number of instances to create" default:"1"`
+	Name               string                    `short:"N" long:"name" description:"Name of the instance to create (since count instances only)"`
+	Owner              string                    `short:"o" long:"owner" description:"Owner of the instances"`
+	Type               string                    `short:"e" long:"type" description:"Type of the instances (aerospike, client, etc.), will create aerolab.type tag" default:"none"`
+	Tags               []string                  `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
+	Description        string                    `short:"d" long:"description" description:"Description of the instances"`
+	TerminateOnStop    bool                      `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
+	ParallelSSHThreads int                       `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
+	SSHKeyName         string                    `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
+	OS                 string                    `long:"os" description:"OS to use for the instances" default:"ubuntu"`
+	Version            string                    `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
+	Arch               string                    `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
+	ImageType          string                    `long:"image-type" description:"Image software type to search for"`
+	ImageVersion       string                    `long:"image-version" description:"Version of the image software to search for"`
+	AWS                InstancesCreateCmdAws     `group:"AWS" description:"backend-aws" namespace:"aws"`
+	GCP                InstancesCreateCmdGcp     `group:"GCP" description:"backend-gcp" namespace:"gcp"`
+	Docker             InstancesCreateCmdDocker  `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
+	NoInstallExpiry    bool                      `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
+	DryRun             bool                      `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
 	// Retry configuration
 	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
 	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
@@ -130,6 +131,15 @@ type InstancesCreateCmdDocker struct {
 	RegistryUser       string         `long:"registry-user" description:"Username for docker registry authentication when pulling custom images"`
 	RegistryPass       string         `long:"registry-pass" description:"Password for docker registry authentication when pulling custom images" webtype:"password"`
 	RegistryURL        string         `long:"registry-url" description:"Registry URL (e.g., docker.io, ghcr.io); if empty, uses default registry"`
+}
+
+type InstancesCreateCmdVagrant struct {
+	ImageName string   `long:"image" description:"Custom image (box) name to use; ignores OS, Version, Arch"`
+	Box       string   `long:"box" description:"Explicit Vagrant box override (e.g. bento/ubuntu-24.04); ignores image resolution entirely"`
+	Provider  string   `long:"provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv); empty falls back to the configured default provider"`
+	CPUs      int      `long:"cpus" description:"vCPUs per VM" default:"2"`
+	RAMMB     int      `long:"ram-mb" description:"RAM per VM in MiB" default:"2048"`
+	Disks     []string `long:"disk" description:"Format: {volumeName}:{guestPath}[:ro]; mounts an aerolab volume as a synced folder"`
 }
 
 type InstancesGrowCmd struct {
@@ -380,6 +390,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	gcpCustomImage := false
 	dockerCustomImage := false
 	dockerImageFromOfficial := false
+	var vagrantImage *backends.Image
 
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
@@ -388,7 +399,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		itype = string(c.GCP.InstanceType)
 	}
 
-	if system.Opts.Config.Backend.Type != "docker" {
+	// Vagrant has no cloud instance types (or region-scoped catalog) to pick from; skip
+	// the AWS/GCP instance-type selection/validation block entirely, same as docker.
+	if system.Opts.Config.Backend.Type != "docker" && system.Opts.Config.Backend.Type != "vagrant" {
 		if itype == "" {
 			if IsInteractive() {
 				var itypeList []string
@@ -734,6 +747,29 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				}
 			}
 		}
+	case "vagrant":
+		if c.Vagrant.Box == "" {
+			narch := itypeArch
+			switch c.Arch {
+			case "amd64":
+				narch = backends.ArchitectureX8664
+			case "arm64":
+				narch = backends.ArchitectureARM64
+			}
+			if c.Vagrant.ImageName == "" {
+				img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+				if img.Count() == 0 {
+					return nil, errors.New("vagrant: image " + c.OS + " " + c.Version + " " + c.Arch + " does not exist")
+				}
+				vagrantImage = img.Describe()[0]
+			} else {
+				img := inventory.Images.WithName(c.Vagrant.ImageName).Describe()
+				if img.Count() == 0 {
+					return nil, errors.New("vagrant: image " + c.Vagrant.ImageName + " does not exist")
+				}
+				vagrantImage = img.Describe()[0]
+			}
+		}
 	}
 
 	// Fill CreateInstancesInput struct
@@ -851,6 +887,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		backendSpecificParams["gcp"] = gcpParams
 	}
 	backendSpecificParams["docker"] = dockerParams
+	vagrantParams := buildVagrantInstanceParams(c, vagrantImage)
+	if vagrantParams != nil {
+		backendSpecificParams["vagrant"] = vagrantParams
+	}
 	createInstancesInput := &backends.CreateInstanceInput{
 		ClusterName:        c.ClusterName,
 		Nodes:              c.Count,
@@ -948,6 +988,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		if dockerParams, ok := createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams); ok && dockerParams.Image != nil {
 			image = dockerParams.Image
 		}
+	case "vagrant":
+		image = vagrantImage
 	}
 	if image != nil && image.Tags != nil {
 		if softVersion, ok := image.Tags["aerolab.soft.version"]; ok && softVersion != "" {
@@ -969,7 +1011,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			return nil, err
 		}
 	}
-	if system.Opts.Config.Backend.Type != "docker" {
+	if system.Opts.Config.Backend.Type != "docker" && system.Opts.Config.Backend.Type != "vagrant" {
 		system.Logger.Info("Getting price...")
 		// Pricing is best-effort: it only drives the cost-estimate printout
 		// below, so a lookup failure (e.g. cloudbilling unavailable, quota, or

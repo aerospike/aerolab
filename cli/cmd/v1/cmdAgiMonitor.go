@@ -171,6 +171,9 @@ type AgiMonitorCreateCmd struct {
 	// GCP-specific options
 	GCP AgiMonitorCreateCmdGcp `group:"GCP" namespace:"gcp" description:"backend-gcp"`
 
+	// Vagrant-specific options
+	Vagrant AgiMonitorCreateCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+
 	// Retry configuration
 	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
 	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
@@ -204,6 +207,10 @@ type AgiMonitorCreateCmdGcp struct {
 	InstanceRole    string          `long:"role" description:"Instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 	Expires         TypeExpiry      `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
 	DisablePublicIP bool            `long:"disable-public-ip" description:"Disable public IP assignment"`
+}
+
+// AgiMonitorCreateCmdVagrant contains Vagrant-specific options for monitor creation.
+type AgiMonitorCreateCmdVagrant struct {
 }
 
 // Monitor notification constants

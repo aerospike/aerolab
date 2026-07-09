@@ -1,6 +1,7 @@
 package bvagrant
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -82,6 +83,49 @@ func TestBoxNamingUnsupportedArch(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "mips") {
 		t.Fatalf("expected error to mention requested arch, got: %v", err)
+	}
+}
+
+func TestListBoxesDelegatesToRunner(t *testing.T) {
+	fr := &fakeRunner{boxListResult: []BoxInfo{{Name: "bento/ubuntu-24.04", Provider: "virtualbox", Version: "1.0"}}}
+	s := &b{runner: fr}
+	boxes, err := s.ListBoxes()
+	if err != nil {
+		t.Fatalf("ListBoxes returned error: %v", err)
+	}
+	if len(boxes) != 1 || boxes[0].Name != "bento/ubuntu-24.04" {
+		t.Fatalf("unexpected boxes: %+v", boxes)
+	}
+}
+
+func TestListBoxesNotConfigured(t *testing.T) {
+	s := &b{}
+	if _, err := s.ListBoxes(); !errors.Is(err, ErrBackendNotConfigured) {
+		t.Fatalf("expected ErrBackendNotConfigured, got: %v", err)
+	}
+}
+
+func TestRemoveBoxDelegatesToRunner(t *testing.T) {
+	fr := &fakeRunner{}
+	s := &b{runner: fr}
+	if err := s.RemoveBox("bento/ubuntu-24.04"); err != nil {
+		t.Fatalf("RemoveBox returned error: %v", err)
+	}
+	found := false
+	for _, c := range fr.calls {
+		if c.method == "BoxRemove" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected BoxRemove to be recorded, calls: %+v", fr.calls)
+	}
+}
+
+func TestRemoveBoxNotConfigured(t *testing.T) {
+	s := &b{}
+	if err := s.RemoveBox("x"); !errors.Is(err, ErrBackendNotConfigured) {
+		t.Fatalf("expected ErrBackendNotConfigured, got: %v", err)
 	}
 }
 

@@ -169,6 +169,9 @@ type AgiCreateCmd struct {
 	// Docker-specific options
 	Docker AgiCreateCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
 
+	// Vagrant-specific options
+	Vagrant AgiCreateCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+
 	// Retry options
 	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
 	RetrySleep time.Duration `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
@@ -229,6 +232,14 @@ type AgiCreateCmdDocker struct {
 	Privileged        bool     `short:"B" long:"privileged" description:"Run in privileged mode"`
 	NetworkName       string   `long:"network" description:"Docker network name"`
 	Disks             []string `long:"disk" description:"Mount a host path or named volume into the container; format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: /host/data:/mnt/data or myvol:/data:ro; can be specified multiple times"`
+}
+
+// AgiCreateCmdVagrant contains Vagrant-specific options for AGI instance creation.
+type AgiCreateCmdVagrant struct {
+	Box      string `long:"box" description:"Vagrant box override (e.g. bento/ubuntu-24.04)"`
+	Provider string `long:"provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv)"`
+	CPUs     int    `long:"cpus" description:"vCPUs per VM" default:"2"`
+	RAMMB    int    `long:"ram-mb" description:"RAM per VM in MiB" default:"2048"`
 }
 
 // Execute implements the command execution for agi create.
@@ -1419,6 +1430,12 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			Disks:       c.Docker.Disks,
 			ExposePorts: []string{exposePort},
 			Privileged:  c.Docker.Privileged,
+		},
+		Vagrant: InstancesCreateCmdVagrant{
+			Box:      c.Vagrant.Box,
+			Provider: c.Vagrant.Provider,
+			CPUs:     c.Vagrant.CPUs,
+			RAMMB:    c.Vagrant.RAMMB,
 		},
 		suppressEquivalentCommand: true,
 	}

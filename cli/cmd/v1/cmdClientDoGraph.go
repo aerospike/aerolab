@@ -28,6 +28,7 @@ type ClientCreateGraphCmd struct {
 	AWS                ClientCreateCmdAws       `group:"AWS" description:"backend-aws"`
 	GCP                ClientCreateCmdGcp       `group:"GCP" description:"backend-gcp"`
 	Docker             ClientCreateCmdDocker    `group:"Docker" description:"backend-docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
 	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
 	SeedClusterName    TypeClusterName          `short:"C" long:"cluster-name" description:"Cluster name to seed from" default:"mydc"`
 	Seed               string                   `long:"seed" description:"Specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
@@ -289,6 +290,7 @@ func (c *ClientCreateGraphCmd) createGraphOnDocker(system *System, inventory *ba
 		Version:                   "24.04",
 		Arch:                      "amd64",
 		Docker:                    c.Docker.toInstances(),
+		Vagrant:                   c.Vagrant,
 		ParallelSSHThreads:        c.ParallelSSHThreads,
 		MaxRetries:                c.MaxRetries,
 		RetrySleep:                c.RetrySleep,
@@ -330,6 +332,7 @@ func (c *ClientCreateGraphCmd) createGraphOnCloud(system *System, inventory *bac
 		AWS:                c.AWS,
 		GCP:                c.GCP,
 		Docker:             c.Docker,
+		Vagrant:            c.Vagrant,
 		OS:                 "ubuntu",
 		Version:            "24.04",
 		Arch:               "amd64",

@@ -1,10 +1,35 @@
 package bvagrant
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 )
+
+// ErrBackendNotConfigured is returned by CLI-facing wrapper methods (ListBoxes, RemoveBox,
+// PreflightCheck's callees, ...) when invoked before SetConfig has run, i.e. before a
+// runner has been set up.
+var ErrBackendNotConfigured = errors.New("vagrant backend not configured")
+
+// ListBoxes returns the boxes currently registered with the local vagrant install, as
+// reported by `vagrant box list`. It is an exported wrapper around the runner so that
+// callers outside this package (e.g. the CLI) can list boxes without depending on the
+// unexported runner interface.
+func (s *b) ListBoxes() ([]BoxInfo, error) {
+	if s.runner == nil {
+		return nil, ErrBackendNotConfigured
+	}
+	return s.runner.BoxList()
+}
+
+// RemoveBox deregisters a single box, by name, from the local vagrant install.
+func (s *b) RemoveBox(name string) error {
+	if s.runner == nil {
+		return ErrBackendNotConfigured
+	}
+	return s.runner.BoxRemove(name)
+}
 
 // boxDef describes a single supported OS/version combination and the Vagrant box that
 // provides it, along with the CPU architectures that box is available for.
