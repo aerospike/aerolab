@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
 // Phase 1 placeholder methods — full implementations come in later phases.
@@ -75,34 +74,6 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
 	return 0, 0, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "CreateInstancesGetPrice")
-}
-
-func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput) []*backends.ExecOutput {
-	out := make([]*backends.ExecOutput, 0, len(instances))
-	for _, inst := range instances {
-		out = append(out, &backends.ExecOutput{Instance: inst, Output: &sshexec.ExecOutput{}})
-	}
-	return out
-}
-
-func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username string) ([]*sshexec.ClientConf, error) {
-	out := make([]*sshexec.ClientConf, 0, len(instances))
-	for range instances {
-		out = append(out, &sshexec.ClientConf{Username: username})
-	}
-	return out, nil
-}
-
-func (s *b) InstancesGetSSHKeyPath(instances backends.InstanceList) []string {
-	out := make([]string, 0, len(instances))
-	for range instances {
-		out = append(out, "")
-	}
-	return out
-}
-
-func (s *b) InstancesUpdateHostsFile(instances backends.InstanceList, hostsEntries []string, parallelSSHThreads int) error {
-	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "InstancesUpdateHostsFile")
 }
 
 func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, waitDur time.Duration) error {
