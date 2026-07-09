@@ -252,7 +252,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			c.SortBy = []string{"Backend:asc", "Zone:asc", "Owner:asc", "Cluster:asc", "Node:ascnum", "Name:asc"}
 		}
 		header := table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PublicIP", "PrivateIP", "AccessURL", "State", "Cost", "Expires", "Firewalls", "Instance", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "Spot", "NetworkID", "SubnetID", "Tags", "Description"}
-		if system.Opts.Config.Backend.Type == "docker" {
+		if system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant" {
 			header = table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PrivateIP", "AccessURL", "State", "Firewalls", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "NetworkID", "SubnetID", "Tags", "Description"}
 		}
 		rows := []table.Row{}
@@ -275,7 +275,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			} else if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
 				expiresIn = t.ColorErr.Sprint(time.Until(instance.Expires).Truncate(time.Second).String())
 			}
-			if system.Opts.Config.Backend.Type == "docker" {
+			if system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant" {
 				rows = append(rows, table.Row{
 					instance.BackendType,
 					instance.ZoneName,
@@ -329,7 +329,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			}
 		}
 		fmt.Fprintln(out, t.RenderTable(new("INSTANCES"), header, rows)) //nolint:errcheck
-		fmt.Fprintln(out, "") //nolint:errcheck
+		fmt.Fprintln(out, "")                                            //nolint:errcheck
 	}
 	return nil
 }

@@ -189,6 +189,10 @@ test-docker: generate
 test-cloud: generate
 	go test -tags=integration_cloud -timeout=180m ./tests/...
 
+.PHONY: test-vagrant
+test-vagrant:
+	go test -tags=integration_vagrant -timeout=60m ./tests/...
+
 ## actual code
 
 OS := $(shell uname -o)

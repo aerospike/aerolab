@@ -79,6 +79,7 @@ AeroLab supports three backends for running Aerospike clusters. Choose the one t
 | Backend | Best For | Requirements |
 |---------|----------|--------------|
 | **[Docker](docker.md)** | Local development, quick testing | Docker, Docker Desktop, Podman, or Podman Desktop |
+| **[Vagrant](vagrant.md)** | Local VMs (closer to a real host than containers) | Vagrant >= 2.4.0 and a provider (VirtualBox, libvirt, VMware, Hyper-V) |
 | **[AWS](aws.md)** | Production-like environments, performance testing | AWS account and credentials |
 | **[GCP](gcp.md)** | Production-like environments, performance testing | GCP project and credentials |
 
@@ -91,6 +92,16 @@ aerolab config backend -t docker
 ```
 
 → **[Docker Getting Started Guide](docker.md)**
+
+### Vagrant Backend
+
+Runs Aerospike clusters as local VMs via Vagrant, using VirtualBox, libvirt, VMware, or Hyper-V.
+
+```bash
+aerolab config backend -t vagrant
+```
+
+→ **[Vagrant Getting Started Guide](vagrant.md)**
 
 ### AWS Backend
 

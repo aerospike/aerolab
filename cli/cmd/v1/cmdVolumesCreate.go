@@ -9,42 +9,43 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bvagrant"
 	"gopkg.in/yaml.v3"
 )
 
 type VolumesCreateCmd struct {
-	Name            string                 `long:"name" description:"Name of the volume"`
-	Description     string                 `long:"description" description:"Description of the volume"`
-	Owner           string                 `long:"owner" description:"Owner of the volume"`
-	Tags            []string               `long:"tag" description:"Tags to add to the volume, format: k=v"`
-	VolumeType      string                 `long:"volume-type" description:"Type of volume to create: attached or shared"`
-	NoInstallExpiry bool                   `long:"no-install-expiry" description:"Do not install the expiry system, even if volume expiry is set"`
-	AWS             VolumesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
-	GCP             VolumesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
-	Docker          VolumesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Name            string                  `long:"name" description:"Name of the volume"`
+	Description     string                  `long:"description" description:"Description of the volume"`
+	Owner           string                  `long:"owner" description:"Owner of the volume"`
+	Tags            []string                `long:"tag" description:"Tags to add to the volume, format: k=v"`
+	VolumeType      string                  `long:"volume-type" description:"Type of volume to create: attached or shared"`
+	NoInstallExpiry bool                    `long:"no-install-expiry" description:"Do not install the expiry system, even if volume expiry is set"`
+	AWS             VolumesCreateCmdAws     `group:"AWS" description:"backend-aws" namespace:"aws"`
+	GCP             VolumesCreateCmdGcp     `group:"GCP" description:"backend-gcp" namespace:"gcp"`
+	Docker          VolumesCreateCmdDocker  `group:"Docker" description:"backend-docker" namespace:"docker"`
 	Vagrant         VolumesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
-	DryRun          bool                   `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Help            HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	DryRun          bool                    `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
+	Help            HelpCmd                 `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type VolumesCreateCmdAws struct {
-	SizeGiB           int           `long:"size" description:"Size of the volume in GB"`
-	Placement         string        `long:"placement" description:"Placement of the volume"`
-	DiskType          string        `long:"disk-type" description:"Type of disk to use"`
-	Iops              int           `long:"iops" description:"Iops of the volume"`
-	Throughput        int           `long:"throughput" description:"Throughput of the volume"`
-	Encrypted         bool          `long:"encrypted" description:"Whether the volume is encrypted"`
-	SharedDiskOneZone bool          `long:"shared-disk-one-zone" description:"Whether the volume is shared in one zone"`
-	Expire            TypeExpiry     `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
+	SizeGiB           int        `long:"size" description:"Size of the volume in GB"`
+	Placement         string     `long:"placement" description:"Placement of the volume"`
+	DiskType          string     `long:"disk-type" description:"Type of disk to use"`
+	Iops              int        `long:"iops" description:"Iops of the volume"`
+	Throughput        int        `long:"throughput" description:"Throughput of the volume"`
+	Encrypted         bool       `long:"encrypted" description:"Whether the volume is encrypted"`
+	SharedDiskOneZone bool       `long:"shared-disk-one-zone" description:"Whether the volume is shared in one zone"`
+	Expire            TypeExpiry `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 }
 
 type VolumesCreateCmdGcp struct {
-	SizeGiB    int           `long:"size" description:"Size of the volume in GB"`
-	Zone       guiZone       `long:"zone" description:"Zone of the volume" webchoice:"method::List"`
-	DiskType   string        `long:"disk-type" description:"Type of disk to use"`
-	Iops       int           `long:"iops" description:"Iops of the volume"`
-	Throughput int           `long:"throughput" description:"Throughput of the volume"`
-	Expire     TypeExpiry     `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
+	SizeGiB    int        `long:"size" description:"Size of the volume in GB"`
+	Zone       guiZone    `long:"zone" description:"Zone of the volume" webchoice:"method::List"`
+	DiskType   string     `long:"disk-type" description:"Type of disk to use"`
+	Iops       int        `long:"iops" description:"Iops of the volume"`
+	Throughput int        `long:"throughput" description:"Throughput of the volume"`
+	Expire     TypeExpiry `long:"expire" description:"Expire the volume in a given time; Y/M/W/D/h/m/s, ex 1D12h 2W 1Y6M" default:"30h"`
 }
 
 type VolumesCreateCmdDocker struct {
@@ -131,6 +132,7 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 	backendSpecificParams["docker"] = &bdocker.CreateVolumeParams{
 		Driver: c.Docker.Driver,
 	}
+	backendSpecificParams["vagrant"] = &bvagrant.CreateVolumeParams{}
 	create := &backends.CreateVolumeInput{
 		BackendType:           backends.BackendType(system.Opts.Config.Backend.Type),
 		VolumeType:            volumeType,
@@ -158,7 +160,7 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 			updateAWSVolumePlacement(p, awsRegion)
 		}
 	}
-	if system.Opts.Config.Backend.Type != "docker" {
+	if system.Opts.Config.Backend.Type != "docker" && system.Opts.Config.Backend.Type != "vagrant" {
 		costDB, err := system.Backend.CreateVolumeGetPrice(create)
 		if err != nil {
 			system.Logger.Warn("Could not get volume price: %s", err)

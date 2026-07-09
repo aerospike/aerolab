@@ -33,18 +33,18 @@ type ClusterCreateCmd struct {
 	MulticastAddress        string          `long:"mcast-address" description:"Multicast address to change to in config file" simplemode:"false"`
 	MulticastPort           string          `long:"mcast-port" description:"Multicast port to change to in config file" simplemode:"false"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
-	NoSetDNS              bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
-	ParallelThreads       int                    `short:"p" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
-	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
-	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
-	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
+	AutoStartAerospike    TypeYesNo               `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
+	NoOverrideClusterName bool                    `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
+	NoSetDNS              bool                    `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
+	ScriptEarly           flags.Filename          `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
+	ScriptLate            flags.Filename          `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
+	ParallelThreads       int                     `short:"p" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
+	NoVacuumOnFail        bool                    `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
+	Owner                 string                  `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
+	PriceOnly             bool                    `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
+	Aws                   ClusterCreateCmdAws     `group:"AWS" description:"backend-aws"`
+	Gcp                   ClusterCreateCmdGcp     `group:"GCP" description:"backend-gcp"`
+	Docker                ClusterCreateCmdDocker  `group:"Docker" description:"backend-docker"`
 	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
 	// Retry configuration
 	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
@@ -202,7 +202,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	var templateName string
 	var arch backends.Architecture
 	switch system.Opts.Config.Backend.Type {
-	case "docker":
+	case "docker", "vagrant":
 		ar := system.Opts.Config.Backend.Arch
 		if ar == "" {
 			ar = runtime.GOARCH
@@ -910,7 +910,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				}
 				deployScript = deployScript + "\n" + string(scr)
 			}
-			if (system.Opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (system.Opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
+			if (system.Opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (system.Opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) || system.Opts.Config.Backend.Type == "vagrant" {
 				scr, err := scripts.ReadFile("scripts/cluster-create/thp-disable.sh.tpl")
 				if err != nil {
 					errs = append(errs, err)

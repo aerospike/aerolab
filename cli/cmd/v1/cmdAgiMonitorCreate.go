@@ -82,7 +82,7 @@ func (c *AgiMonitorCreateCmd) CreateMonitor(system *System, inventory *backends.
 	backendType := system.Opts.Config.Backend.Type
 
 	// Validate backend type - monitor is only supported on AWS and GCP
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return nil, errors.New("agi monitor can only be deployed on AWS or GCP")
 	}
 

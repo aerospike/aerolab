@@ -109,8 +109,8 @@ func (c *ClusterAddPublicIPCmd) AddPublicIPCluster(system *System, inventory *ba
 	logger.Info("Adding public-ip to %d nodes", cluster.Count())
 
 	var installScript []byte
-	if system.Opts.Config.Backend.Type == "docker" {
-		logger.Info("Public IP access address is not supported for docker backend")
+	if system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant" {
+		logger.Info("Public IP access address is not supported for %s backend", system.Opts.Config.Backend.Type)
 		return nil, nil
 	}
 	if system.Opts.Config.Backend.Type == "aws" {

@@ -49,7 +49,7 @@ func (c *ConfigMigrateCmd) Execute(args []string) error {
 }
 
 func (c *ConfigMigrateCmd) MigrateAerolabConfig(system *System, oldDir string, newDir string) error {
-	if !c.MigrateInventory && !c.Force && IsInteractive() && system.Opts.Config.Backend.Type != "docker" {
+	if !c.MigrateInventory && !c.Force && IsInteractive() && system.Opts.Config.Backend.Type != "docker" && system.Opts.Config.Backend.Type != "vagrant" {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Do you want to migrate the inventory to the new AeroLab directory? (y/n): ")
 		yesno, err := reader.ReadString('\n')
@@ -59,8 +59,8 @@ func (c *ConfigMigrateCmd) MigrateAerolabConfig(system *System, oldDir string, n
 		yesno = strings.TrimSpace(strings.ToLower(yesno))
 		c.MigrateInventory = yesno == "y" || yesno == "yes"
 	}
-	if system.Opts.Config.Backend.Type == "docker" && c.MigrateInventory {
-		return fmt.Errorf("not supported: cannot migrate inventory for docker backend")
+	if (system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant") && c.MigrateInventory {
+		return fmt.Errorf("not supported: cannot migrate inventory for %s backend", system.Opts.Config.Backend.Type)
 	}
 	err := MigrateAerolabConfig(oldDir, newDir)
 	if err != nil {

@@ -53,7 +53,7 @@ type templateCreationRaceResult struct {
 // newTemplateCreationRaceHandler creates a new race handler.
 //
 // Parameters:
-//   - backendType: "docker", "aws", or "gcp"
+//   - backendType: "docker", "vagrant", "aws", or "gcp"
 //   - templateVersionTag: unique identifier for this template version (used in tags)
 //   - logger: logger for output
 func newTemplateCreationRaceHandler(backendType, templateVersionTag string, logger *logger.Logger) (*templateCreationRaceHandler, error) {
@@ -130,7 +130,7 @@ func (h *templateCreationRaceHandler) CheckForRaceCondition(
 	result.Instances = instances
 
 	// For Docker: always vacuum (it's always our own work)
-	if h.backendType == "docker" {
+	if h.backendType == "docker" || h.backendType == "vagrant" {
 		h.logger.Info("Docker backend: vacuuming existing template creation instance (local work)")
 		result.ShouldVacuum = true
 		result.ShouldProceed = true
@@ -213,7 +213,7 @@ func (h *templateCreationRaceHandler) CheckForRaceCondition(
 // GetInstanceTags returns the tags to add to a template creation instance.
 func (h *templateCreationRaceHandler) GetInstanceTags() (map[string]string, error) {
 	// For Docker, no special tags needed
-	if h.backendType == "docker" {
+	if h.backendType == "docker" || h.backendType == "vagrant" {
 		return nil, nil
 	}
 
@@ -234,7 +234,7 @@ func (h *templateCreationRaceHandler) GetInstanceTags() (map[string]string, erro
 // For Docker, this is a no-op and returns a no-op stop function.
 func (h *templateCreationRaceHandler) StartHeartbeat(instances backends.InstanceList) (stop func()) {
 	// For Docker, no heartbeat needed
-	if h.backendType == "docker" {
+	if h.backendType == "docker" || h.backendType == "vagrant" {
 		return func() {}
 	}
 
@@ -329,4 +329,3 @@ func CleanupDuplicateTemplates(images backends.ImageList, logger *logger.Logger)
 	logger.Info("Using template: %s (created %s)", oldest.Name, oldest.CreationTime.Format(time.RFC3339))
 	return oldest, nil
 }
-

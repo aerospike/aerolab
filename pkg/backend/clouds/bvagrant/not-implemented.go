@@ -11,8 +11,11 @@ func (s *b) AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region
 	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "AssociateVPCWithHostedZone")
 }
 
+// GetFirewalls returns an empty list: vagrant has no firewall objects (VMs are
+// reachable on their private IPs directly), but inventory enumeration must not
+// error — backend initialization polls every getter.
 func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
-	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "GetFirewalls")
+	return backends.FirewallList{}, nil
 }
 
 func (s *b) DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
