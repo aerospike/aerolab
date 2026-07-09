@@ -11,6 +11,10 @@ func (s *b) AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region
 	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "AssociateVPCWithHostedZone")
 }
 
+func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
+	return nil, backends.ReturnNotImplemented(backends.BackendTypeVagrant, "GetFirewalls")
+}
+
 func (s *b) DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeVagrant, "DeleteRoute")
 }
