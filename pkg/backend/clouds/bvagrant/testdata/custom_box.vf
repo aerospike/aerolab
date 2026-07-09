@@ -2,6 +2,7 @@
 # whenever the cluster's nodes change.
 Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.boot_timeout = 600
 
   config.vm.define "proj-customboxcluster-1" do |node|
     node.vm.box = "custom/special-box"

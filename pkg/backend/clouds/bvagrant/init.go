@@ -85,10 +85,23 @@ func (s *b) ListAvailableZones() ([]string, error) {
 	return []string{"local"}, nil
 }
 
+// EnableZones and DisableZones tolerate the single fixed "local" zone (and the
+// empty string, which generic region reconciliation produces from an unset
+// Region config) as no-ops, so backend AddRegion/RemoveRegion flows work; any
+// other zone name errors. The enabled-zone set itself never changes.
 func (s *b) EnableZones(names ...string) error {
-	return errors.New("vagrant backend has a single fixed zone \"local\"")
+	return s.checkFixedZone(names)
 }
 
 func (s *b) DisableZones(names ...string) error {
-	return errors.New("vagrant backend has a single fixed zone \"local\"")
+	return s.checkFixedZone(names)
+}
+
+func (s *b) checkFixedZone(names []string) error {
+	for _, n := range names {
+		if n != "local" && n != "" {
+			return errors.New("vagrant backend has a single fixed zone \"local\"")
+		}
+	}
+	return nil
 }

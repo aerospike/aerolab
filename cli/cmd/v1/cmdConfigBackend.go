@@ -236,8 +236,12 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if c.Type == "gcp" && (c.GCPAuthMethod != "any" && c.GCPAuthMethod != "login" && c.GCPAuthMethod != "service-account") {
 		return errors.New("ERROR: Invalid GCP authentication method: " + c.GCPAuthMethod)
 	}
-	if c.Type == "docker" || c.Type == "vagrant" || c.Type == "none" {
+	if c.Type == "docker" || c.Type == "none" {
 		c.Region = ""
+	} else if c.Type == "vagrant" {
+		// vagrant has exactly one fixed zone; record it so the region
+		// reconciliation in Initialize matches the backend's enabled set.
+		c.Region = "local"
 	} else if c.regionSet == "" {
 		return errors.New("ERROR: Region is required for AWS and GCP backends")
 	}

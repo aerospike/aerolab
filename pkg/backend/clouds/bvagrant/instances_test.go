@@ -704,6 +704,48 @@ func TestInstancesStartUsesExistingMachines(t *testing.T) {
 	}
 }
 
+// The SSH-ready poll after InstancesStart must see refreshed (running) instance
+// state, not the caller's pre-start stopped snapshots — the exec path refuses
+// non-running instances, so polling stale snapshots can never succeed.
+func TestInstancesStartPollsRefreshedState(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	meta := &clusterMeta{
+		ClusterName: "startpoll",
+		ClusterUUID: "uuid-startpoll",
+		Nodes: map[int]*nodeMeta{
+			1: {MachineName: "proj-startpoll-1", IP: "192.168.56.61"},
+		},
+	}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	fr.statusResult = map[string]string{"proj-startpoll-1": "poweroff"}
+	instances, err := s.GetInstances(nil, nil, nil)
+	if err != nil {
+		t.Fatalf("GetInstances: %v", err)
+	}
+	if instances[0].InstanceState != backends.LifeCycleStateStopped {
+		t.Fatalf("precondition: expected stopped snapshot, got %v", instances[0].InstanceState)
+	}
+
+	// after Up, status reports running; the poll must observe that
+	fr.statusResult = map[string]string{"proj-startpoll-1": "running"}
+	var polled backends.InstanceList
+	s.sshReadyPoll = func(insts backends.InstanceList, _ time.Duration) error {
+		polled = insts
+		return nil
+	}
+	if err := s.InstancesStart(instances, time.Minute); err != nil {
+		t.Fatalf("InstancesStart: %v", err)
+	}
+	if len(polled) != 1 {
+		t.Fatalf("expected 1 polled instance, got %d", len(polled))
+	}
+	if polled[0].InstanceState != backends.LifeCycleStateRunning {
+		t.Fatalf("poll must receive refreshed running state, got %v", polled[0].InstanceState)
+	}
+}
+
 // ---- InstancesAddTags / InstancesRemoveTags ----
 
 func TestInstancesAddRemoveTags(t *testing.T) {

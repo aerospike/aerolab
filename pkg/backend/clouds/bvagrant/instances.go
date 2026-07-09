@@ -647,13 +647,40 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 		s.invalidateCacheFunc(backends.CacheInvalidateInstance) //nolint:errcheck
 	}
 	if waitDur > 0 {
+		// re-read state before polling: the caller's instances carry the
+		// pre-start (stopped) snapshot, and the exec path refuses instances
+		// that aren't running, so polling the stale snapshots can never succeed
+		fresh, err := s.refreshInstances(instances)
+		if err != nil {
+			return err
+		}
 		poll := s.sshReadyPoll
 		if poll == nil {
 			poll = s.defaultSSHReadyPoll
 		}
-		return poll(instances, waitDur)
+		return poll(fresh, waitDur)
 	}
 	return nil
+}
+
+// refreshInstances re-queries GetInstances and returns the current view of the
+// given instances (matched by InstanceID). Instances that disappeared are omitted.
+func (s *b) refreshInstances(instances backends.InstanceList) (backends.InstanceList, error) {
+	all, err := s.GetInstances(s.volumes, s.networks, s.firewalls)
+	if err != nil {
+		return nil, err
+	}
+	want := make(map[string]bool, len(instances))
+	for _, inst := range instances {
+		want[inst.InstanceID] = true
+	}
+	fresh := backends.InstanceList{}
+	for _, inst := range all {
+		if want[inst.InstanceID] {
+			fresh = append(fresh, inst)
+		}
+	}
+	return fresh, nil
 }
 
 // InstancesAddTags merges tags into each instance's node metadata only; no runner call

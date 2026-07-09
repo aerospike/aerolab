@@ -89,7 +89,9 @@ func Test10_Vagrant(t *testing.T) {
 	var image *backends.Image
 	t.Run("resolve image", func(t *testing.T) {
 		imgs := vagrantBackend.GetInventory().Images
-		candidates := imgs.WithInAccount(false).WithOSName("ubuntu").WithOSVersion("24.04").WithArchitecture(backends.ArchitectureX8664)
+		// no InAccount filter: a template is a valid create source whether or
+		// not its box has been downloaded yet (vagrant fetches on demand)
+		candidates := imgs.WithOSName("ubuntu").WithOSVersion("24.04").WithArchitecture(backends.ArchitectureX8664)
 		require.NotEmpty(t, candidates.Describe())
 		image = candidates.Describe()[0]
 		require.NotNil(t, image)

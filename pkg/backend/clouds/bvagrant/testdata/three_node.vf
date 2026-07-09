@@ -2,6 +2,7 @@
 # whenever the cluster's nodes change.
 Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.boot_timeout = 600
 
   config.vm.define "proj-cluster3-1" do |node|
     node.vm.box = "bento/ubuntu-22.04"

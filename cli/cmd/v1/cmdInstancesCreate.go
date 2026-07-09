@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -749,8 +750,17 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 	case "vagrant":
 		if c.Vagrant.Box == "" {
+			// no instance-type selection for vagrant, so default the arch from
+			// backend config or the host (templates are arch-specific)
+			ar := c.Arch
+			if ar == "" || ar == "unset" {
+				ar = system.Opts.Config.Backend.Arch
+			}
+			if ar == "" || ar == "unset" {
+				ar = runtime.GOARCH
+			}
 			narch := itypeArch
-			switch c.Arch {
+			switch ar {
 			case "amd64":
 				narch = backends.ArchitectureX8664
 			case "arm64":

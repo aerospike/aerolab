@@ -47,10 +47,24 @@ func TestZones(t *testing.T) {
 		t.Fatalf("EnableZones() should return error for non-local zone")
 	}
 
-	// Test DisableZones should fail for "local"
-	err = instance.DisableZones("local")
-	if err == nil {
-		t.Fatalf("DisableZones() should return error for local zone")
+	// EnableZones("local") is a no-op success (generic AddRegion flows rely on it)
+	if err = instance.EnableZones("local"); err != nil {
+		t.Fatalf("EnableZones(local) should succeed, got: %v", err)
+	}
+
+	// DisableZones("local") is a tolerated no-op (region reconciliation may
+	// attempt it); the zone set never actually changes
+	if err = instance.DisableZones("local"); err != nil {
+		t.Fatalf("DisableZones(local) should be a no-op, got: %v", err)
+	}
+	zones, err = instance.ListEnabledZones()
+	if err != nil || len(zones) != 1 || zones[0] != "local" {
+		t.Fatalf("zone set must remain [local] after DisableZones, got %v err %v", zones, err)
+	}
+
+	// non-local zones still error
+	if err = instance.DisableZones("x"); err == nil {
+		t.Fatalf("DisableZones(x) should return error for non-local zone")
 	}
 }
 
