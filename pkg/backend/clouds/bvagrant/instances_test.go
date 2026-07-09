@@ -115,6 +115,40 @@ func TestCreateInstancesBoxOverrideWins(t *testing.T) {
 	}
 }
 
+// A custom image's ImageId IS its vagrant box name; box resolution must use it
+// instead of re-deriving the base box from the catalog (regression: cluster
+// create built nodes from the pristine bento box instead of the aerospike
+// template image).
+func TestCreateInstancesBoxFromImageID(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	writeValidPreflightCache(t, s)
+
+	img := testImage()
+	img.ImageId = "aerolab-proj-mytemplate"
+	input := &backends.CreateInstanceInput{
+		ClusterName: "cid",
+		Nodes:       1,
+		BackendType: backends.BackendTypeVagrant,
+		BackendSpecificParams: map[backends.BackendType]any{
+			backends.BackendTypeVagrant: &CreateInstanceParams{
+				Image: img,
+			},
+		},
+	}
+	fr.statusResult = map[string]string{"proj-cid-1": "running"}
+
+	if _, err := s.CreateInstances(input, 0); err != nil {
+		t.Fatalf("CreateInstances: %v", err)
+	}
+	meta, err := s.loadClusterMeta("cid")
+	if err != nil || meta == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, meta)
+	}
+	if meta.Nodes[1].Box != "aerolab-proj-mytemplate" {
+		t.Fatalf("expected box from ImageId, got %q", meta.Nodes[1].Box)
+	}
+}
+
 func TestCreateInstancesBoxFromImage(t *testing.T) {
 	s, fr := newVagrantTestBackend(t)
 	writeValidPreflightCache(t, s)

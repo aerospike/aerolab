@@ -149,7 +149,15 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	lock.Lock()
 	defer lock.Unlock()
 
+	// Box resolution order: explicit override, then the image's own box name
+	// (ImageId is the vagrant box for both catalog templates and custom images
+	// — using it directly is what makes custom/template images actually boot
+	// from their packaged box), then the distro catalog as a fallback for
+	// hand-constructed Image values without an ImageId.
 	box := params.Box
+	if box == "" {
+		box = params.Image.ImageId
+	}
 	if box == "" {
 		box, err = boxNaming(params.Image.OSName, params.Image.OSVersion, params.Image.Architecture.String())
 		if err != nil {

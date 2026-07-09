@@ -1432,10 +1432,11 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			Privileged:  c.Docker.Privileged,
 		},
 		Vagrant: InstancesCreateCmdVagrant{
-			Box:      c.Vagrant.Box,
-			Provider: c.Vagrant.Provider,
-			CPUs:     c.Vagrant.CPUs,
-			RAMMB:    c.Vagrant.RAMMB,
+			ImageName: templateName,
+			Box:       c.Vagrant.Box,
+			Provider:  c.Vagrant.Provider,
+			CPUs:      c.Vagrant.CPUs,
+			RAMMB:     c.Vagrant.RAMMB,
 		},
 		suppressEquivalentCommand: true,
 	}
