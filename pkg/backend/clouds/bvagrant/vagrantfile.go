@@ -2,6 +2,7 @@ package bvagrant
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "{{ .MachineName }}" do |node|
     node.vm.box = "{{ .Box }}"
     node.vm.hostname = "{{ .MachineName }}"
+    node.vm.base_mac = "{{ .BaseMAC }}"
     node.vm.network "private_network", ip: "{{ .IP }}"
 {{- range .SyncedFolders }}
     node.vm.synced_folder "{{ .Host }}", "{{ .Guest }}"{{ if .ReadOnly }}, mount_options: ["ro"]{{ end }}
@@ -93,9 +95,20 @@ type vfNode struct {
 	MachineName   string
 	Box           string
 	IP            string
+	BaseMAC       string
 	CPUs          int
 	RAMMB         int
 	SyncedFolders []vfSyncedFolder
+}
+
+// baseMACFor derives a deterministic, per-machine MAC for the VM's first (NAT)
+// interface, in VirtualBox's OUI (08:00:27). Without this, every VM cloned from
+// the same box shares the box's baked-in eth0 MAC — which breaks anything that
+// derives identity from it, most notably Aerospike's node-id: all nodes got the
+// same node-id and refused to cluster ("duplicate node-id - remain orphan").
+func baseMACFor(machineName string) string {
+	sum := sha256.Sum256([]byte(machineName))
+	return fmt.Sprintf("080027%02X%02X%02X", sum[0], sum[1], sum[2])
 }
 
 // vfData is the top-level template data for renderVagrantfile.
@@ -147,6 +160,7 @@ func (s *b) renderVagrantfile(meta *clusterMeta, pubKey string) (string, error) 
 			MachineName:   node.MachineName,
 			Box:           node.Box,
 			IP:            node.IP,
+			BaseMAC:       baseMACFor(node.MachineName),
 			CPUs:          cpus,
 			RAMMB:         ram,
 			SyncedFolders: folders,

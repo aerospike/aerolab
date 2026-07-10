@@ -7,6 +7,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "proj-customboxcluster-1" do |node|
     node.vm.box = "custom/special-box"
     node.vm.hostname = "proj-customboxcluster-1"
+    node.vm.base_mac = "08002709E3AF"
     node.vm.network "private_network", ip: "192.168.56.2"
 
     node.vm.provider "virtualbox" do |vb|

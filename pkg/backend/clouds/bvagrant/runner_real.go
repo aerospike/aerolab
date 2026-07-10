@@ -104,14 +104,36 @@ func collapseErr(runErr error, cmdErr error, context string) error {
 
 func (r *realRunner) Up(dir string, machines []string, provider string, verbose bool) error {
 	if len(machines) == 0 {
-		return r.upOne(dir, "", provider, verbose)
+		return r.upWithBootRetry(dir, "", provider, verbose)
 	}
 	for _, m := range machines {
-		if err := r.upOne(dir, m, provider, verbose); err != nil {
+		if err := r.upWithBootRetry(dir, m, provider, verbose); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// upWithBootRetry retries a boot-timeout once: VirtualBox guests occasionally
+// wedge during boot (RCU stalls / hung systemd jobs, observed empirically even
+// on lightly loaded hosts). A forced halt + fresh boot reliably recovers, so
+// one retry turns a flaky failure into a slower success.
+func (r *realRunner) upWithBootRetry(dir, machine, provider string, verbose bool) error {
+	err := r.upOne(dir, machine, provider, verbose)
+	if err == nil || !strings.Contains(err.Error(), "VMBootTimeout") {
+		return err
+	}
+	if r.log != nil {
+		r.log.Warn("VAGRANT: machine %q timed out booting; forcing halt and retrying once", machine)
+	}
+	haltArgs := []string{"halt", "--force"}
+	if machine != "" {
+		haltArgs = append(haltArgs, machine)
+	}
+	if _, haltErr := r.execVagrant(dir, haltArgs...); haltErr != nil && r.log != nil {
+		r.log.Warn("VAGRANT: forced halt of %q failed: %v", machine, haltErr)
+	}
+	return r.upOne(dir, machine, provider, verbose)
 }
 
 func (r *realRunner) upOne(dir, machine, provider string, verbose bool) error {

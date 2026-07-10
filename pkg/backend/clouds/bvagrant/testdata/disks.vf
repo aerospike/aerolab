@@ -7,6 +7,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "proj-diskcluster-1" do |node|
     node.vm.box = "bento/ubuntu-22.04"
     node.vm.hostname = "proj-diskcluster-1"
+    node.vm.base_mac = "0800275235E4"
     node.vm.network "private_network", ip: "192.168.56.2"
     node.vm.synced_folder "/etc/aerolab/volumes/data", "/mnt/data"
     node.vm.synced_folder "/etc/aerolab/volumes/logs", "/mnt/logs", mount_options: ["ro"]

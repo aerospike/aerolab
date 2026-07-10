@@ -7,6 +7,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "proj-cluster3-1" do |node|
     node.vm.box = "bento/ubuntu-22.04"
     node.vm.hostname = "proj-cluster3-1"
+    node.vm.base_mac = "080027173E18"
     node.vm.network "private_network", ip: "192.168.56.2"
 
     node.vm.provider "virtualbox" do |vb|
@@ -60,6 +61,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "proj-cluster3-2" do |node|
     node.vm.box = "bento/ubuntu-22.04"
     node.vm.hostname = "proj-cluster3-2"
+    node.vm.base_mac = "080027CD4BCB"
     node.vm.network "private_network", ip: "192.168.56.3"
 
     node.vm.provider "virtualbox" do |vb|
@@ -113,6 +115,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "proj-cluster3-3" do |node|
     node.vm.box = "bento/ubuntu-22.04"
     node.vm.hostname = "proj-cluster3-3"
+    node.vm.base_mac = "0800272B2189"
     node.vm.network "private_network", ip: "192.168.56.4"
 
     node.vm.provider "virtualbox" do |vb|

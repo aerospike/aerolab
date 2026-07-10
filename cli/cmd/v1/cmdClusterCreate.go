@@ -128,7 +128,7 @@ type ClusterCreateCmdVagrant struct {
 	Box      string   `long:"vagrant-box" description:"Explicit Vagrant box override (e.g. bento/ubuntu-24.04); ignores image resolution entirely"`
 	Provider string   `long:"vagrant-provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv); empty falls back to the configured default provider"`
 	CPUs     int      `long:"cpus" description:"vCPUs per VM" default:"2"`
-	RAM      int      `long:"ram" description:"RAM per VM in MB" default:"2048"`
+	RAM      int      `long:"ram" description:"RAM per VM in MB; aerospike triggers sys-memory stop-writes on small VMs, 4096 is a practical floor" default:"4096"`
 	Disks    []string `long:"vagrant-disk" description:"Format: {volumeName}:{guestPath}[:ro]; mounts an aerolab volume as a synced folder"`
 }
 
@@ -841,6 +841,26 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				return
 			}
 		}
+		// vagrant: pin heartbeat/fabric/service to the unique private IP —
+		// every VirtualBox VM shares the same NAT address on its first
+		// interface, so `address any` advertises a self-connecting address
+		if i.isNew && system.Opts.Config.Backend.Type == "vagrant" {
+			newConfig, err = patchNetworkAddressesForVagrant(newConfig, i.inst.IP.Private)
+			if err != nil {
+				errs = append(errs, err)
+				return
+			}
+			// like docker, replace the default 2x4G memory-engine namespaces
+			// with a single file-backed one: vagrant VMs are hard-capped
+			// (default 2GiB RAM) and asd gets OOM-killed pre-allocating them
+			if c.CustomConfigFilePath == "" {
+				newConfig, err = patchDockerNamespacesV7(newConfig, c.AerospikeVersion.String())
+				if err != nil {
+					errs = append(errs, err)
+					return
+				}
+			}
+		}
 		// write new config
 		err = client.WriteFile(false, &sshexec.FileWriter{
 			DestPath:    "/etc/aerospike/aerospike.conf",
@@ -1066,6 +1086,45 @@ func patchAccessAddressForDocker(in []byte, port string, privateIp string) (out 
 	buf := &bytes.Buffer{}
 	err = s.Write(buf, "", "    ", true)
 	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// patchNetworkAddressesForVagrant pins heartbeat, fabric, and service
+// addresses to the node's private-network IP. Every VirtualBox VM shares the
+// identical NAT address (10.0.2.15) on its first interface, so with the
+// default `address any` each node advertises 10.0.2.15 for fabric/heartbeat
+// and peers end up connecting to themselves — the cluster never forms. The
+// private_network IP is the only address unique to each node.
+func patchNetworkAddressesForVagrant(in []byte, privateIp string) (out []byte, err error) {
+	s, err := aeroconf.Parse(bytes.NewReader(in))
+	if err != nil {
+		return nil, err
+	}
+	if s.Type("network") == aeroconf.ValueNil {
+		if err = s.NewStanza("network"); err != nil {
+			return nil, err
+		}
+	}
+	for _, stanza := range []string{"heartbeat", "fabric", "service"} {
+		if s.Stanza("network").Type(stanza) == aeroconf.ValueNil {
+			if err = s.Stanza("network").NewStanza(stanza); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err = s.Stanza("network").Stanza("heartbeat").SetValue("address", privateIp); err != nil {
+		return nil, err
+	}
+	if err = s.Stanza("network").Stanza("fabric").SetValue("address", privateIp); err != nil {
+		return nil, err
+	}
+	if err = s.Stanza("network").Stanza("service").SetValue("access-address", privateIp); err != nil {
+		return nil, err
+	}
+	buf := &bytes.Buffer{}
+	if err = s.Write(buf, "", "    ", true); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
