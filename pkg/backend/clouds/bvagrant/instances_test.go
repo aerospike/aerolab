@@ -798,6 +798,111 @@ func TestGetInstancesOmitsNotCreatedAndDefaultsMissingToStopped(t *testing.T) {
 	}
 }
 
+// TestGetInstancesReconcilesGhostNodeOnList verifies that listing prunes a ghost
+// node (not_created) from an own-project cluster's on-disk metadata, keeping the
+// live node, so stale entries self-heal on any inventory read.
+func TestGetInstancesReconcilesGhostNodeOnList(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	if _, err := s.ensureProjectKeypair(); err != nil {
+		t.Fatalf("ensureProjectKeypair: %v", err)
+	}
+	meta := &clusterMeta{ClusterName: "gl", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-gl-1", IP: "192.168.56.2", Box: "b"},
+		2: {MachineName: "proj-gl-2", IP: "192.168.56.3", Box: "b"},
+	}}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	fr.statusResult = map[string]string{"proj-gl-1": "running", "proj-gl-2": "not_created"}
+
+	list, err := s.GetInstances(nil, nil, nil)
+	if err != nil {
+		t.Fatalf("GetInstances: %v", err)
+	}
+	if len(list) != 1 || list[0].NodeNo != 1 {
+		t.Fatalf("expected only node 1 in inventory, got %+v", list)
+	}
+	reloaded, err := s.loadClusterMeta("gl")
+	if err != nil || reloaded == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, reloaded)
+	}
+	if _, ok := reloaded.Nodes[2]; ok {
+		t.Fatalf("expected ghost node 2 pruned from metadata on list, got %+v", reloaded.Nodes)
+	}
+	if _, ok := reloaded.Nodes[1]; !ok {
+		t.Fatalf("expected live node 1 retained, got %+v", reloaded.Nodes)
+	}
+}
+
+// TestGetInstancesRemovesAllGhostClusterOnList verifies that listing removes the
+// whole cluster dir when every node is a ghost.
+func TestGetInstancesRemovesAllGhostClusterOnList(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	meta := &clusterMeta{ClusterName: "allghlist", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-allghlist-1", Box: "b"},
+	}}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	fr.statusResult = map[string]string{"proj-allghlist-1": "not_created"}
+
+	list, err := s.GetInstances(nil, nil, nil)
+	if err != nil {
+		t.Fatalf("GetInstances: %v", err)
+	}
+	for _, i := range list {
+		if i.ClusterName == "allghlist" {
+			t.Fatalf("did not expect all-ghost cluster in inventory, got %+v", i)
+		}
+	}
+	reloaded, err := s.loadClusterMeta("allghlist")
+	if err != nil {
+		t.Fatalf("loadClusterMeta: %v", err)
+	}
+	if reloaded != nil {
+		t.Fatalf("expected all-ghost cluster dir removed on list, got %+v", reloaded)
+	}
+}
+
+// TestGetInstancesReconcileSkipsWhenLockHeld verifies the reconciliation is
+// deadlock-free: when the per-cluster lock is already held (e.g. a create/destroy
+// in progress, or GetInstances called from within CreateInstances), listing skips
+// reconciliation via TryLock rather than blocking, leaving metadata untouched.
+func TestGetInstancesReconcileSkipsWhenLockHeld(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	meta := &clusterMeta{ClusterName: "held", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-held-1", IP: "192.168.56.2", Box: "b"},
+		2: {MachineName: "proj-held-2", IP: "192.168.56.3", Box: "b"},
+	}}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	fr.statusResult = map[string]string{"proj-held-1": "running", "proj-held-2": "not_created"}
+
+	lock := s.lockCluster("held")
+	lock.Lock()
+	defer lock.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		s.GetInstances(nil, nil, nil) //nolint:errcheck
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("GetInstances deadlocked while cluster lock was held")
+	}
+
+	reloaded, err := s.loadClusterMeta("held")
+	if err != nil || reloaded == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, reloaded)
+	}
+	if _, ok := reloaded.Nodes[2]; !ok {
+		t.Fatalf("expected reconciliation skipped (ghost node 2 retained) while lock held, got %+v", reloaded.Nodes)
+	}
+}
+
 // ---- InstancesTerminate ----
 
 func TestInstancesTerminate(t *testing.T) {

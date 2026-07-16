@@ -102,6 +102,19 @@ func (s *b) ensureProjectKeypair() (string, error) {
 	return strings.TrimSpace(string(pubBytes)), nil
 }
 
+// readProjectPubKey returns the project's existing SSH public key without
+// generating one (unlike ensureProjectKeypair). It is used on read paths such as
+// ghost reconciliation during listing, where creating a keypair as a side effect
+// of a list would be surprising; callers treat an error as "skip Vagrantfile
+// regeneration". A cluster with on-disk metadata always has a keypair already.
+func (s *b) readProjectPubKey() (string, error) {
+	pubBytes, err := os.ReadFile(filepath.Join(s.sshKeysDir, s.project) + ".pub")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(pubBytes)), nil
+}
+
 // recoverCreateInstanceParams extracts and validates the vagrant-specific params from
 // input.BackendSpecificParams, accepting either a *CreateInstanceParams or a
 // CreateInstanceParams value (mirrors bdocker's recovery pattern).
@@ -346,14 +359,7 @@ func (s *b) pruneGhostNodes(meta *clusterMeta, pubKey string) error {
 		}
 		return nil
 	}
-	removed := false
-	for no, node := range meta.Nodes {
-		if node == nil || statusMap[node.MachineName] == "not_created" {
-			delete(meta.Nodes, no)
-			removed = true
-		}
-	}
-	if !removed {
+	if !removeGhostNodes(meta, statusMap) {
 		return nil
 	}
 	if len(meta.Nodes) == 0 {
@@ -440,11 +446,21 @@ func (s *b) GetInstances(volumes backends.VolumeList, networks backends.NetworkL
 
 	var out backends.InstanceList
 	for _, meta := range metas {
-		insts, err := s.instancesForCluster(meta, s.clusterDir(meta.ClusterName))
+		dir := s.clusterDir(meta.ClusterName)
+		statusMap, err := s.runner.Status(dir)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, insts...)
+		// Reconcile ghost nodes for own-project clusters: prune nodes whose VM
+		// no longer exists (not_created) so stale metadata doesn't linger in the
+		// inventory or keep an orphaned cluster dir alive. Returns nil when the
+		// whole cluster was ghost and its dir was removed. Not applied to
+		// other-project clusters below — we never mutate another project's state.
+		meta = s.reconcileClusterGhosts(meta, statusMap)
+		if meta == nil {
+			continue
+		}
+		out = append(out, s.buildInstances(meta, statusMap, dir)...)
 	}
 
 	if s.listAllProjects {
@@ -465,18 +481,105 @@ func (s *b) GetInstances(volumes backends.VolumeList, networks backends.NetworkL
 	return out, nil
 }
 
-// instancesForCluster merges a cluster's metadata with `vagrant status` output (from
-// dir) into backends.Instance values. A machine reported as "not_created" is omitted
-// (it exists in metadata but vagrant has no real state for it). A machine present in
-// metadata but absent from the status map (e.g. `vagrant status` hasn't seen it commit
-// yet) defaults to LifeCycleStateStopped, since that's the safer assumption for a node
-// that isn't confirmed running.
+// instancesForCluster fetches `vagrant status` for a cluster dir and builds its
+// instance list (see buildInstances). It performs no ghost reconciliation, so it
+// is safe for read-only use over other-project clusters, whose metadata we must
+// not mutate.
 func (s *b) instancesForCluster(meta *clusterMeta, dir string) (backends.InstanceList, error) {
 	statusMap, err := s.runner.Status(dir)
 	if err != nil {
 		return nil, err
 	}
+	return s.buildInstances(meta, statusMap, dir), nil
+}
 
+// hasGhost reports whether meta contains any node whose VM no longer exists
+// (status not_created), or a nil node entry.
+func hasGhost(meta *clusterMeta, statusMap map[string]string) bool {
+	for _, node := range meta.Nodes {
+		if node == nil || statusMap[node.MachineName] == "not_created" {
+			return true
+		}
+	}
+	return false
+}
+
+// removeGhostNodes deletes nodes whose VM no longer exists (status not_created),
+// and nil entries, from meta in-memory. Returns true if anything was removed.
+// It does not persist; callers decide how to save.
+func removeGhostNodes(meta *clusterMeta, statusMap map[string]string) bool {
+	removed := false
+	for no, node := range meta.Nodes {
+		if node == nil || statusMap[node.MachineName] == "not_created" {
+			delete(meta.Nodes, no)
+			removed = true
+		}
+	}
+	return removed
+}
+
+// reconcileClusterGhosts prunes ghost nodes from an own-project cluster's
+// metadata during inventory listing, persisting the change (or removing the
+// cluster dir entirely when every node was a ghost). It returns the metadata to
+// build instances from, or nil when the cluster was fully removed. The status
+// map is computed by the caller; a fast hasGhost check avoids taking any lock
+// when there is nothing to reconcile. TryLock (rather than Lock) keeps this
+// best-effort and deadlock-free: GetInstances is called from within
+// CreateInstances while the per-cluster lock is already held, and a
+// create/destroy may hold it concurrently — in either case we simply skip
+// reconciliation this pass and leave metadata untouched.
+func (s *b) reconcileClusterGhosts(meta *clusterMeta, statusMap map[string]string) *clusterMeta {
+	if !hasGhost(meta, statusMap) {
+		return meta
+	}
+	lock := s.lockCluster(meta.ClusterName)
+	if !lock.TryLock() {
+		return meta
+	}
+	defer lock.Unlock()
+
+	// Re-load under the lock so we act on the authoritative on-disk state, not a
+	// snapshot that a concurrent create/destroy may have superseded.
+	fresh, err := s.loadClusterMeta(meta.ClusterName)
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("VAGRANT: ghost reconciliation reload for cluster %q failed: %v", meta.ClusterName, err)
+		}
+		return meta
+	}
+	if fresh == nil {
+		return nil
+	}
+	if !removeGhostNodes(fresh, statusMap) {
+		return fresh
+	}
+	if len(fresh.Nodes) == 0 {
+		if err := s.deleteClusterMeta(fresh.ClusterName); err != nil && s.log != nil {
+			s.log.Warn("VAGRANT: removing all-ghost cluster %q failed: %v", fresh.ClusterName, err)
+		}
+		return nil
+	}
+	if err := s.saveClusterMeta(fresh); err != nil {
+		if s.log != nil {
+			s.log.Warn("VAGRANT: persisting ghost reconciliation for cluster %q failed: %v", fresh.ClusterName, err)
+		}
+		return fresh
+	}
+	if pub, err := s.readProjectPubKey(); err == nil {
+		if werr := s.writeVagrantfile(fresh, pub); werr != nil && s.log != nil {
+			s.log.Warn("VAGRANT: regenerating Vagrantfile for cluster %q after ghost reconciliation failed: %v", fresh.ClusterName, werr)
+		}
+	}
+	return fresh
+}
+
+// buildInstances merges a cluster's metadata with a `vagrant status` map (from
+// dir) into backends.Instance values. A machine reported as "not_created" is
+// omitted (it exists in metadata but vagrant has no real state for it). A
+// machine present in metadata but absent from the status map (e.g. `vagrant
+// status` hasn't seen it commit yet) defaults to LifeCycleStateStopped, since
+// that's the safer assumption for a node that isn't confirmed running.
+func (s *b) buildInstances(meta *clusterMeta, statusMap map[string]string, dir string) backends.InstanceList {
 	nodeNos := make([]int, 0, len(meta.Nodes))
 	for no := range meta.Nodes {
 		nodeNos = append(nodeNos, no)
@@ -530,7 +633,7 @@ func (s *b) instancesForCluster(meta *clusterMeta, dir string) (backends.Instanc
 			},
 		})
 	}
-	return out, nil
+	return out
 }
 
 type otherProjectCluster struct {
