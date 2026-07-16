@@ -32,6 +32,12 @@ type fakeRunner struct {
 	// onUp, if set, is invoked synchronously from Up before returning,
 	// letting tests detect overlapping/concurrent Up calls.
 	onUp func(dir string, machines []string, provider string) error
+
+	// statusFunc, if set, supplies Status results per-call (overriding
+	// statusResult), letting a test vary machine states across successive
+	// Status calls within a single flow (e.g. ghost VMs that report
+	// not_created at reconciliation time but running once re-created).
+	statusFunc func(dir string) (map[string]string, error)
 }
 
 func (f *fakeRunner) record(method, args string) {
@@ -79,6 +85,9 @@ func (f *fakeRunner) Status(dir string) (map[string]string, error) {
 	f.record("Status", fmt.Sprintf("dir=%s", dir))
 	if err := f.errFor("Status"); err != nil {
 		return nil, err
+	}
+	if f.statusFunc != nil {
+		return f.statusFunc(dir)
 	}
 	return f.statusResult, nil
 }

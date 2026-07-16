@@ -192,6 +192,21 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 	maps.Copy(meta.Tags, input.Tags)
 
+	// Reconcile ghost nodes before allocating: a node whose VM no longer exists
+	// (reported "not_created" by `vagrant status` — e.g. destroyed outside
+	// aerolab or left behind by a prior failed create) lingers in metadata but is
+	// filtered out of the live inventory (see instancesForCluster). Left in place
+	// it silently inflates node numbering (the next node is lastNodeNo+1, counting
+	// ghosts) and can never be cleaned via `cluster destroy`, which operates on the
+	// inventory. Prune ghosts here so numbering matches what the user sees and
+	// orphaned metadata self-heals. Skipped for a brand-new cluster (no nodes yet,
+	// and no Vagrantfile to query status against).
+	if len(meta.Nodes) > 0 {
+		if err := s.pruneGhostNodes(meta, pubKey); err != nil {
+			return nil, err
+		}
+	}
+
 	lastNodeNo := 0
 	for no := range meta.Nodes {
 		if no > lastNodeNo {
@@ -235,6 +250,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	maps.Copy(baseTags, input.Tags)
 
 	newMachines := make([]string, 0, input.Nodes)
+	newNodeNos := make([]int, 0, input.Nodes)
 	for i := 1; i <= input.Nodes; i++ {
 		nodeNo := lastNodeNo + i
 		machineName := s.machineName(s.project, input.ClusterName, nodeNo)
@@ -267,6 +283,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Provider:        provider,
 		}
 		newMachines = append(newMachines, machineName)
+		newNodeNos = append(newNodeNos, nodeNo)
 	}
 
 	if err := s.saveClusterMeta(meta); err != nil {
@@ -277,6 +294,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	if err := s.runner.Up(s.clusterDir(input.ClusterName), newMachines, provider, false); err != nil {
+		s.rollbackFailedCreate(input.ClusterName, meta, newMachines, newNodeNos, pubKey)
 		return nil, fmt.Errorf("vagrant up failed: %w", err)
 	}
 
@@ -312,6 +330,63 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	return output, nil
+}
+
+// pruneGhostNodes removes nodes whose VM no longer exists (reported "not_created"
+// by `vagrant status`) from meta, persisting the pruned metadata and regenerating
+// the Vagrantfile when anything changed. Absent-from-status machines are kept, to
+// stay consistent with instancesForCluster (which treats them as stopped, not gone).
+// A status-query failure is non-fatal: reconciliation is a best-effort self-heal, so
+// on error we log and leave metadata untouched rather than block the create.
+func (s *b) pruneGhostNodes(meta *clusterMeta, pubKey string) error {
+	statusMap, err := s.runner.Status(s.clusterDir(meta.ClusterName))
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("VAGRANT: skipping ghost-node reconciliation for cluster %q: %v", meta.ClusterName, err)
+		}
+		return nil
+	}
+	removed := false
+	for no, node := range meta.Nodes {
+		if node == nil || statusMap[node.MachineName] == "not_created" {
+			delete(meta.Nodes, no)
+			removed = true
+		}
+	}
+	if !removed {
+		return nil
+	}
+	if len(meta.Nodes) == 0 {
+		return s.deleteClusterMeta(meta.ClusterName)
+	}
+	if err := s.saveClusterMeta(meta); err != nil {
+		return err
+	}
+	return s.writeVagrantfile(meta, pubKey)
+}
+
+// rollbackFailedCreate undoes a create whose `vagrant up` failed: it destroys the
+// machines that were being brought up (a boot timeout can leave a VM running but
+// unprovisioned) and drops their nodes from metadata, so a failed create leaves no
+// ghost VM behind and does not inflate future node numbering. Best-effort: errors
+// are logged rather than returned, since the create is already failing and the
+// original `vagrant up` error is what the caller should see.
+func (s *b) rollbackFailedCreate(clusterName string, meta *clusterMeta, machines []string, nodeNos []int, pubKey string) {
+	if derr := s.runner.Destroy(s.clusterDir(clusterName), machines); derr != nil && s.log != nil {
+		s.log.Warn("VAGRANT: rollback destroy after failed up for cluster %q returned: %v", clusterName, derr)
+	}
+	for _, no := range nodeNos {
+		delete(meta.Nodes, no)
+	}
+	var err error
+	if len(meta.Nodes) == 0 {
+		err = s.deleteClusterMeta(clusterName)
+	} else if err = s.saveClusterMeta(meta); err == nil {
+		err = s.writeVagrantfile(meta, pubKey)
+	}
+	if err != nil && s.log != nil {
+		s.log.Warn("VAGRANT: rollback metadata cleanup after failed up for cluster %q returned: %v", clusterName, err)
+	}
 }
 
 // defaultSSHReadyPoll is the production sshReadyPoll implementation: it polls each

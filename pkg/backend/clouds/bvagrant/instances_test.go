@@ -362,6 +362,231 @@ func TestCreateInstancesNodeNumberingContinuesAndUpArgs(t *testing.T) {
 	}
 }
 
+// ---- CreateInstances: ghost-node reconciliation & failed-up rollback ----
+
+// TestPruneGhostNodesRemovesNotCreated verifies that a node whose VM reports
+// not_created is dropped from metadata (in-memory and on-disk) and no longer
+// appears in the regenerated Vagrantfile, while live nodes are kept.
+func TestPruneGhostNodesRemovesNotCreated(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	pubKey, err := s.ensureProjectKeypair()
+	if err != nil {
+		t.Fatalf("ensureProjectKeypair: %v", err)
+	}
+	meta := &clusterMeta{ClusterName: "gh", ClusterUUID: "uuid-gh", Nodes: map[int]*nodeMeta{}}
+	for _, no := range []int{1, 2, 3} {
+		meta.Nodes[no] = &nodeMeta{
+			MachineName: s.machineName(s.project, "gh", no),
+			IP:          fmt.Sprintf("192.168.56.%d", no+1),
+			Box:         "bento/ubuntu-24.04",
+		}
+	}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	if err := s.writeVagrantfile(meta, pubKey); err != nil {
+		t.Fatalf("writeVagrantfile: %v", err)
+	}
+	// node 2's VM was destroyed outside aerolab.
+	fr.statusResult = map[string]string{
+		"proj-gh-1": "running",
+		"proj-gh-2": "not_created",
+		"proj-gh-3": "poweroff",
+	}
+
+	if err := s.pruneGhostNodes(meta, pubKey); err != nil {
+		t.Fatalf("pruneGhostNodes: %v", err)
+	}
+
+	if _, ok := meta.Nodes[2]; ok {
+		t.Fatalf("expected node 2 pruned from in-memory meta, got %+v", meta.Nodes)
+	}
+	if len(meta.Nodes) != 2 {
+		t.Fatalf("expected 2 nodes after prune, got %d", len(meta.Nodes))
+	}
+	reloaded, err := s.loadClusterMeta("gh")
+	if err != nil || reloaded == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, reloaded)
+	}
+	if _, ok := reloaded.Nodes[2]; ok {
+		t.Fatalf("expected node 2 pruned on disk, got %+v", reloaded.Nodes)
+	}
+	vf, err := os.ReadFile(filepath.Join(s.clusterDir("gh"), "Vagrantfile"))
+	if err != nil {
+		t.Fatalf("read Vagrantfile: %v", err)
+	}
+	if strings.Contains(string(vf), "proj-gh-2") {
+		t.Fatalf("expected Vagrantfile to no longer define proj-gh-2:\n%s", vf)
+	}
+}
+
+// TestPruneGhostNodesAllGhostsDeletesCluster verifies that when every node is a
+// ghost, the whole cluster metadata directory is removed.
+func TestPruneGhostNodesAllGhostsDeletesCluster(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	pubKey, err := s.ensureProjectKeypair()
+	if err != nil {
+		t.Fatalf("ensureProjectKeypair: %v", err)
+	}
+	meta := &clusterMeta{ClusterName: "allgh", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-allgh-1", Box: "b"},
+		2: {MachineName: "proj-allgh-2", Box: "b"},
+	}}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	fr.statusResult = map[string]string{"proj-allgh-1": "not_created", "proj-allgh-2": "not_created"}
+
+	if err := s.pruneGhostNodes(meta, pubKey); err != nil {
+		t.Fatalf("pruneGhostNodes: %v", err)
+	}
+	reloaded, err := s.loadClusterMeta("allgh")
+	if err != nil {
+		t.Fatalf("loadClusterMeta: %v", err)
+	}
+	if reloaded != nil {
+		t.Fatalf("expected cluster metadata deleted, got %+v", reloaded)
+	}
+}
+
+// TestCreateInstancesGhostNodesDoNotInflateNumbering reproduces the original bug:
+// after both VMs of a 2-node cluster are destroyed outside aerolab, a fresh create
+// must restart numbering at 1,2 (the ghosts are reconciled away) rather than grow
+// to 3,4.
+func TestCreateInstancesGhostNodesDoNotInflateNumbering(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	writeValidPreflightCache(t, s)
+
+	input := &backends.CreateInstanceInput{
+		ClusterName: "reset",
+		Nodes:       2,
+		BackendType: backends.BackendTypeVagrant,
+		Owner:       "jdoty",
+		BackendSpecificParams: map[backends.BackendType]any{
+			backends.BackendTypeVagrant: &CreateInstanceParams{Image: testImage()},
+		},
+	}
+	fr.statusResult = map[string]string{"proj-reset-1": "running", "proj-reset-2": "running"}
+	if _, err := s.CreateInstances(input, 0); err != nil {
+		t.Fatalf("first CreateInstances: %v", err)
+	}
+
+	// The old VMs report not_created at reconciliation time (call 1), while the
+	// re-created machines report running by the time GetInstances runs (call 2).
+	var statusCalls int
+	fr.statusFunc = func(dir string) (map[string]string, error) {
+		statusCalls++
+		if statusCalls == 1 {
+			return map[string]string{"proj-reset-1": "not_created", "proj-reset-2": "not_created"}, nil
+		}
+		return map[string]string{"proj-reset-1": "running", "proj-reset-2": "running"}, nil
+	}
+
+	out, err := s.CreateInstances(input, 0)
+	if err != nil {
+		t.Fatalf("second CreateInstances: %v", err)
+	}
+	if len(out.Instances) != 2 {
+		t.Fatalf("expected 2 instances, got %d", len(out.Instances))
+	}
+	for _, inst := range out.Instances {
+		if inst.NodeNo != 1 && inst.NodeNo != 2 {
+			t.Fatalf("expected node numbers 1,2 after ghost prune, got %d", inst.NodeNo)
+		}
+	}
+	meta, err := s.loadClusterMeta("reset")
+	if err != nil || meta == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, meta)
+	}
+	if len(meta.Nodes) != 2 {
+		t.Fatalf("expected 2 nodes after ghost prune + recreate, got %d: %+v", len(meta.Nodes), meta.Nodes)
+	}
+	if _, ok := meta.Nodes[3]; ok {
+		t.Fatalf("did not expect node 3 to exist after ghost prune")
+	}
+}
+
+// TestCreateInstancesRollsBackOnUpFailure verifies that a failed `vagrant up` on a
+// brand-new cluster destroys the half-created machines and removes the metadata, so
+// no ghost is left to inflate future node numbering.
+func TestCreateInstancesRollsBackOnUpFailure(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	writeValidPreflightCache(t, s)
+	fr.errs = map[string]error{"Up": fmt.Errorf("vagrant error: VMBootTimeout")}
+
+	input := &backends.CreateInstanceInput{
+		ClusterName: "failup",
+		Nodes:       2,
+		BackendType: backends.BackendTypeVagrant,
+		Owner:       "jdoty",
+		BackendSpecificParams: map[backends.BackendType]any{
+			backends.BackendTypeVagrant: &CreateInstanceParams{Image: testImage()},
+		},
+	}
+	if _, err := s.CreateInstances(input, 0); err == nil {
+		t.Fatalf("expected CreateInstances to fail on Up error")
+	}
+
+	meta, err := s.loadClusterMeta("failup")
+	if err != nil {
+		t.Fatalf("loadClusterMeta: %v", err)
+	}
+	if meta != nil {
+		t.Fatalf("expected metadata removed after failed create, got %+v", meta)
+	}
+	var destroyArgs string
+	for _, c := range fr.callsSnapshot() {
+		if c.method == "Destroy" {
+			destroyArgs = c.args
+		}
+	}
+	if !strings.Contains(destroyArgs, "proj-failup-1") || !strings.Contains(destroyArgs, "proj-failup-2") {
+		t.Fatalf("expected rollback Destroy of the new machines, got: %q", destroyArgs)
+	}
+}
+
+// TestCreateInstancesRollbackPreservesExistingNodes verifies that when a grow's
+// `vagrant up` fails, only the newly-allocated node is rolled back; the pre-existing
+// node's metadata is preserved.
+func TestCreateInstancesRollbackPreservesExistingNodes(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	writeValidPreflightCache(t, s)
+
+	input := &backends.CreateInstanceInput{
+		ClusterName: "grow2",
+		Nodes:       1,
+		BackendType: backends.BackendTypeVagrant,
+		Owner:       "jdoty",
+		BackendSpecificParams: map[backends.BackendType]any{
+			backends.BackendTypeVagrant: &CreateInstanceParams{Image: testImage()},
+		},
+	}
+	fr.statusResult = map[string]string{"proj-grow2-1": "running"}
+	if _, err := s.CreateInstances(input, 0); err != nil {
+		t.Fatalf("first CreateInstances: %v", err)
+	}
+
+	fr.errs = map[string]error{"Up": fmt.Errorf("vagrant error: VMBootTimeout")}
+	input.Nodes = 1
+	if _, err := s.CreateInstances(input, 0); err == nil {
+		t.Fatalf("expected grow to fail on Up error")
+	}
+
+	meta, err := s.loadClusterMeta("grow2")
+	if err != nil || meta == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, meta)
+	}
+	if len(meta.Nodes) != 1 {
+		t.Fatalf("expected only the pre-existing node to remain, got %d: %+v", len(meta.Nodes), meta.Nodes)
+	}
+	if _, ok := meta.Nodes[1]; !ok {
+		t.Fatalf("expected node 1 preserved, got %+v", meta.Nodes)
+	}
+	if _, ok := meta.Nodes[2]; ok {
+		t.Fatalf("expected node 2 rolled back, got %+v", meta.Nodes)
+	}
+}
+
 // ---- CreateInstances: required-field validation & defaults ----
 
 func TestCreateInstancesMissingImageFails(t *testing.T) {
