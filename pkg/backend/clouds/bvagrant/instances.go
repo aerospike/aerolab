@@ -359,7 +359,7 @@ func (s *b) pruneGhostNodes(meta *clusterMeta, pubKey string) error {
 		}
 		return nil
 	}
-	if !removeGhostNodes(meta, statusMap) {
+	if !removeGhostNodes(meta, statusMap, time.Now().Add(-ghostGracePeriod)) {
 		return nil
 	}
 	if len(meta.Nodes) == 0 {
@@ -493,24 +493,54 @@ func (s *b) instancesForCluster(meta *clusterMeta, dir string) (backends.Instanc
 	return s.buildInstances(meta, statusMap, dir), nil
 }
 
-// hasGhost reports whether meta contains any node whose VM no longer exists
-// (status not_created), or a nil node entry.
-func hasGhost(meta *clusterMeta, statusMap map[string]string) bool {
+// ghostGracePeriod is how recently a node must have been created for a
+// "not_created" vagrant status to be interpreted as "still being brought up"
+// rather than "the VM is gone". `vagrant status` reports not_created for BOTH a
+// node whose VM was destroyed AND a node that is mid-`vagrant up` (it stays
+// not_created until it finishes booting). Reaping a node in the latter state —
+// which is exactly what a concurrent create's in-flight nodes look like —
+// deletes it from metadata and regenerates the Vagrantfile without it, so the
+// create's own `vagrant up`/`vagrant destroy` of that node then fails with
+// Vagrant::Errors::MachineNotFound. The per-cluster mutex serializes this within
+// one process, but a second aerolab process (e.g. `cluster list`, or the web
+// UI's inventory refresh) has an independent lock map and would otherwise reap an
+// in-flight create out from under it. A create that has not finished booting all
+// its nodes within this window is well beyond any normal boot time (including the
+// boot-timeout retry), so genuine ghosts are still reaped promptly.
+const ghostGracePeriod = 30 * time.Minute
+
+// isGhostNode reports whether a node entry is a ghost: a nil (corrupt) entry, or
+// a node whose VM reports not_created and that was created before cutoff. A node
+// created at or after cutoff is treated as in-flight (see ghostGracePeriod) and
+// is not a ghost. A node with a zero CreatedAt (legacy metadata written before
+// the field existed) is always older than cutoff, preserving prior reaping.
+func isGhostNode(node *nodeMeta, statusMap map[string]string, cutoff time.Time) bool {
+	if node == nil {
+		return true
+	}
+	if statusMap[node.MachineName] != "not_created" {
+		return false
+	}
+	return node.CreatedAt.Before(cutoff)
+}
+
+// hasGhost reports whether meta contains any ghost node (see isGhostNode).
+func hasGhost(meta *clusterMeta, statusMap map[string]string, cutoff time.Time) bool {
 	for _, node := range meta.Nodes {
-		if node == nil || statusMap[node.MachineName] == "not_created" {
+		if isGhostNode(node, statusMap, cutoff) {
 			return true
 		}
 	}
 	return false
 }
 
-// removeGhostNodes deletes nodes whose VM no longer exists (status not_created),
-// and nil entries, from meta in-memory. Returns true if anything was removed.
-// It does not persist; callers decide how to save.
-func removeGhostNodes(meta *clusterMeta, statusMap map[string]string) bool {
+// removeGhostNodes deletes ghost nodes (see isGhostNode) from meta in-memory.
+// Returns true if anything was removed. It does not persist; callers decide how
+// to save.
+func removeGhostNodes(meta *clusterMeta, statusMap map[string]string, cutoff time.Time) bool {
 	removed := false
 	for no, node := range meta.Nodes {
-		if node == nil || statusMap[node.MachineName] == "not_created" {
+		if isGhostNode(node, statusMap, cutoff) {
 			delete(meta.Nodes, no)
 			removed = true
 		}
@@ -529,7 +559,8 @@ func removeGhostNodes(meta *clusterMeta, statusMap map[string]string) bool {
 // create/destroy may hold it concurrently — in either case we simply skip
 // reconciliation this pass and leave metadata untouched.
 func (s *b) reconcileClusterGhosts(meta *clusterMeta, statusMap map[string]string) *clusterMeta {
-	if !hasGhost(meta, statusMap) {
+	cutoff := time.Now().Add(-ghostGracePeriod)
+	if !hasGhost(meta, statusMap, cutoff) {
 		return meta
 	}
 	lock := s.lockCluster(meta.ClusterName)
@@ -550,7 +581,7 @@ func (s *b) reconcileClusterGhosts(meta *clusterMeta, statusMap map[string]strin
 	if fresh == nil {
 		return nil
 	}
-	if !removeGhostNodes(fresh, statusMap) {
+	if !removeGhostNodes(fresh, statusMap, cutoff) {
 		return fresh
 	}
 	if len(fresh.Nodes) == 0 {

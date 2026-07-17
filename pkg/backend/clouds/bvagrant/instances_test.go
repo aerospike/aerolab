@@ -449,6 +449,110 @@ func TestPruneGhostNodesAllGhostsDeletesCluster(t *testing.T) {
 	}
 }
 
+// TestPruneGhostNodesKeepsInflightNode verifies that a freshly-created node that
+// reports not_created (because its `vagrant up` has not finished booting it yet)
+// is treated as in-flight, not a ghost: it stays in metadata and the Vagrantfile.
+// Reaping it would delete the node the concurrent create is still bringing up,
+// making its `vagrant up`/`vagrant destroy` fail with MachineNotFound.
+func TestPruneGhostNodesKeepsInflightNode(t *testing.T) {
+	s, fr := newVagrantTestBackend(t)
+	pubKey, err := s.ensureProjectKeypair()
+	if err != nil {
+		t.Fatalf("ensureProjectKeypair: %v", err)
+	}
+	now := time.Now()
+	meta := &clusterMeta{ClusterName: "inflight", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-inflight-1", IP: "192.168.56.2", Box: "b", CreatedAt: now},
+		2: {MachineName: "proj-inflight-2", IP: "192.168.56.3", Box: "b", CreatedAt: now},
+	}}
+	if err := s.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	if err := s.writeVagrantfile(meta, pubKey); err != nil {
+		t.Fatalf("writeVagrantfile: %v", err)
+	}
+	// node 1 has booted; node 2 is still mid-`vagrant up` (not_created).
+	fr.statusResult = map[string]string{"proj-inflight-1": "running", "proj-inflight-2": "not_created"}
+
+	if err := s.pruneGhostNodes(meta, pubKey); err != nil {
+		t.Fatalf("pruneGhostNodes: %v", err)
+	}
+
+	if _, ok := meta.Nodes[2]; !ok {
+		t.Fatalf("expected in-flight node 2 kept in meta, got %+v", meta.Nodes)
+	}
+	vf, err := os.ReadFile(filepath.Join(s.clusterDir("inflight"), "Vagrantfile"))
+	if err != nil {
+		t.Fatalf("read Vagrantfile: %v", err)
+	}
+	if !strings.Contains(string(vf), "proj-inflight-2") {
+		t.Fatalf("expected Vagrantfile to still define in-flight node proj-inflight-2:\n%s", vf)
+	}
+}
+
+// TestReconcileDoesNotReapInflightCreateCrossProcess reproduces the multi-node
+// create failure: a second aerolab process (its own backend instance, hence its
+// own per-cluster lock map, so the in-memory TryLock guard does not apply) lists
+// the inventory while a create is mid-boot. The still-booting node reports
+// not_created; reconciliation must NOT delete it from metadata or regenerate the
+// Vagrantfile without it, otherwise the create's `vagrant up <node>` fails with
+// Vagrant::Errors::MachineNotFound.
+func TestReconcileDoesNotReapInflightCreateCrossProcess(t *testing.T) {
+	// Process A: owns the cluster dir and has written the full 2-node Vagrantfile.
+	sa, fra := newVagrantTestBackend(t)
+	pubKey, err := sa.ensureProjectKeypair()
+	if err != nil {
+		t.Fatalf("ensureProjectKeypair: %v", err)
+	}
+	now := time.Now()
+	meta := &clusterMeta{ClusterName: "race", ClusterUUID: "u", Nodes: map[int]*nodeMeta{
+		1: {MachineName: "proj-race-1", IP: "192.168.56.2", Box: "b", CreatedAt: now},
+		2: {MachineName: "proj-race-2", IP: "192.168.56.3", Box: "b", CreatedAt: now},
+	}}
+	if err := sa.saveClusterMeta(meta); err != nil {
+		t.Fatalf("saveClusterMeta: %v", err)
+	}
+	if err := sa.writeVagrantfile(meta, pubKey); err != nil {
+		t.Fatalf("writeVagrantfile: %v", err)
+	}
+	_ = fra
+
+	// Process B: a separate backend instance pointed at the same on-disk state,
+	// with its own lock map. node 1 booted, node 2 still booting (not_created).
+	frb := &fakeRunner{versionResult: "2.4.9"}
+	frb.statusResult = map[string]string{"proj-race-1": "running", "proj-race-2": "not_created"}
+	sb := &b{
+		configDir:    sa.configDir,
+		sshKeysDir:   sa.sshKeysDir,
+		project:      sa.project,
+		credentials:  &clouds.VAGRANT{Subnet: "192.168.56.0/24"},
+		runner:       frb,
+		log:          logger.NewLogger(),
+		lookPath:     func(name string) (string, error) { return "/usr/bin/" + name, nil },
+		sshReadyPoll: func(instances backends.InstanceList, waitDur time.Duration) error { return nil },
+	}
+
+	if _, err := sb.GetInstances(nil, nil, nil); err != nil {
+		t.Fatalf("process B GetInstances: %v", err)
+	}
+
+	// The in-flight node 2 must survive on disk and in the Vagrantfile.
+	reloaded, err := sa.loadClusterMeta("race")
+	if err != nil || reloaded == nil {
+		t.Fatalf("loadClusterMeta: %v %+v", err, reloaded)
+	}
+	if _, ok := reloaded.Nodes[2]; !ok {
+		t.Fatalf("in-flight node 2 was reaped from metadata by a concurrent list: %+v", reloaded.Nodes)
+	}
+	vf, err := os.ReadFile(filepath.Join(sa.clusterDir("race"), "Vagrantfile"))
+	if err != nil {
+		t.Fatalf("read Vagrantfile: %v", err)
+	}
+	if !strings.Contains(string(vf), "proj-race-2") {
+		t.Fatalf("Vagrantfile was regenerated without in-flight node proj-race-2:\n%s", vf)
+	}
+}
+
 // TestCreateInstancesGhostNodesDoNotInflateNumbering reproduces the original bug:
 // after both VMs of a 2-node cluster are destroyed outside aerolab, a fresh create
 // must restart numbering at 1,2 (the ghosts are reconciled away) rather than grow
@@ -469,6 +573,22 @@ func TestCreateInstancesGhostNodesDoNotInflateNumbering(t *testing.T) {
 	fr.statusResult = map[string]string{"proj-reset-1": "running", "proj-reset-2": "running"}
 	if _, err := s.CreateInstances(input, 0); err != nil {
 		t.Fatalf("first CreateInstances: %v", err)
+	}
+
+	// Age the nodes past the ghost grace period: these VMs were destroyed
+	// outside aerolab some time after they were created, so a not_created status
+	// now means "gone", not "still booting". (A create sets CreatedAt to now, and
+	// recently-created not_created nodes are intentionally left alone — see
+	// ghostGracePeriod — so without aging they would be treated as in-flight.)
+	aged, err := s.loadClusterMeta("reset")
+	if err != nil || aged == nil {
+		t.Fatalf("loadClusterMeta (age): %v %+v", err, aged)
+	}
+	for _, n := range aged.Nodes {
+		n.CreatedAt = time.Now().Add(-2 * ghostGracePeriod)
+	}
+	if err := s.saveClusterMeta(aged); err != nil {
+		t.Fatalf("saveClusterMeta (age): %v", err)
 	}
 
 	// The old VMs report not_created at reconciliation time (call 1), while the
