@@ -20,6 +20,7 @@ type ClientCreateNoneCmd struct {
 	AWS                ClientCreateCmdAws       `group:"AWS" description:"backend-aws"`
 	GCP                ClientCreateCmdGcp       `group:"GCP" description:"backend-gcp"`
 	Docker             ClientCreateCmdDocker    `group:"Docker" description:"backend-docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
 	OS                 string                   `long:"os" description:"OS to use for the instances" default:"ubuntu"`
 	Version            string                   `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
 	Arch               string                   `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
@@ -202,6 +203,7 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 		AWS:                       awsInst,
 		GCP:                       gcpInst,
 		Docker:                    c.Docker.toInstances(),
+		Vagrant:                   c.Vagrant,
 		ParallelSSHThreads:        c.ParallelSSHThreads,
 		MaxRetries:                c.MaxRetries,
 		RetrySleep:                c.RetrySleep,
@@ -223,6 +225,7 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 		c.AWS.InstanceType = instancesCmd.AWS.InstanceType
 		c.GCP.InstanceType = instancesCmd.GCP.InstanceType
 		c.GCP.Zone = instancesCmd.GCP.Zone
+		c.Vagrant = instancesCmd.Vagrant
 		cmdLine := ReconstructCommandLine([]string{"client", action, "none"}, c, false)
 		fmt.Printf("\nEquivalent command:\n  %s\n\n", cmdLine)
 	}

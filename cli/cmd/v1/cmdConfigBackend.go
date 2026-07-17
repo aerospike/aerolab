@@ -10,10 +10,22 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bvagrant"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/go-flags"
+	"github.com/rglonek/logger"
 )
+
+// vagrantPreflightBackend is the subset of the vagrant Cloud implementation's methods
+// needed to run a preflight check ahead of persisting a candidate backend config. It is
+// declared locally (rather than added to backends.Cloud) because it is CLI-only surface,
+// and PreflightCheck's return type is specific to the bvagrant package.
+type vagrantPreflightBackend interface {
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error, listAllProjects bool) error
+	PreflightCheck(force bool) (*bvagrant.PreflightInfo, error)
+}
 
 const (
 	DockerRegistryURLNA       = "https://storage.googleapis.com/aerospike-docker-images-na"
@@ -22,7 +34,7 @@ const (
 )
 
 type ConfigBackendCmd struct {
-	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp|none" default:"" webchoice:"aws,gcp,docker,none"`
+	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp|vagrant|none" default:"" webchoice:"aws,gcp,docker,vagrant,none"`
 	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.config/aerolab" webtype:"text"`
 	Region         string         `short:"r" long:"region" description:"Specify a list of regions to enable, comma-separated" default:""`
 	InventoryCache bool           `short:"c" long:"inventory-cache" description:"Enable local inventory cache - use only if not sharing the GCP/AWS project/account with other users"`
@@ -40,11 +52,16 @@ type ConfigBackendCmd struct {
 	GCPUseIAP             bool   `long:"gcp-use-iap" description:"GCP: route SSH/SFTP through IAP TCP forwarding instead of dialing the routable instance IP. Independent of --gcp-nopublic-ip; aerolab does NOT auto-enable IAP when public IPs are disabled."`
 	GCPAutoEnableServices bool   `long:"gcp-auto-enable-services" description:"GCP: automatically enable required GCP services (APIs) in the project when missing, without prompting. When unset, aerolab prompts interactively and errors in non-interactive contexts, listing the services to enable manually."`
 
-	Arch                 string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
-	DockerRegistryRegion string         `long:"docker-registry-region" description:"DOCKER: region for pre-built template image registry; values: na, eu, disabled" default:"na"`
-	DockerRegistryURL    string         `long:"docker-registry-url" description:"DOCKER: URL for pre-built template image registry; set to empty to disable" default:"https://storage.googleapis.com/aerospike-docker-images-na" hidden:"true"`
-	TmpDir               flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`
-	CheckAccess          bool           `long:"check-access" description:"check access to the backend"`
+	Arch                 string `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
+	DockerRegistryRegion string `long:"docker-registry-region" description:"DOCKER: region for pre-built template image registry; values: na, eu, disabled" default:"na"`
+	DockerRegistryURL    string `long:"docker-registry-url" description:"DOCKER: URL for pre-built template image registry; set to empty to disable" default:"https://storage.googleapis.com/aerospike-docker-images-na" hidden:"true"`
+
+	VagrantProvider string `long:"vagrant-provider" description:"VAGRANT: default provider to use (virtualbox, libvirt, vmware_desktop, hyperv); empty lets vagrant pick"`
+	VagrantSubnet   string `long:"vagrant-subnet" description:"VAGRANT: CIDR for the private-network subnet assigned to instances" default:""`
+	VagrantBinary   string `long:"vagrant-binary" description:"VAGRANT: path to the vagrant binary; empty uses PATH lookup"`
+
+	TmpDir      flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`
+	CheckAccess bool           `long:"check-access" description:"check access to the backend"`
 
 	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet   string
@@ -179,6 +196,11 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
 	}
+	if c.Type == "vagrant" {
+		fmt.Printf("Config.Backend.VagrantProvider = %s\n", c.VagrantProvider)
+		fmt.Printf("Config.Backend.VagrantSubnet = %s\n", c.VagrantSubnet)
+		fmt.Printf("Config.Backend.VagrantBinary = %s\n", c.VagrantBinary)
+	}
 	/*
 		if c.Type == "docker" {
 			fmt.Printf("Config.Backend.DockerRegistryURL = %s\n", c.DockerRegistryURL)
@@ -216,6 +238,10 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	}
 	if c.Type == "docker" || c.Type == "none" {
 		c.Region = ""
+	} else if c.Type == "vagrant" {
+		// vagrant has exactly one fixed zone; record it so the region
+		// reconciliation in Initialize matches the backend's enabled set.
+		c.Region = "local"
 	} else if c.regionSet == "" {
 		return errors.New("ERROR: Region is required for AWS and GCP backends")
 	}
@@ -223,7 +249,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if c.Type == "gcp" && c.Project == "" {
 		return errors.New("ERROR: When using GCP backend, project name must be defined. Use: aerolab config backend -t gcp -o project-name-here")
 	}
-	if c.Type == "aws" || c.Type == "gcp" || c.Type == "docker" {
+	if c.Type == "aws" || c.Type == "gcp" || c.Type == "docker" || c.Type == "vagrant" {
 		if c.SshKeyPath != "" {
 			if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 				ch, err := os.UserHomeDir()
@@ -240,7 +266,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 			}
 		}
 	} else if c.Type != "none" {
-		return errors.New("backend types supported: docker, aws, gcp, none")
+		return errors.New("backend types supported: docker, aws, gcp, vagrant, none")
 	}
 	if c.TmpDir == "" {
 		out, err := exec.Command("uname", "-r").CombinedOutput()
@@ -322,6 +348,17 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 		}
 	}
 
+	// Run a vagrant preflight check BEFORE persisting the candidate config, so a broken
+	// local vagrant environment (missing/too-old binary, unavailable default provider)
+	// never gets written as the active backend. This reaches the registered vagrant
+	// backend directly via backends.LookupBackend rather than through system.GetBackend,
+	// since GetBackend would only run after (and thus require) the config write below.
+	if c.Type == "vagrant" {
+		if err := c.vagrantPreflight(system); err != nil {
+			return err
+		}
+	}
+
 	// force (re)initialize the backend
 	system.Opts.Config.Backend = *c
 
@@ -373,5 +410,59 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 
 	system.Logger.Info("Backend initialized")
 	UpdateDiskCacheNow(system)
+	return nil
+}
+
+// vagrantPreflight configures the registered vagrant backend with the candidate
+// (not-yet-persisted) credentials from c, then runs a forced preflight check. It returns
+// an error describing the detected issues if the environment isn't usable, so callers can
+// abort before writing this config out as the active backend.
+func (c *ConfigBackendCmd) vagrantPreflight(system *System) error {
+	cloud, ok := backends.LookupBackend(backends.BackendTypeVagrant)
+	if !ok {
+		return errors.New("vagrant backend is not available in this build")
+	}
+	vb, ok := cloud.(vagrantPreflightBackend)
+	if !ok {
+		return errors.New("vagrant backend does not support preflight checks")
+	}
+
+	rootDir, err := AerolabRootDir()
+	if err != nil {
+		return err
+	}
+	project := os.Getenv("AEROLAB_PROJECT")
+	if project == "" {
+		project = "default"
+	}
+	aver, _, _, _ := GetAerolabVersion()
+
+	sshKeyPath := path.Join(rootDir, "projects", project, "ssh-keys", "vagrant")
+	if c.SshKeyPath != "" {
+		sshKeyPath = path.Join(string(c.SshKeyPath), project, "ssh-keys", "vagrant")
+	}
+	configDir := path.Join(rootDir, "projects", project, "config", "vagrant")
+	workDir := path.Join(rootDir, "projects", project, "workdir", "vagrant")
+
+	creds := &clouds.Credentials{
+		VAGRANT: clouds.VAGRANT{
+			DefaultProvider: c.VagrantProvider,
+			BinaryPath:      c.VagrantBinary,
+			Subnet:          c.VagrantSubnet,
+		},
+	}
+	if err := vb.SetConfig(configDir, creds, project, sshKeyPath, system.Logger.WithPrefix("vagrant "), aver, workDir, nil, false); err != nil {
+		return fmt.Errorf("vagrant: could not initialize backend for preflight: %w", err)
+	}
+
+	system.Logger.Info("Running vagrant preflight check")
+	info, err := vb.PreflightCheck(true)
+	if err != nil {
+		return fmt.Errorf("vagrant: preflight check failed: %w", err)
+	}
+	if !info.OK {
+		return fmt.Errorf("vagrant preflight failed:\n  - %s", strings.Join(info.Issues, "\n  - "))
+	}
+	system.Logger.Info("Vagrant preflight OK (version %s, providers: %v)", info.VagrantVersion, info.Providers)
 	return nil
 }

@@ -330,7 +330,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 			c.SortBy = []string{"Name:asc", "State:asc"}
 		}
 		header := table.Row{"Name", "Label", "State", "AccessURL", "Owner", "Backend", "Zone", "Instance", "Expires", "SSL", "Spot", "Source", "CreatedAt"}
-		if system.Opts.Config.Backend.Type == "docker" {
+		if system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant" {
 			header = table.Row{"Name", "Label", "State", "AccessURL", "Owner", "Source", "CreatedAt"}
 		}
 		rows := []table.Row{}
@@ -387,7 +387,7 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 				}
 			}
 
-			if system.Opts.Config.Backend.Type == "docker" {
+			if system.Opts.Config.Backend.Type == "docker" || system.Opts.Config.Backend.Type == "vagrant" {
 				rows = append(rows, table.Row{
 					agi.Name,
 					agi.Label,
@@ -471,20 +471,20 @@ func (c *AgiListCmd) ListAGI(system *System, inventory *backends.Inventory, args
 					}
 				}
 
-			volRows = append(volRows, table.Row{
-				vol.Name,
-				vol.Label,
-				vol.Type,
-				vol.SizeGiB,
-				vol.Zone,
-				state,
-				vol.AttachedTo,
-				vol.Owner,
-				vol.Backend,
-				expires,
-				source,
-				vol.CreatedAt,
-			})
+				volRows = append(volRows, table.Row{
+					vol.Name,
+					vol.Label,
+					vol.Type,
+					vol.SizeGiB,
+					vol.Zone,
+					state,
+					vol.AttachedTo,
+					vol.Owner,
+					vol.Backend,
+					expires,
+					source,
+					vol.CreatedAt,
+				})
 			}
 			fmt.Fprintln(out, t.RenderTable(new("AGI VOLUMES"), volHeader, volRows)) //nolint:errcheck
 			fmt.Fprintln(out, "")                                                    //nolint:errcheck

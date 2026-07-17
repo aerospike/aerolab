@@ -31,6 +31,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.5
 	github.com/aws/smithy-go v1.27.3
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/bmatcuk/go-vagrant v1.6.0
 	github.com/cedws/iapc v0.1.12
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charmbracelet/bubbles v1.0.0

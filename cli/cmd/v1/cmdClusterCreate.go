@@ -33,18 +33,19 @@ type ClusterCreateCmd struct {
 	MulticastAddress        string          `long:"mcast-address" description:"Multicast address to change to in config file" simplemode:"false"`
 	MulticastPort           string          `long:"mcast-port" description:"Multicast port to change to in config file" simplemode:"false"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
-	NoSetDNS              bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
-	ParallelThreads       int                    `short:"p" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
-	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
-	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
-	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
+	AutoStartAerospike    TypeYesNo               `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
+	NoOverrideClusterName bool                    `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
+	NoSetDNS              bool                    `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
+	ScriptEarly           flags.Filename          `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
+	ScriptLate            flags.Filename          `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
+	ParallelThreads       int                     `short:"p" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
+	NoVacuumOnFail        bool                    `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
+	Owner                 string                  `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
+	PriceOnly             bool                    `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
+	Aws                   ClusterCreateCmdAws     `group:"AWS" description:"backend-aws"`
+	Gcp                   ClusterCreateCmdGcp     `group:"GCP" description:"backend-gcp"`
+	Docker                ClusterCreateCmdDocker  `group:"Docker" description:"backend-docker"`
+	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
 	// Retry configuration
 	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
 	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
@@ -123,6 +124,14 @@ type ClusterCreateCmdDocker struct {
 	TemplateSource    string   `long:"template-source" description:"Template acquisition strategy: best-option (try registry then build), only-registry (registry only, fail if unavailable), only-build (local build only)" default:"best-option" webchoice:"best-option,only-registry,only-build"`
 }
 
+type ClusterCreateCmdVagrant struct {
+	Box      string   `long:"vagrant-box" description:"Explicit Vagrant box override (e.g. bento/ubuntu-24.04); ignores image resolution entirely"`
+	Provider string   `long:"vagrant-provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv); empty falls back to the configured default provider"`
+	CPUs     int      `long:"cpus" description:"vCPUs per VM" default:"2"`
+	RAM      int      `long:"ram" description:"RAM per VM in MB; aerospike triggers sys-memory stop-writes on small VMs, 4096 is a practical floor" default:"4096"`
+	Disks    []string `long:"vagrant-disk" description:"Format: {volumeName}:{guestPath}[:ro]; mounts an aerolab volume as a synced folder"`
+}
+
 type ClusterGrowCmd struct {
 	ClusterCreateCmd
 }
@@ -193,7 +202,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	var templateName string
 	var arch backends.Architecture
 	switch system.Opts.Config.Backend.Type {
-	case "docker":
+	case "docker", "vagrant":
 		ar := system.Opts.Config.Backend.Arch
 		if ar == "" {
 			ar = runtime.GOARCH
@@ -574,6 +583,14 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			SwapLimit:          c.Docker.SwapLimit,
 			AdvancedConfigPath: "",
 		},
+		Vagrant: InstancesCreateCmdVagrant{
+			ImageName: templateName,
+			Box:       c.Vagrant.Box,
+			Provider:  c.Vagrant.Provider,
+			CPUs:      c.Vagrant.CPUs,
+			RAMMB:     c.Vagrant.RAM,
+			Disks:     c.Vagrant.Disks,
+		},
 		NoInstallExpiry:           false,
 		MaxRetries:                c.MaxRetries,
 		RetrySleep:                c.RetrySleep,
@@ -824,6 +841,26 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				return
 			}
 		}
+		// vagrant: pin heartbeat/fabric/service to the unique private IP —
+		// every VirtualBox VM shares the same NAT address on its first
+		// interface, so `address any` advertises a self-connecting address
+		if i.isNew && system.Opts.Config.Backend.Type == "vagrant" {
+			newConfig, err = patchNetworkAddressesForVagrant(newConfig, i.inst.IP.Private)
+			if err != nil {
+				errs = append(errs, err)
+				return
+			}
+			// like docker, replace the default 2x4G memory-engine namespaces
+			// with a single file-backed one: vagrant VMs are hard-capped
+			// (default 2GiB RAM) and asd gets OOM-killed pre-allocating them
+			if c.CustomConfigFilePath == "" {
+				newConfig, err = patchDockerNamespacesV7(newConfig, c.AerospikeVersion.String())
+				if err != nil {
+					errs = append(errs, err)
+					return
+				}
+			}
+		}
 		// write new config
 		err = client.WriteFile(false, &sshexec.FileWriter{
 			DestPath:    "/etc/aerospike/aerospike.conf",
@@ -894,7 +931,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				}
 				deployScript = deployScript + "\n" + string(scr)
 			}
-			if (system.Opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (system.Opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
+			if (system.Opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (system.Opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) || system.Opts.Config.Backend.Type == "vagrant" {
 				scr, err := scripts.ReadFile("scripts/cluster-create/thp-disable.sh.tpl")
 				if err != nil {
 					errs = append(errs, err)
@@ -1049,6 +1086,45 @@ func patchAccessAddressForDocker(in []byte, port string, privateIp string) (out 
 	buf := &bytes.Buffer{}
 	err = s.Write(buf, "", "    ", true)
 	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// patchNetworkAddressesForVagrant pins heartbeat, fabric, and service
+// addresses to the node's private-network IP. Every VirtualBox VM shares the
+// identical NAT address (10.0.2.15) on its first interface, so with the
+// default `address any` each node advertises 10.0.2.15 for fabric/heartbeat
+// and peers end up connecting to themselves — the cluster never forms. The
+// private_network IP is the only address unique to each node.
+func patchNetworkAddressesForVagrant(in []byte, privateIp string) (out []byte, err error) {
+	s, err := aeroconf.Parse(bytes.NewReader(in))
+	if err != nil {
+		return nil, err
+	}
+	if s.Type("network") == aeroconf.ValueNil {
+		if err = s.NewStanza("network"); err != nil {
+			return nil, err
+		}
+	}
+	for _, stanza := range []string{"heartbeat", "fabric", "service"} {
+		if s.Stanza("network").Type(stanza) == aeroconf.ValueNil {
+			if err = s.Stanza("network").NewStanza(stanza); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err = s.Stanza("network").Stanza("heartbeat").SetValue("address", privateIp); err != nil {
+		return nil, err
+	}
+	if err = s.Stanza("network").Stanza("fabric").SetValue("address", privateIp); err != nil {
+		return nil, err
+	}
+	if err = s.Stanza("network").Stanza("service").SetValue("access-address", privateIp); err != nil {
+		return nil, err
+	}
+	buf := &bytes.Buffer{}
+	if err = s.Write(buf, "", "    ", true); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

@@ -3,9 +3,10 @@ package clouds
 import "time"
 
 type Credentials struct {
-	AWS    AWS    `yaml:"aws" json:"aws"`
-	GCP    GCP    `yaml:"gcp" json:"gcp"`
-	DOCKER DOCKER `yaml:"docker" json:"docker"`
+	AWS     AWS     `yaml:"aws" json:"aws"`
+	GCP     GCP     `yaml:"gcp" json:"gcp"`
+	DOCKER  DOCKER  `yaml:"docker" json:"docker"`
+	VAGRANT VAGRANT `yaml:"vagrant" json:"vagrant"`
 }
 
 type DOCKER struct {
@@ -19,6 +20,15 @@ type DockerRegion struct {
 	DockerKeyPath  string        `yaml:"dockerKeyPath" json:"dockerKeyPath"`   // only use with https:// host type
 	DockerCaPath   string        `yaml:"dockerCaPath" json:"dockerCaPath"`     // only use with https:// host type
 	Timeout        time.Duration `yaml:"timeout" json:"timeout"`               // connection timeout
+}
+
+type VAGRANT struct {
+	// DefaultProvider is passed as --provider to vagrant up; empty = vagrant's own default resolution.
+	DefaultProvider string `yaml:"defaultProvider" json:"defaultProvider"`
+	// BinaryPath is the vagrant executable; empty = PATH lookup.
+	BinaryPath string `yaml:"binaryPath" json:"binaryPath"`
+	// Subnet for static private_network IPs, CIDR. Default 192.168.56.0/24.
+	Subnet string `yaml:"subnet" json:"subnet"`
 }
 
 type AWS struct {

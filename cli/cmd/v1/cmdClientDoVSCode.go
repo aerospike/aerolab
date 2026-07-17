@@ -229,6 +229,8 @@ func (c *ClientCreateVSCodeCmd) createVSCodeClient(system *System, inventory *ba
 						}
 					}
 				}
+			} else if system.Opts.Config.Backend.Type == "vagrant" {
+				accessHost = client.IP.Private
 			} else {
 				accessHost = client.IP.Public
 			}

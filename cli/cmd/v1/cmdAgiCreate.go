@@ -117,10 +117,10 @@ type AgiCreateCmd struct {
 	// embedded ingest-config defaults (which themselves auto-scale
 	// where appropriate; see pkg/agi/ingest/struct.go). Setting a
 	// positive value here pins the corresponding knob explicitly.
-	IngestMaxConcurrentLogFiles int `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
-	IngestMaxPutThreads         int `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
-	PluginCpuProfile bool           `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
-	PluginLogLevel   int            `long:"plugin-log-level" description:"Plugin log level" default:"4"`
+	IngestMaxConcurrentLogFiles int  `long:"ingest-max-concurrent-log-files" description:"Override max concurrent log files (0 = auto = clamp(GOMAXPROCS, 4, 16))" default:"0"`
+	IngestMaxPutThreads         int  `long:"ingest-max-put-threads" description:"Override max put-threads worker pool (0 = use yaml default 128, or set explicitly to override)" default:"0"`
+	PluginCpuProfile            bool `long:"plugin-cpu-profiling" description:"Enable CPU profiling for plugin"`
+	PluginLogLevel              int  `long:"plugin-log-level" description:"Plugin log level" default:"4"`
 
 	// Notification options
 	SlackToken   string `long:"notify-slack-token" description:"Slack token for notifications (supports ENV::VAR_NAME)"`
@@ -168,6 +168,9 @@ type AgiCreateCmd struct {
 
 	// Docker-specific options
 	Docker AgiCreateCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
+
+	// Vagrant-specific options
+	Vagrant AgiCreateCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
 
 	// Retry options
 	MaxRetries int           `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
@@ -229,6 +232,14 @@ type AgiCreateCmdDocker struct {
 	Privileged        bool     `short:"B" long:"privileged" description:"Run in privileged mode"`
 	NetworkName       string   `long:"network" description:"Docker network name"`
 	Disks             []string `long:"disk" description:"Mount a host path or named volume into the container; format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: /host/data:/mnt/data or myvol:/data:ro; can be specified multiple times"`
+}
+
+// AgiCreateCmdVagrant contains Vagrant-specific options for AGI instance creation.
+type AgiCreateCmdVagrant struct {
+	Box      string `long:"box" description:"Vagrant box override (e.g. bento/ubuntu-24.04)"`
+	Provider string `long:"provider" description:"Vagrant provider override (virtualbox, libvirt, vmware_desktop, hyperv)"`
+	CPUs     int    `long:"cpus" description:"vCPUs per VM" default:"2"`
+	RAMMB    int    `long:"ram-mb" description:"RAM per VM in MiB" default:"2048"`
 }
 
 // Execute implements the command execution for agi create.
@@ -468,7 +479,7 @@ func (c *AgiCreateCmd) CreateAGI(system *System, inventory *backends.Inventory, 
 	// Determine architecture based on backend and instance type
 	var arch backends.Architecture
 	switch backendType {
-	case "docker":
+	case "docker", "vagrant":
 		ar := system.Opts.Config.Backend.Arch
 		if ar == "" {
 			ar = runtime.GOARCH
@@ -1420,6 +1431,13 @@ func (c *AgiCreateCmd) createInstance(system *System, inventory *backends.Invent
 			ExposePorts: []string{exposePort},
 			Privileged:  c.Docker.Privileged,
 		},
+		Vagrant: InstancesCreateCmdVagrant{
+			ImageName: templateName,
+			Box:       c.Vagrant.Box,
+			Provider:  c.Vagrant.Provider,
+			CPUs:      c.Vagrant.CPUs,
+			RAMMB:     c.Vagrant.RAMMB,
+		},
 		suppressEquivalentCommand: true,
 	}
 
@@ -1743,7 +1761,7 @@ func (c *AgiCreateCmd) getAvailableMemory(instance backends.InstanceList, backen
 		//     and lower concurrency (MaxPutThreads halved); the
 		//     classic 1 GiB floor still works.
 		var minViable int64
-		if backendType == "docker" {
+		if backendType == "docker" || backendType == "vagrant" {
 			minViable = int64(1) << 30
 		} else {
 			minViable = agiNonPebbleOverheadBytes + (int64(1) << 30)
@@ -1874,7 +1892,7 @@ const agiNonPebbleOverheadBytes = int64(4) << 30
 // three in lockstep or instances generated here will fail the
 // monitor's pre-process sizing check.
 func agiOSReserveBytes(backendType string) int64 {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return int64(3) << 30
 	}
 	return int64(6) << 30
@@ -1896,7 +1914,7 @@ func agiOSReserveBytes(backendType string) int64 {
 // On Docker the original "half of memSize" heuristic is preserved so
 // the existing dev path is unchanged.
 func computePebbleTotalBudget(totalMem, memSize int64, backendType string) int64 {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return memSize / 2
 	}
 	halfHost := totalMem / 2
@@ -1940,7 +1958,7 @@ func computePebbleCacheBytes(totalMem, memSize int64, backendType string) int64 
 	const floor = int64(256) << 20
 	const cap = int64(16) << 30
 	var cache int64
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		cache = memSize / 2
 	} else {
 		cache = computePebbleTotalBudget(totalMem, memSize, backendType) / 2
@@ -1983,7 +2001,7 @@ func computePebbleCacheBytes(totalMem, memSize int64, backendType string) int64 
 //	≥  128 MiB → 128 MiB    // tight hosts
 //	otherwise   → 64 MiB    // floor
 func computePebbleMemTableBytes(totalMem, memSize int64, backendType string) uint64 {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		if memSize >= int64(6)<<30 {
 			return uint64(256) << 20
 		}
@@ -2038,7 +2056,7 @@ func computePebbleMemTableBytes(totalMem, memSize int64, backendType string) uin
 // that observe write stalls can override via the
 // maxConcurrentCompactions yaml key.
 func computePebbleMaxConcurrentCompactions(backendType string) int {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default = 4
 	}
 	return 2
@@ -2075,7 +2093,7 @@ func computePebbleMaxConcurrentCompactions(backendType string) int {
 //	 64 GiB host: memtableBudget=16 GiB, memTableBytes=1 GiB  → 16 → budget wins  (peak 16 GiB)
 //	128 GiB host: memtableBudget=32+ GiB, memTableBytes=1 GiB → 32 → ceiling wins (peak 32 GiB)
 func computePebbleStopWritesThreshold(totalMem, memSize int64, memTableBytes uint64, backendType string) int {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default = 4
 	}
 	if memTableBytes == 0 {
@@ -2130,7 +2148,7 @@ func computePebbleStopWritesThreshold(totalMem, memSize int64, memTableBytes uin
 // metric workload — bigger blocks give the codec more
 // cross-row redundancy to fold out.
 func computePebbleBlockSize(backendType string) int {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default → pebble default = 4 KiB
 	}
 	return 128 << 10 // 128 KiB
@@ -2160,7 +2178,7 @@ func computePebbleBlockSize(backendType string) int {
 // roughly 25-40%, which translates almost linearly into ingest
 // wall-clock when EFS-bandwidth-bound.
 func computePebbleCompression(backendType string) string {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return "" // db default → pebble default = uniform Snappy
 	}
 	return "balanced"
@@ -2203,7 +2221,7 @@ func computePebbleCompression(backendType string) string {
 // Gets pay the same per-block decompression cost regardless of
 // file size.
 func computePebbleTargetFileSizeL0(backendType string) int64 {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default → pebble default 2 MiB
 	}
 	return int64(64) << 20 // 64 MiB
@@ -2226,7 +2244,7 @@ func computePebbleTargetFileSizeL0(backendType string) int64 {
 // for AGI: the WAL is already off (re-ingest from source on crash)
 // and close() still flushes the file.
 func computePebbleBytesPerSync(backendType string) int {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default → pebble default 512 KiB
 	}
 	return db.BytesPerSyncDisabled
@@ -2255,19 +2273,19 @@ func computePebbleBytesPerSync(backendType string) int {
 //	memTable=1 GiB    → LBase=4 GiB
 //
 // 4× balances three things:
-//   1. Big enough that 4 flushes land before LBase fills (so
-//      cascade fires once per ~4 flushes, not per flush);
-//   2. Small enough that LBase compactions still run in bounded
-//      time and bounded memory;
-//   3. For typical AGI ingest sizes (10-50 GiB), the cascade
-//      fires only a handful of times across the whole run
-//      instead of after every flush.
+//  1. Big enough that 4 flushes land before LBase fills (so
+//     cascade fires once per ~4 flushes, not per flush);
+//  2. Small enough that LBase compactions still run in bounded
+//     time and bounded memory;
+//  3. For typical AGI ingest sizes (10-50 GiB), the cascade
+//     fires only a handful of times across the whole run
+//     instead of after every flush.
 //
 // Docker AGIs use local FS where the cascade is cheap (compactions
 // are quick), and the default 64 MiB ÷ 64-256 MiB memtable ratio
 // is already fine. We return 0 to leave Pebble's default in place.
 func computePebbleLBaseMaxBytes(backendType string, memTableBytes uint64) int64 {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default → pebble default 64 MiB
 	}
 	const ratio = 4
@@ -2289,7 +2307,7 @@ func computePebbleLBaseMaxBytes(backendType string, memTableBytes uint64) int64 
 // L0 counterpart to the 8-32 EFS-jitter buffer we apply at the
 // memtable layer.
 func computePebbleL0StopWritesThreshold(backendType string) int {
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		return 0 // db default → pebble default 12
 	}
 	return 36
@@ -2491,7 +2509,7 @@ func (c *AgiCreateCmd) generateIngestConfig(backendType string, pcfg pebbleConfi
 // generatePluginConfig generates the plugin.yaml configuration.
 func (c *AgiCreateCmd) generatePluginConfig(backendType string, pcfg pebbleConfig) []byte {
 	maxDp := 34560000
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		maxDp = maxDp / 2
 	}
 
@@ -2503,7 +2521,7 @@ func (c *AgiCreateCmd) generatePluginConfig(backendType string, pcfg pebbleConfi
 	// the upstream defaults there.
 	maxRequests := 16
 	maxJobs := 8
-	if backendType == "docker" {
+	if backendType == "docker" || backendType == "vagrant" {
 		maxRequests = 4
 		maxJobs = 4
 	}

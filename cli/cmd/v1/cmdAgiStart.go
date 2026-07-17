@@ -40,6 +40,12 @@ type AgiStartCmd struct {
 	// GCP reattach options
 	GCP AgiStartCmdGcp `group:"GCP" namespace:"gcp" description:"backend-gcp"`
 
+	// Docker reattach options
+	Docker AgiStartCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
+
+	// Vagrant reattach options
+	Vagrant AgiStartCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -69,6 +75,14 @@ type AgiStartCmdAws struct {
 // Most settings are read from the volume tags automatically.
 type AgiStartCmdGcp struct {
 	VolName string `long:"vol-name" description:"Volume name pattern (default uses AGI name)" default:"{AGI_NAME}"`
+}
+
+// AgiStartCmdDocker contains Docker-specific options for AGI start/reattach.
+type AgiStartCmdDocker struct {
+}
+
+// AgiStartCmdVagrant contains Vagrant-specific options for AGI start/reattach.
+type AgiStartCmdVagrant struct {
 }
 
 // Execute implements the command execution for agi start.

@@ -104,6 +104,11 @@ func (c *AgiRelabelCmd) Relabel(system *System, inventory *backends.Inventory, l
 		if err != nil {
 			return err
 		}
+	case "vagrant":
+		err := c.updateVagrantTags(system, inst, logger)
+		if err != nil {
+			return err
+		}
 	case "docker":
 		// Docker labels cannot be changed after container creation
 		// We'll just update the file
@@ -165,6 +170,22 @@ func (c *AgiRelabelCmd) updateAWSTags(system *System, inst *backends.Instance, l
 	err := backends.InstanceList{inst}.AddTags(newTags)
 	if err != nil {
 		return fmt.Errorf("failed to update AWS tags: %w", err)
+	}
+
+	return nil
+}
+
+// updateVagrantTags updates the vagrant instance tags (stored in aerolab's
+// own metadata store, so unlike Docker labels they can be updated in place
+// after creation).
+func (c *AgiRelabelCmd) updateVagrantTags(system *System, inst *backends.Instance, logger *logger.Logger) error {
+	newTags := map[string]string{
+		"agiLabel": c.NewLabel,
+	}
+
+	err := backends.InstanceList{inst}.AddTags(newTags)
+	if err != nil {
+		return fmt.Errorf("failed to update vagrant tags: %w", err)
 	}
 
 	return nil

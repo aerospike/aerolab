@@ -39,6 +39,7 @@ type ClusterApplyCmd struct {
 	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
 	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
 	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
+	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
 	// Retry configuration
 	MaxRetries         int           `long:"max-retries" description:"Maximum number of retries for transient failures (SSH/SFTP operations)" default:"1" simplemode:"false"`
 	RetrySleep         time.Duration `long:"retry-sleep" description:"Sleep duration between transient retries" default:"30s" simplemode:"false"`
@@ -232,6 +233,7 @@ func (c *ClusterApplyCmd) createCluster(system *System, inventory *backends.Inve
 		Aws:                         c.Aws,
 		Gcp:                         c.Gcp,
 		Docker:                      c.Docker,
+		Vagrant:                     c.Vagrant,
 		MaxRetries:                  c.MaxRetries,
 		RetrySleep:                  c.RetrySleep,
 		CapacityRetries:             c.CapacityRetries,
@@ -272,6 +274,7 @@ func (c *ClusterApplyCmd) growCluster(system *System, inventory *backends.Invent
 			Aws:                         c.Aws,
 			Gcp:                         c.Gcp,
 			Docker:                      c.Docker,
+			Vagrant:                     c.Vagrant,
 			MaxRetries:                  c.MaxRetries,
 			RetrySleep:                  c.RetrySleep,
 			CapacityRetries:             c.CapacityRetries,

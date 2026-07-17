@@ -165,12 +165,13 @@ type AgiMonitorCreateCmd struct {
 	Name  string `short:"n" long:"name" description:"Monitor client name" default:"agimonitor"`
 	Owner string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	AgiMonitorListenCmd
-	AerolabBinary flags.Filename         `long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
-	AWS           AgiMonitorCreateCmdAws `group:"AWS" namespace:"aws" description:"backend-aws"`
-	GCP           AgiMonitorCreateCmdGcp `group:"GCP" namespace:"gcp" description:"backend-gcp"`
-	MaxRetries    int                    `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
-	RetrySleep    time.Duration          `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
-	Help          HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	AerolabBinary flags.Filename            `long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
+	AWS           AgiMonitorCreateCmdAws    `group:"AWS" namespace:"aws" description:"backend-aws"`
+	GCP           AgiMonitorCreateCmdGcp    `group:"GCP" namespace:"gcp" description:"backend-gcp"`
+	Vagrant       AgiMonitorCreateCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+	MaxRetries    int                       `long:"max-retries" description:"Maximum number of retries for transient SSH/SFTP failures" default:"1" simplemode:"false"`
+	RetrySleep    time.Duration             `long:"retry-sleep" description:"Sleep duration between retries" default:"5s" simplemode:"false"`
+	Help          HelpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *AgiMonitorCreateCmd) Execute(args []string) error { return errNoAGI }
@@ -197,6 +198,8 @@ type AgiMonitorCreateCmdGcp struct {
 	Expires      TypeExpiry      `long:"expire" description:"Instance expiry (0 for never)" default:"0"`
 }
 
+type AgiMonitorCreateCmdVagrant struct{}
+
 type Reattach struct {
 	InstanceTypeOverride string `long:"instance-type" description:"Override instance type when reattaching"`
 	NoDIMOverride        *bool  `long:"nodim" description:"Override data-in-memory setting when reattaching" no-default:"true"`
@@ -213,26 +216,35 @@ type AgiStartCmdGcp struct {
 	VolName string `long:"vol-name" description:"Volume name pattern (default uses AGI name)" default:"{AGI_NAME}"`
 }
 
+type AgiStartCmdDocker struct{}
+
+type AgiStartCmdVagrant struct{}
+
 type AgiCreateCmdAws struct{}
 
 type AgiCreateCmdGcp struct{}
 
 type AgiCreateCmdDocker struct{}
 
+type AgiCreateCmdVagrant struct{}
+
 type AgiCreateCmd struct {
-	AWS    AgiCreateCmdAws    `group:"AWS" namespace:"aws" description:"backend-aws"`
-	GCP    AgiCreateCmdGcp    `group:"GCP" namespace:"gcp" description:"backend-gcp"`
-	Docker AgiCreateCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
-	Help   HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
+	AWS     AgiCreateCmdAws     `group:"AWS" namespace:"aws" description:"backend-aws"`
+	GCP     AgiCreateCmdGcp     `group:"GCP" namespace:"gcp" description:"backend-gcp"`
+	Docker  AgiCreateCmdDocker  `group:"Docker" namespace:"docker" description:"backend-docker"`
+	Vagrant AgiCreateCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+	Help    HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *AgiCreateCmd) Execute(args []string) error { return errNoAGI }
 
 type AgiStartCmd struct {
-	Reattach Reattach       `group:"Reattach" namespace:"reattach" description:"reattach options"`
-	AWS      AgiStartCmdAws `group:"AWS" namespace:"aws" description:"backend-aws"`
-	GCP      AgiStartCmdGcp `group:"GCP" namespace:"gcp" description:"backend-gcp"`
-	Help     HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	Reattach Reattach         `group:"Reattach" namespace:"reattach" description:"reattach options"`
+	AWS      AgiStartCmdAws   `group:"AWS" namespace:"aws" description:"backend-aws"`
+	GCP      AgiStartCmdGcp   `group:"GCP" namespace:"gcp" description:"backend-gcp"`
+	Docker   AgiStartCmdDocker `group:"Docker" namespace:"docker" description:"backend-docker"`
+	Vagrant  AgiStartCmdVagrant `group:"Vagrant" namespace:"vagrant" description:"backend-vagrant"`
+	Help     HelpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *AgiStartCmd) Execute(args []string) error { return errNoAGI }

@@ -28,6 +28,7 @@ type InstancesApplyCmd struct {
 	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
 	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
 	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
 	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
 	Force              bool                     `long:"force" description:"Do not ask for confirmation when destroying instances"`
 	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
@@ -145,6 +146,7 @@ func (c *InstancesApplyCmd) create(system *System, inventory *backends.Inventory
 		AWS:                       c.AWS,
 		GCP:                       c.GCP,
 		Docker:                    c.Docker,
+		Vagrant:                   c.Vagrant,
 		NoInstallExpiry:           c.NoInstallExpiry,
 		DryRun:                    c.DryRun,
 		suppressEquivalentCommand: true,
@@ -234,6 +236,7 @@ func (c *InstancesApplyCmd) grow(system *System, inventory *backends.Inventory, 
 		AWS:                       c.AWS,
 		GCP:                       c.GCP,
 		Docker:                    c.Docker,
+		Vagrant:                   c.Vagrant,
 		NoInstallExpiry:           c.NoInstallExpiry,
 		DryRun:                    c.DryRun,
 		suppressEquivalentCommand: true,

@@ -173,9 +173,12 @@ func (c *ClientCreateAMSCmd) createAMSClient(system *System, inventory *backends
 		// best-effort computation if for any reason AccessURL is empty.
 		accessURL := client.AccessURL
 		if accessURL == "" {
-			if system.Opts.Config.Backend.Type == "docker" {
+			switch system.Opts.Config.Backend.Type {
+			case "docker":
 				accessURL = "http://localhost:3000"
-			} else {
+			case "vagrant":
+				accessURL = fmt.Sprintf("http://%s:3000", client.IP.Private)
+			default:
 				accessURL = fmt.Sprintf("http://%s:3000", client.IP.Public)
 			}
 		}
@@ -968,6 +971,11 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 			logger.Info("Docker image override already set (%s); skipping AMS template resolution", c.Docker.ImageName)
 			return nil
 		}
+	case "vagrant":
+		if c.Vagrant.ImageName != "" {
+			logger.Info("Vagrant image override already set (%s); skipping AMS template resolution", c.Vagrant.ImageName)
+			return nil
+		}
 	}
 
 	arch, archStr, err := c.resolveAMSArch(system)
@@ -1072,6 +1080,8 @@ func (c *ClientCreateAMSCmd) resolveAMSTemplate(system *System, inventory *backe
 		c.GCP.ImageName = templateName
 	case "docker":
 		c.Docker.ImageName = templateName
+	case "vagrant":
+		c.Vagrant.ImageName = templateName
 	}
 	if c.Arch == "" {
 		c.Arch = archStr
@@ -1179,7 +1189,7 @@ func (c *ClientCreateAMSCmd) resolveAMSArch(system *System) (backends.Architectu
 	}
 
 	switch system.Opts.Config.Backend.Type {
-	case "docker":
+	case "docker", "vagrant":
 		ar := system.Opts.Config.Backend.Arch
 		if ar == "" {
 			ar = runtime.GOARCH

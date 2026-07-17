@@ -330,6 +330,9 @@ github.com/beorn7/perks/quantile
 # github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 ## explicit
 github.com/bestmethod/inslice
+# github.com/bmatcuk/go-vagrant v1.6.0
+## explicit
+github.com/bmatcuk/go-vagrant
 # github.com/cedws/iapc v0.1.12
 ## explicit; go 1.23.0
 github.com/cedws/iapc/iap
