@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -35,53 +36,113 @@ type MatchCriteria struct {
 	Edition   string
 }
 
-// Match returns the single File matching the criteria. The choice of
-// package format (rpm vs deb) is implied by OSName: amazon/centos use
-// rpm, debian/ubuntu use deb.
+// Match returns the single File matching the criteria. The native package
+// format (rpm vs deb) is implied by OSName: amazon/centos use rpm,
+// debian/ubuntu use deb. Builds that ship the self-contained
+// "aerospike-server-<edition>_<version>_<osTag>_<arch>.tgz" bundle instead of
+// (or as well as) loose packages are handled too — the native package is
+// preferred and the bundle is the fallback, since both install the same
+// server via the same OS package underneath.
 func (fs Files) Match(c MatchCriteria) (*File, error) {
 	wantFormat := formatForOS(c.OSName)
 	if wantFormat == "" {
 		return nil, fmt.Errorf("jfrog: unsupported OS %q (only amazon/centos/debian/ubuntu have JFrog packages)", c.OSName)
 	}
 
-	var seen []string
+	for _, format := range []string{wantFormat, "tgz"} {
+		for i := range fs {
+			f := &fs[i]
+			if f.Parts == nil {
+				continue
+			}
+			if f.Parts.Format != format {
+				continue
+			}
+			if f.Parts.Edition != c.Edition {
+				continue
+			}
+			if f.Parts.OSName != c.OSName {
+				continue
+			}
+			if f.Parts.OSVersion != c.OSVersion {
+				continue
+			}
+			if f.Parts.Arch != c.Arch {
+				continue
+			}
+			return f, nil
+		}
+	}
+	return nil, fs.noMatchError(c, wantFormat)
+}
+
+// diagSampleSize caps how many artifact names a failed match reports. A
+// build carries hundreds of artifacts; a sample is enough to tell whether the
+// package is missing, named unexpectedly, or hidden by repository
+// permissions, without burying the error.
+const diagSampleSize = 15
+
+// noMatchError explains a failed Match. When packages for the requested
+// edition exist it lists them; when none do it samples what the build
+// actually carried, because that is the only place the operator can see it —
+// the artifact list is fetched, matched and discarded in one call.
+func (fs Files) noMatchError(c MatchCriteria, wantFormat string) error {
+	var candidates, others []string
 	for i := range fs {
 		f := &fs[i]
-		if f.Parts == nil {
-			continue
-		}
-		if f.Parts.Format != wantFormat {
-			continue
-		}
-		if f.Parts.Edition != c.Edition {
-			continue
-		}
-		if f.Parts.OSName != c.OSName {
-			continue
-		}
-		if f.Parts.OSVersion != c.OSVersion {
-			continue
-		}
-		if f.Parts.Arch != c.Arch {
-			continue
-		}
-		return f, nil
-	}
-
-	// build a helpful "what we did see" message for the user
-	for _, f := range fs {
-		if f.Parts != nil && f.Parts.Edition == c.Edition && f.Parts.Format == wantFormat {
-			seen = append(seen, fmt.Sprintf("%s/%s/%s",
+		if f.Parts != nil && f.Parts.Edition == c.Edition &&
+			(f.Parts.Format == wantFormat || f.Parts.Format == "tgz") {
+			candidates = append(candidates, fmt.Sprintf("%s/%s/%s",
 				f.Parts.OSName+f.Parts.OSVersion, f.Parts.Arch, f.Name))
+			continue
 		}
+		others = append(others, f.pathName())
 	}
-	if len(seen) == 0 {
-		return nil, fmt.Errorf("jfrog: no %s %s package found for %s/%s/%s",
-			c.Edition, wantFormat, c.OSName, c.OSVersion, c.Arch)
+	if len(candidates) > 0 {
+		return fmt.Errorf(
+			"jfrog: no %s %s package matches %s %s %s; available %s candidates: %v",
+			c.Edition, wantFormat, c.OSName, c.OSVersion, c.Arch, c.Edition, candidates)
 	}
-	return nil, fmt.Errorf(
-		"jfrog: no %s %s package matches %s %s %s; available %s candidates: %v",
-		c.Edition, wantFormat, c.OSName, c.OSVersion, c.Arch, c.Edition, seen)
+	tag := osTag(c.OSName, c.OSVersion)
+	debArchName := "amd64"
+	if c.Arch == "aarch64" {
+		debArchName = "arm64"
+	}
+	example := fmt.Sprintf("aerospike-server-%s-<version>-<release>.%s.%s.rpm", c.Edition, tag, c.Arch)
+	if wantFormat == "deb" {
+		example = fmt.Sprintf("aerospike-server-%s_<version>-<release>%s_%s.deb", c.Edition, tag, debArchName)
+	}
+	return fmt.Errorf(
+		"jfrog: no %s %s (or .tgz bundle) package found for %s/%s/%s; "+
+			"none of the %d artifacts on this build parsed as an %s server package. "+
+			"Expected a name such as %s or aerospike-server-%s_<version>_%s_%s.tgz. "+
+			"If the build genuinely has none, the package may live in a repository your "+
+			"JFrog credentials cannot read (AQL silently omits those). Artifacts on the build: %s",
+		c.Edition, wantFormat, c.OSName, c.OSVersion, c.Arch,
+		len(fs), c.Edition,
+		example, c.Edition, tag, c.Arch,
+		sample(others, diagSampleSize))
+}
+
+// pathName renders a file as "<path>/<name>" so the sample also shows the
+// repository layout (some pipelines encode the distro in the path rather
+// than the filename).
+func (f *File) pathName() string {
+	if f.Path == "" {
+		return f.Name
+	}
+	return strings.TrimSuffix(f.Path, "/") + "/" + f.Name
+}
+
+// sample renders at most max entries of in, noting how many were elided.
+func sample(in []string, max int) string {
+	if len(in) == 0 {
+		return "(none)"
+	}
+	if len(in) <= max {
+		return strings.Join(in, ", ")
+	}
+	return fmt.Sprintf("%s, ... (+%d more)", strings.Join(in[:max], ", "), len(in)-max)
 }
 
 // MatchTools returns the "aerospike-tools_*.tgz" artifact matching the OS

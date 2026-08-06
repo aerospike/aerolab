@@ -104,6 +104,38 @@ After destroying the template, the next `cluster create` rebuilds it from the cu
 
 ---
 
+## 6. Troubleshooting: "no &lt;edition&gt; deb/rpm package found"
+
+Aerolab picks an artifact off the build by parsing its **filename**, accepting:
+
+```
+aerospike-server-<edition>_<version>-<release><osTag>_<amd64|arm64>.deb
+aerospike-server-<edition>-<version>-<release>.<osTag>.<x86_64|aarch64>.rpm
+aerospike-server-<edition>_<version>_<osTag>_<x86_64|aarch64>.tgz   # self-contained bundle
+```
+
+where `<osTag>` is `ubuntu24.04`, `debian12`, `el9`, `amzn2023`, … Release fields may be a
+plain number or a git describe (`70-g282a6817d`), an extra build tag (`-TEST`) or a doubled
+`aerospike-` prefix is fine, and the native package is preferred over the `.tgz` bundle when
+a build ships both.
+
+If nothing on the build matches, the error now lists the artifacts that *were* on it. Two
+common causes:
+
+- **The distro/arch you asked for was not built.** The error lists the editions/OS versions
+  it did find — pick one of those.
+- **Your JFrog credentials cannot read the repository the package lives in.** AQL silently
+  omits artifacts you have no read permission on, so the build looks like it has no
+  enterprise packages at all. Confirm with a direct query and compare against the JFrog UI:
+
+  ```bash
+  curl -s -H "Authorization: Bearer $AEROLAB_ARTIFACTS_AUTH" -H "Content-Type: text/plain" \
+    -X POST "$AEROLAB_ARTIFACTS_URL/artifactory/api/search/aql" \
+    --data 'items.find({"@build.name":"aerospike-server","@build.number":"<build>-artifacts"}).include("repo","path","name")'
+  ```
+
+---
+
 ## Quick reference
 
 ```bash

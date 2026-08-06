@@ -63,6 +63,50 @@ func TestParseFileName_DEB(t *testing.T) {
 			"aerospike-aerospike-server-enterprise-TEST_8.1.3.0-36ubuntu24.04_arm64.deb",
 			NameParts{Edition: "enterprise", Version: "8.1.3.0", Release: "36", OSName: "ubuntu", OSVersion: "24.04", Arch: "aarch64", Format: "deb"},
 		},
+		// git-describe release field (dev builds), with and without a
+		// separator in front of the OS tag
+		{
+			"aerospike-server-enterprise_8.1.3.0-70-g282a6817dubuntu24.04_amd64.deb",
+			NameParts{Edition: "enterprise", Version: "8.1.3.0", Release: "70-g282a6817d", OSName: "ubuntu", OSVersion: "24.04", Arch: "x86_64", Format: "deb"},
+		},
+		{
+			"aerospike-server-enterprise_8.1.3.0-70-g282a6817d.ubuntu24.04_amd64.deb",
+			NameParts{Edition: "enterprise", Version: "8.1.3.0", Release: "70-g282a6817d", OSName: "ubuntu", OSVersion: "24.04", Arch: "x86_64", Format: "deb"},
+		},
+		{
+			"aerospike-server-enterprise_8.1.3.0~70~g282a6817d_ubuntu24.04_amd64.deb",
+			NameParts{Edition: "enterprise", Version: "8.1.3.0", Release: "70~g282a6817d", OSName: "ubuntu", OSVersion: "24.04", Arch: "x86_64", Format: "deb"},
+		},
+	}
+	for _, tc := range cases {
+		got := ParseFileName(tc.name)
+		if got == nil {
+			t.Errorf("%s: parse returned nil", tc.name)
+			continue
+		}
+		if *got != tc.want {
+			t.Errorf("%s:\n  got  %+v\n  want %+v", tc.name, *got, tc.want)
+		}
+	}
+}
+
+func TestParseFileName_TGZ(t *testing.T) {
+	cases := []struct {
+		name string
+		want NameParts
+	}{
+		{
+			"aerospike-server-enterprise_8.0.0.8_ubuntu24.04_x86_64.tgz",
+			NameParts{Edition: "enterprise", Version: "8.0.0.8", OSName: "ubuntu", OSVersion: "24.04", Arch: "x86_64", Format: "tgz"},
+		},
+		{
+			"aerospike-server-enterprise_8.0.0.8_tools-11.2.2_ubuntu24.04_x86_64.tgz",
+			NameParts{Edition: "enterprise", Version: "8.0.0.8", Release: "tools-11.2.2", OSName: "ubuntu", OSVersion: "24.04", Arch: "x86_64", Format: "tgz"},
+		},
+		{
+			"aerospike-server-community_8.1.3.0-70-g282a6817d_amzn2023_aarch64.tar.gz",
+			NameParts{Edition: "community", Version: "8.1.3.0", Release: "70-g282a6817d", OSName: "amazon", OSVersion: "2023", Arch: "aarch64", Format: "tgz"},
+		},
 	}
 	for _, tc := range cases {
 		got := ParseFileName(tc.name)
@@ -80,7 +124,9 @@ func TestParseFileName_Ignored(t *testing.T) {
 	skip := []string{
 		"aerospike-server-community-8.1.3.0-28.amzn2023.aarch64.rpm.asc",
 		"aerospike-server-community_8.1.3.0-28debian12_amd64.deb.asc",
-		"aerospike-server-enterprise_8.0.0.8_ubuntu24.04_x86_64.tgz", // public-download style
+		"aerospike-server-enterprise_8.0.0.8_ubuntu24.04_x86_64.tgz.sha256",
+		"aerospike-server-enterprise_8.1.3.0_source.tar.gz", // no OS tag / arch
+		"aerospike-server-enterprise-docker_8.1.3.0_x86_64.tgz",
 		"aerospike-tools_11.2.2_ubuntu24.04_aarch64.tgz",
 		"random.txt",
 		"",

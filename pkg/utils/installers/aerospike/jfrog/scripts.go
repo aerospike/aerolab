@@ -52,6 +52,10 @@ func InstallScript(f *File, debug, upgrade bool) ([]byte, error) {
 		tplName = "scripts/install_server_rpm.sh.tpl"
 	case "deb":
 		tplName = "scripts/install_server_deb.sh.tpl"
+	case "tgz":
+		// self-contained bundle: extract and let asinstall lay down the
+		// deb/rpm it carries
+		tplName = "scripts/install_server_tgz.sh.tpl"
 	default:
 		return nil, fmt.Errorf("jfrog: unsupported install format %q", f.Parts.Format)
 	}
