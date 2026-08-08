@@ -22,8 +22,13 @@ jobs:
     build-linux:
       runs-on: ubuntu-22.04
       steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+              with:
+                egress-policy: audit
+
             - name: "Git checkout"
-              uses: actions/checkout@v3
+              uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
             - name: "Install Golang"
               run: |
                 set -e
@@ -90,15 +95,20 @@ jobs:
                   fi
                 done
             - name: "Export artifacts"
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: linux
                 path: ~/work/aerolab/aerolab/bin/packages
     build-windows:
       runs-on: ubuntu-22.04
       steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+              with:
+                egress-policy: audit
+
             - name: "Git checkout"
-              uses: actions/checkout@v3
+              uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
             - name: "Install Golang"
               run: |
                 set -e
@@ -124,15 +134,20 @@ jobs:
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab && make pkg-windows-zip
             - name: "Export artifacts"
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: windows
                 path: ~/work/aerolab/aerolab/bin/packages
     build-macos:
       runs-on: macos-14
       steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+              with:
+                egress-policy: audit
+
             - name: "Git checkout"
-              uses: actions/checkout@v3
+              uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.26.4.darwin-amd64.pkg
@@ -191,7 +206,7 @@ jobs:
                 [ -n "${aerolab_installsigner}" ] || { echo "no Developer ID Installer identity found in keychain"; exit 1; }
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH && cd ~/work/aerolab/aerolab && make macos-build-all && make macos-notarize-all
             - name: "Export artifacts"
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                 name: darwin
                 path: ~/work/aerolab/aerolab/bin/packages
@@ -199,20 +214,25 @@ jobs:
       needs: [build-macos, build-windows, build-linux]
       runs-on: ubuntu-22.04
       steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+              with:
+                egress-policy: audit
+
             - name: "Git checkout"
-              uses: actions/checkout@v3
+              uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
             - name: "Download linux artifacts"
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
                 name: linux
                 path: Rlinux/
             - name: "Download windows artifacts"
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
                 name: windows
                 path: Rwindows/
             - name: "Download macos artifacts"
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
                 name: darwin
                 path: Rdarwin/
@@ -286,8 +306,13 @@ jobs:
       needs: release
       runs-on: ubuntu-22.04
       steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+              with:
+                egress-policy: audit
+
             - name: "Git checkout"
-              uses: actions/checkout@v3
+              uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
