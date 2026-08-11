@@ -682,9 +682,14 @@ func (c *clientAddAMSCmd) installScript() string {
 function grafana_fallback() {
 	set -x
 	set -e
-    platform=amd64
-    [[ $(uname -m) =~ arm ]] && platform=arm64
-    [[ $(uname -p) =~ arm ]] && platform=arm64
+    platform=$(dpkg --print-architecture 2>/dev/null || true)
+    if [ "${platform}" != "amd64" ] && [ "${platform}" != "arm64" ]
+    then
+        platform=amd64
+        case "$(uname -m)" in
+            aarch64|arm64|arm*) platform=arm64 ;;
+        esac
+    fi
 	apt-get install -y adduser libfontconfig1 musl
 	wget https://dl.grafana.com/grafana/release/12.4.3/grafana_12.4.3_24388279614_linux_${platform}.deb
 	dpkg -i grafana_12.4.3_24388279614_linux_${platform}.deb
