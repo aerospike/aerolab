@@ -169,9 +169,8 @@ jobs:
                 exit 0
             - name: "Prepare keychain for signing MacOS"
               env:
-                  keypw: ${{ secrets.APPLEPW }}
-                  INSTALLERP12: ${{ secrets.INSTALLERP12 }}
-                  APPLICATIONP12: ${{ secrets.APPLICATIONP12 }}
+                  APPLE_APPLICATION_CERT: ${{ secrets.APPLE_APPLICATION_CERT }}
+                  APPLE_INSTALLER_CERT: ${{ secrets.APPLE_INSTALLER_CERT }}
               run: |
                 set -e
                 security create-keychain -p mysecretpassword build.keychain
@@ -179,25 +178,32 @@ jobs:
                 security unlock-keychain -p mysecretpassword build.keychain
                 security set-keychain-settings build.keychain
                 security unlock-keychain -p mysecretpassword build.keychain
-                echo "$APPLICATIONP12" | base64 -d > app.p12
-                echo "$INSTALLERP12" | base64 -d > install.p12
-                security import app.p12 -k build.keychain -P $keypw -A
-                security import install.p12 -k build.keychain -P $keypw -A
+                echo "$APPLE_APPLICATION_CERT" | base64 -d > app.p12
+                echo "$APPLE_INSTALLER_CERT" | base64 -d > install.p12
+                # The org certs are password-less; going via PEM makes `security
+                # import` accept the empty passphrase reliably.
+                for cert in app install; do
+                  openssl pkcs12 -in ${cert}.p12 -clcerts -nokeys -passin pass: -out ${cert}_cert.pem
+                  openssl pkcs12 -in ${cert}.p12 -nocerts -nodes -passin pass: -out ${cert}_key.pem
+                  security import ${cert}_cert.pem -k build.keychain -A
+                  security import ${cert}_key.pem -k build.keychain -A
+                done
                 security set-key-partition-list -S apple-tool:,apple: -s -k mysecretpassword build.keychain
+                rm -f app.p12 install.p12 app_cert.pem app_key.pem install_cert.pem install_key.pem
             - name: "Sign, package and notarize MacOS"
               env:
-                  xaerolab_appleid: ${{ secrets.APPLEUSER }}
-                  xaerolab_applepw: ${{ secrets.APPLEPW }}
-                  xaerolab_signer: ${{ secrets.APPLESIGNER }}
-                  xaerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
-                  xaerolab_teamid: ${{ secrets.APPLETEAMID }}
+                  xaerolab_appleid: ${{ secrets.APPLE_ID }}
+                  xaerolab_applepw: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+                  xaerolab_teamid: ${{ secrets.APPLE_TEAM_ID }}
               run: |
                 set -e
                 export aerolab_appleid="${xaerolab_appleid}"
                 export aerolab_applepw="${xaerolab_applepw}"
-                export aerolab_signer="${xaerolab_signer}"
-                export aerolab_installsigner="${xaerolab_installsigner}"
                 export aerolab_teamid="${xaerolab_teamid}"
+                export aerolab_signer=$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+                export aerolab_installsigner=$(security find-identity -v build.keychain | awk -F'"' '/Developer ID Installer/ {print $2; exit}')
+                [ -n "${aerolab_signer}" ] || { echo "no Developer ID Application identity found in keychain"; exit 1; }
+                [ -n "${aerolab_installsigner}" ] || { echo "no Developer ID Installer identity found in keychain"; exit 1; }
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Export artifacts"
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
