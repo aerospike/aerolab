@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -30,6 +31,7 @@ func main() {
 		fallthrough
 	default:
 		checkUpgrade()
+		log.Println("WARNING: AeroLab is deprecated and is no longer maintained.")
 		args := os.Args[1:]
 		err := run(args)
 		if err != nil {
