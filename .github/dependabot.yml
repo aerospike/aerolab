@@ -9,3 +9,33 @@ updates:
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /pkg/backend/clouds/bdocker/scripts
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: gomod
+    directory: /pkg/expiry/gcp
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: gomod
+    directory: /telemetry
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /vendor/go.opentelemetry.io/otel
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /web/webui
+    schedule:
+      interval: weekly
