@@ -12,8 +12,13 @@ jobs:
         env:
           VERSION: ${{ inputs.VERSION }}
         steps:
+          - name: Harden the runner (Audit all outbound calls)
+            uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+            with:
+              egress-policy: audit
+
           - name: "Git checkout"
-            uses: actions/checkout@v3
+            uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
           - name: "Patch release date"
             run: |
               RET=0
@@ -24,7 +29,7 @@ jobs:
                 sed -i.bak "s/_Release Date: Month Day, Year_/_${NDATE}_/g" "CHANGELOG/${VERSION}.md"
               fi
           - name: Send mail
-            uses: dawidd6/action-send-mail@v3
+            uses: step-security/action-send-mail@0df95c83dc3278905ad07c9c70dbc9d2eb51221c # v18.0.0
             with:
               server_address: smtp.gmail.com
               server_port: 465
