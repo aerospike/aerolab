@@ -8,15 +8,22 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/utils/github"
-	"github.com/aerospike/aerolab/pkg/utils/installers"
+	"github.com/aerospike-community/aerolab/pkg/utils/github"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers"
 )
 
 //go:embed scripts
 var scripts embed.FS
 
+const (
+	// Owner is the GitHub repository owner for aerolab
+	Owner = "aerospike-community"
+	// Repo is the GitHub repository name for aerolab
+	Repo = "aerolab"
+)
+
 func GetRelease(version string) (*github.Release, error) {
-	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+	releases, err := github.GetReleases(30*time.Second, Owner, Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +35,7 @@ func GetRelease(version string) (*github.Release, error) {
 }
 
 func GetLatestVersion(stable bool) (*github.Release, error) {
-	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+	releases, err := github.GetReleases(30*time.Second, Owner, Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +62,7 @@ func GetLatestVersion(stable bool) (*github.Release, error) {
 //     with prefix of version, and if multiple found, it will use the latest that matches that prefix.
 //   - prerelease: if currentVersion is nil, filter by prerelease status. nil means all releases.
 func GetLinuxInstallScript(currentVersion string, version *string, prerelease *bool) ([]byte, error) {
-	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+	releases, err := github.GetReleases(30*time.Second, Owner, Repo)
 	if err != nil {
 		return nil, err
 	}

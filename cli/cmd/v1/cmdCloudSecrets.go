@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
+	"github.com/aerospike-community/aerolab/cli/cmd/v1/cloud"
 )
 
 type CloudSecretsListCmd struct {

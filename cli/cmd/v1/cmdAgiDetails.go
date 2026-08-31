@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/pager"
-	"github.com/aerospike/aerolab/pkg/utils/printer"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/pager"
+	"github.com/aerospike-community/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rglonek/logger"
 )

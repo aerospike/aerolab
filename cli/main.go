@@ -6,9 +6,9 @@ import (
 	"os"
 	"path"
 
-	cmd "github.com/aerospike/aerolab/cli/cmd/v1"
-	"github.com/aerospike/aerolab/pkg/eks/eksexpiry"
-	"github.com/aerospike/aerolab/pkg/utils/shutdown"
+	cmd "github.com/aerospike-community/aerolab/cli/cmd/v1"
+	"github.com/aerospike-community/aerolab/pkg/eks/eksexpiry"
+	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
 )
 
 func main() {

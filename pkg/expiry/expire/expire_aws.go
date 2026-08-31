@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"

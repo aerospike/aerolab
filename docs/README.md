@@ -4,7 +4,7 @@ Aerolab is a comprehensive command-line tool for creating, managing, and operati
 
 ## Installation
 
-Aerolab is distributed as pre-built binaries for Linux, macOS, and Windows. Download the latest release from the [GitHub Releases page](https://github.com/aerospike/aerolab/releases).
+Aerolab is distributed as pre-built binaries for Linux, macOS, and Windows. Download the latest release from the [GitHub Releases page](https://github.com/aerospike-community/aerolab/releases).
 
 ### Quick Install
 

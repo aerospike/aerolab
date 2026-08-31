@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
 	"gopkg.in/yaml.v3"

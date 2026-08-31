@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/utils/versions"
+	"github.com/aerospike-community/aerolab/pkg/utils/versions"
 )
 
 type RegistryEntry struct {

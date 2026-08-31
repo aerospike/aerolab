@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
-	"github.com/aerospike/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )

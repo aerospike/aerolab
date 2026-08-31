@@ -34,9 +34,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/agi"
-	"github.com/aerospike/aerolab/pkg/agi/ingest"
-	"github.com/aerospike/aerolab/pkg/agi/notifier"
+	"github.com/aerospike-community/aerolab/pkg/agi"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
 	"github.com/bestmethod/inslice"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"

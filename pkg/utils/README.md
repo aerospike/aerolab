@@ -187,7 +187,7 @@ Version comparison and management utilities.
 
 ### Interactive Choice Selection
 ```go
-import "github.com/aerospike/aerolab/pkg/utils/choice"
+import "github.com/aerospike-community/aerolab/pkg/utils/choice"
 
 items := choice.StringSliceToItems([]string{"option1", "option2", "option3"})
 selected, quit, err := choice.Choice("Select an option:", items)
@@ -199,7 +199,7 @@ fmt.Printf("Selected: %s\n", selected)
 
 ### Graceful Shutdown
 ```go
-import "github.com/aerospike/aerolab/pkg/utils/shutdown"
+import "github.com/aerospike-community/aerolab/pkg/utils/shutdown"
 
 // Register cleanup function
 shutdown.AddEarlyCleanupJob("cleanup-temp", func(isSignal bool) {
@@ -216,7 +216,7 @@ shutdown.WaitJobs() // Wait for all jobs to complete before exit
 
 ### Version Comparison
 ```go
-import "github.com/aerospike/aerolab/pkg/utils/versions"
+import "github.com/aerospike-community/aerolab/pkg/utils/versions"
 
 result := versions.Compare("1.2.3", "1.2.4") // Returns -1
 latest := versions.Latest("1.2.3", "1.2.4")  // Returns "1.2.4"
@@ -224,7 +224,7 @@ latest := versions.Latest("1.2.3", "1.2.4")  // Returns "1.2.4"
 
 ### Table Printing
 ```go
-import "github.com/aerospike/aerolab/pkg/utils/printer"
+import "github.com/aerospike-community/aerolab/pkg/utils/printer"
 
 writer, err := printer.GetTableWriter("table", "default", []string{"name"}, false, true)
 if err != nil {

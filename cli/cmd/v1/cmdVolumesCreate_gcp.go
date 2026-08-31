@@ -2,7 +2,7 @@
 
 package cmd
 
-import "github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
+import "github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp"
 
 func buildGCPVolumeParams(c *VolumesCreateCmd) any {
 	return &bgcp.CreateVolumeParams{

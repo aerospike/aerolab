@@ -18,7 +18,7 @@ import (
 
 	"log"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 type MetaEntries map[string]*metaEntries

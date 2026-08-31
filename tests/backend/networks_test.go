@@ -5,7 +5,7 @@ package backend_test
 import (
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/stretchr/testify/require"
 )
 

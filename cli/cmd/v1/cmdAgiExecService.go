@@ -12,9 +12,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
-	"github.com/aerospike/aerolab/pkg/agi/ingest"
-	"github.com/aerospike/aerolab/pkg/agi/plugin"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/plugin"
 )
 
 // AgiExecServiceCmd runs the ingest pipeline and the Grafana plugin

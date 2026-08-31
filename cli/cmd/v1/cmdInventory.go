@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/expiry/expire"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/expiry/expire"
 )
 
 type InventoryCmd struct {

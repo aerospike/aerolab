@@ -15,7 +15,7 @@ The [webui package](mdc:pkg/webui/website.go) provides comprehensive web interfa
 
 ## Website Installation
 ```go
-import "github.com/aerospike/aerolab/pkg/webui"
+import "github.com/aerospike-community/aerolab/pkg/webui"
 
 // Install embedded website files
 err := webui.InstallWebsite("/var/www/aerolab", webui.Website)

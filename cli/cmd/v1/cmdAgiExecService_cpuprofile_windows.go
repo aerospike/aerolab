@@ -3,7 +3,7 @@
 package cmd
 
 import (
-	"github.com/aerospike/aerolab/pkg/agi/plugin"
+	"github.com/aerospike-community/aerolab/pkg/agi/plugin"
 )
 
 // installCPUProfileRotateHandler is a no-op on Windows because

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
 )

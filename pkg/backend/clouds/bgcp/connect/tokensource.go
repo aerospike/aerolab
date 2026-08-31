@@ -3,7 +3,7 @@ package connect
 import (
 	"fmt"
 
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
 	"github.com/rglonek/logger"
 	"golang.org/x/oauth2"
 )

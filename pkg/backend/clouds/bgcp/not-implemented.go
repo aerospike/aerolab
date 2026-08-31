@@ -3,7 +3,7 @@ package bgcp
 import (
 	"io"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 func (s *b) DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error {

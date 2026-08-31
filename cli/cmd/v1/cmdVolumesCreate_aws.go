@@ -2,7 +2,7 @@
 
 package cmd
 
-import "github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+import "github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
 
 func buildAWSVolumeParams(c *VolumesCreateCmd) any {
 	return &baws.CreateVolumeParams{

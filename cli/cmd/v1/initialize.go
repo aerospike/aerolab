@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
-	"github.com/aerospike/aerolab/pkg/utils/shutdown"
+	"github.com/aerospike-community/aerolab/pkg/backend"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
+	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 
@@ -333,7 +333,7 @@ func (i *Init) upgradeCheck(s *System) {
 
 	// if the last check was done on this version, and upgrade is available, inform the user
 	if uc.CurrentVersion == currentVersion && uc.IsUpgradeAvailable {
-		log.Info("A new AeroLab version %s is available, install using `aerolab upgrade`, or download link: https://github.com/aerospike/aerolab/releases", uc.NewVersion)
+		log.Info("A new AeroLab version %s is available, install using `aerolab upgrade`, or download link: https://github.com/aerospike-community/aerolab/releases", uc.NewVersion)
 	}
 
 	// check if we need to pull latest version details, and do so if required

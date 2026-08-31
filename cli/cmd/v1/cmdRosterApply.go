@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 	"github.com/bestmethod/inslice"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	"github.com/rglonek/logger"

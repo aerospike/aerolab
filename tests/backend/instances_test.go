@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
-	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 )
 
 // test cases

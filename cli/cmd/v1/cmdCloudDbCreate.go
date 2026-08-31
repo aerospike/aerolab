@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/cli/cmd/v1/cloud"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/rglonek/logger"
 )
 

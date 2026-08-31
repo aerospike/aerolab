@@ -9,9 +9,9 @@ import (
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 
-	"github.com/aerospike/aerolab/pkg/backend/cache"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/backend/cache"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 )
 
 type Config struct {

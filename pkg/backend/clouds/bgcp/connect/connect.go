@@ -12,8 +12,8 @@ import (
 	"os"
 
 	"cloud.google.com/go/auth/httptransport"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/utils/openbrowser"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/utils/openbrowser"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/oauth2"

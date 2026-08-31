@@ -89,7 +89,7 @@ When a cluster is marked for expiry, the cleanup process follows this order:
 ### Manual EKS Expiry
 
 ```go
-import "github.com/aerospike/aerolab/pkg/eks/eksexpiry"
+import "github.com/aerospike-community/aerolab/pkg/eks/eksexpiry"
 
 // Trigger manual expiry process
 eksexpiry.Expiry()
@@ -109,8 +109,8 @@ eksctl create cluster -f /path/to/aerolab/pkg/eks/ekctl-templates/auto-scaler.ya
 
 ```go
 import (
-    "github.com/aerospike/aerolab/pkg/expiry/expire"
-    "github.com/aerospike/aerolab/pkg/backend/backends"
+    "github.com/aerospike-community/aerolab/pkg/expiry/expire"
+    "github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // Create expiry handler with EKS support
