@@ -1514,7 +1514,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		// soon as the daemon says the container is gone and report what it
 		// did, instead of retrying a dead target until the budget expires.
 		if stopped := stoppedContainers(cli, failedIDs); len(stopped) > 0 {
-			return nil, fmt.Errorf("instances failed to initialize ssh because they stopped running:\n%s", describeContainers(cli, stopped))
+			return nil, fmt.Errorf("instances failed to initialize ssh because they stopped running:\n%s", describeContainers(cli, nil, stopped))
 		}
 		// The containers are alive but not answering. Say so once, part-way
 		// through the budget, rather than leaving the user watching identical
@@ -1524,7 +1524,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		// container status below.
 		if !diagnosed && time.Since(waitStart) > sshDiagnosticsAfter {
 			diagnosed = true
-			log.Warn("Instances have not answered ssh for %s; aerolab connects over 127.0.0.1 on the host port published for container port 22. Container status:\n%s", sshDiagnosticsAfter, describeContainers(cli, runIDs))
+			log.Warn("Instances have not answered ssh for %s; aerolab connects over 127.0.0.1 on the host port published for container port 22. Container status:\n%s", sshDiagnosticsAfter, describeContainers(cli, dockerExec(cli), runIDs))
 		}
 		waitDur -= time.Since(now)
 		if waitDur > 0 {
@@ -1536,9 +1536,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if waitDur <= 0 {
 		log.Detail("Instances failed to initialize ssh")
 		if lastErrs != nil {
-			return nil, fmt.Errorf("instances failed to initialize ssh: aerolab connects over 127.0.0.1 on the host port that docker/podman published for container port 22, so a refused connection means nothing is listening on that host port - either the container is not running, or the container engine's virtual machine is not forwarding published ports to the host (on macOS and Windows, restarting the docker/podman machine usually fixes that); last error(s): %w\n%s", lastErrs, describeContainers(cli, runIDs))
+			return nil, fmt.Errorf("instances failed to initialize ssh: aerolab connects over 127.0.0.1 on the host port that docker/podman published for container port 22, so a refused connection means nothing is listening on that host port - either the container is not running, or the container engine's virtual machine is not forwarding published ports to the host (on macOS and Windows, restarting the docker/podman machine usually fixes that); last error(s): %w\n%s", lastErrs, describeContainers(cli, dockerExec(cli), runIDs))
 		}
-		return nil, fmt.Errorf("instances failed to initialize ssh\n%s", describeContainers(cli, runIDs))
+		return nil, fmt.Errorf("instances failed to initialize ssh\n%s", describeContainers(cli, dockerExec(cli), runIDs))
 	}
 
 	// return

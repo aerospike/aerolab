@@ -91,7 +91,7 @@ func TestDescribeContainerExited(t *testing.T) {
 		},
 		logs: map[string]string{id: "starting aerolab init\r\nexec /usr/sbin/init: exec format error\r\n"},
 	}
-	got := describeContainer(f, id)
+	got := describeContainer(f, nil, id)
 	for _, want := range []string{"670039577a06", "state=exited", "exitCode=127", "exec format error", "hostPorts=none"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("description should mention %q, got:\n%s", want, got)
@@ -111,7 +111,7 @@ func TestDescribeContainerRunning(t *testing.T) {
 		},
 		logs: map[string]string{"c1": "sshd listening on 0.0.0.0:22\n"},
 	}
-	got := describeContainer(f, "c1")
+	got := describeContainer(f, nil, "c1")
 	for _, want := range []string{"state=running", "hostPorts=22/tcp->0.0.0.0:2201", "sshd listening"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("description should mention %q, got:\n%s", want, got)
@@ -120,7 +120,7 @@ func TestDescribeContainerRunning(t *testing.T) {
 }
 
 func TestDescribeContainerGone(t *testing.T) {
-	got := describeContainer(&fakeDiagnoser{}, "c1")
+	got := describeContainer(&fakeDiagnoser{}, nil, "c1")
 	if !strings.Contains(got, "auto-removed") {
 		t.Errorf("a missing container should be reported as auto-removed, got: %s", got)
 	}
@@ -133,7 +133,7 @@ func TestDescribeContainerLogsUnavailable(t *testing.T) {
 		inspect: map[string]container.InspectResponse{"c1": ttyContainer(&container.State{Status: "exited"}, nil)},
 		logErr:  errors.New("logs unavailable"),
 	}
-	got := describeContainer(f, "c1")
+	got := describeContainer(f, nil, "c1")
 	if !strings.Contains(got, "state=exited") {
 		t.Errorf("state should still be reported, got: %s", got)
 	}
@@ -150,7 +150,7 @@ func TestDescribeContainersCapsOutput(t *testing.T) {
 		ids = append(ids, id)
 		inspect[id] = ttyContainer(&container.State{Status: "exited"}, nil)
 	}
-	got := describeContainers(&fakeDiagnoser{inspect: inspect}, ids)
+	got := describeContainers(&fakeDiagnoser{inspect: inspect}, nil, ids)
 	if strings.Count(got, "state=exited") != containersDescribedOnFailure {
 		t.Errorf("expected %d containers described, got:\n%s", containersDescribedOnFailure, got)
 	}
@@ -174,15 +174,15 @@ func TestDescribeHostBindings(t *testing.T) {
 	}
 }
 
-func TestIndentLogTail(t *testing.T) {
-	if got := indentLogTail("\r\n  \n"); got != "" {
+func TestTailLines(t *testing.T) {
+	if got := tailLines("\r\n  \n", containerLogTailLines); got != "" {
 		t.Errorf("blank output should render as empty, got %q", got)
 	}
 	lines := []string{}
 	for i := range containerLogTailLines + 5 {
 		lines = append(lines, fmt.Sprintf("line %d", i))
 	}
-	got := indentLogTail(strings.Join(lines, "\r\n"))
+	got := tailLines(strings.Join(lines, "\r\n"), containerLogTailLines)
 	gotLines := strings.Split(got, "\n")
 	if len(gotLines) != containerLogTailLines {
 		t.Fatalf("expected %d lines, got %d", containerLogTailLines, len(gotLines))
@@ -195,20 +195,98 @@ func TestIndentLogTail(t *testing.T) {
 	}
 }
 
-func TestDiagnoseStopped(t *testing.T) {
-	s := &b{}
-	f := &fakeDiagnoser{inspect: map[string]container.InspectResponse{
-		"running": ttyContainer(&container.State{Status: "running", Running: true}, sshBinding("2200")),
-		"exited":  ttyContainer(&container.State{Status: "exited", ExitCode: 1}, nil),
-	}}
-	if got := s.diagnoseStopped(f, []string{"running"}); got != "" {
-		t.Errorf("all running should describe nothing, got %q", got)
+func TestGrepLines(t *testing.T) {
+	logs := strings.Join([]string{
+		"systemd: starting dbus.service",
+		"supervisor[ssh.service]: ExecStartPre=/usr/sbin/sshd -t failed with code=1",
+		"systemd: ssh.service: Job for ssh.service failed",
+		"systemd: Startup finished",
+	}, "\n")
+	got := grepLines(logs, "ssh", containerLogSSHLines)
+	if strings.Count(got, "\n") != 1 {
+		t.Errorf("expected the two ssh lines, got:\n%s", got)
 	}
-	got := s.diagnoseStopped(f, []string{"running", "exited"})
-	if !strings.HasPrefix(got, "\n") {
-		t.Errorf("diagnostics should start on their own line, got %q", got)
+	if strings.Contains(got, "dbus") {
+		t.Errorf("non-matching lines should be dropped, got:\n%s", got)
 	}
-	if !strings.Contains(got, "exitCode=1") || strings.Contains(got, "state=running") {
-		t.Errorf("only the stopped container should be described, got %q", got)
+	if got := grepLines(logs, "nothingmatches", containerLogSSHLines); got != "" {
+		t.Errorf("no matches should render as empty, got %q", got)
+	}
+}
+
+// The probe is what separates "sshd never started" from "the host cannot reach
+// a healthy container", so both readings have to come out of a real proc dump.
+func TestListeningOnPort(t *testing.T) {
+	listening := "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n" +
+		"   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 21421 1 0000 100 0\n"
+	established := "   0: 0100007F:1F90 0100007F:C1B4 01 00000000:00000000 00:00000000 00000000     0        0 21422 1 0000 100 0\n"
+
+	if !listeningOnPort([]byte(listening), 22) {
+		t.Error("a LISTEN socket on port 22 should be detected")
+	}
+	if listeningOnPort([]byte(established), 22) {
+		t.Error("an unrelated established socket must not count")
+	}
+	// Port 22 present, but the socket is connected rather than listening.
+	if listeningOnPort([]byte(strings.Replace(listening, " 0A ", " 01 ", 1)), 22) {
+		t.Error("only the LISTEN state counts")
+	}
+	if listeningOnPort(nil, 22) {
+		t.Error("empty proc output must not report a listener")
+	}
+	if listeningOnPort([]byte(listening), 8080) {
+		t.Error("a different port must not match")
+	}
+}
+
+func TestSSHdListeningIgnoresPartialFailure(t *testing.T) {
+	// cat /proc/net/tcp /proc/net/tcp6 exits non-zero when IPv6 is off, having
+	// already printed the IPv4 table.
+	out := []byte("   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 1 1\n")
+	exec := func(string, []string) ([]byte, error) { return out, errors.New("exited with code 1") }
+	listening, err := sshdListening(exec, "c1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !listening {
+		t.Error("the IPv4 table alone should be enough to report a listener")
+	}
+
+	exec = func(string, []string) ([]byte, error) { return nil, errors.New("container not running") }
+	if _, err := sshdListening(exec, "c1"); err == nil {
+		t.Error("expected an error when the probe produced no output at all")
+	}
+}
+
+func TestDescribeContainerVerdicts(t *testing.T) {
+	listening := []byte("   0: 00000000:0016 00000000:0000 0A 0:0 00:0 0 0 0 1 1\n")
+	quiet := []byte("   0: 00000000:1F90 00000000:0000 0A 0:0 00:0 0 0 0 1 1\n")
+	f := &fakeDiagnoser{
+		inspect: map[string]container.InspectResponse{
+			"c1": ttyContainer(&container.State{Status: "running", Running: true}, sshBinding("2200")),
+		},
+		logs: map[string]string{"c1": "supervisor[ssh.service]: main process exited before READY=1 (code=1)\nsystemd: Startup finished\n"},
+	}
+
+	got := describeContainer(f, func(string, []string) ([]byte, error) { return listening, nil }, "c1")
+	if !strings.Contains(got, "sshListening=yes") || !strings.Contains(got, "not forwarding it") {
+		t.Errorf("a healthy container should blame host port forwarding, got:\n%s", got)
+	}
+
+	got = describeContainer(f, func(string, []string) ([]byte, error) { return quiet, nil }, "c1")
+	if !strings.Contains(got, "sshListening=no") || !strings.Contains(got, "sshd did not start") {
+		t.Errorf("a container without sshd should blame the container, got:\n%s", got)
+	}
+	if !strings.Contains(got, "ssh-related output") || !strings.Contains(got, "ssh.service") {
+		t.Errorf("ssh log lines should be surfaced when sshd is missing, got:\n%s", got)
+	}
+
+	// A probe that cannot run must not produce a confident verdict.
+	got = describeContainer(f, func(string, []string) ([]byte, error) { return nil, errors.New("daemon busy") }, "c1")
+	if !strings.Contains(got, "sshListening=unknown") {
+		t.Errorf("expected an unknown probe result, got:\n%s", got)
+	}
+	if strings.Contains(got, "sshd did not start") || strings.Contains(got, "not forwarding it") {
+		t.Errorf("no verdict should be given without a probe result, got:\n%s", got)
 	}
 }
