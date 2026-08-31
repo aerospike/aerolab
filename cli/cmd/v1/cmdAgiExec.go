@@ -13,10 +13,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/aerospike-community/aerolab/pkg/agi"
-	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
-	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
 	"github.com/bestmethod/inslice"
+	"github.com/citrusleaf/aerolab/pkg/agi"
+	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
+	"github.com/citrusleaf/aerolab/pkg/agi/notifier"
 	"gopkg.in/yaml.v3"
 )
 

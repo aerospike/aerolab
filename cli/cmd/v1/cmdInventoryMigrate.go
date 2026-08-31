@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 type InventoryMigrateCmd struct {

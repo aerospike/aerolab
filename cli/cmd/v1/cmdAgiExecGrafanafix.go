@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/grafanafix"
+	"github.com/citrusleaf/aerolab/pkg/agi/grafanafix"
 )
 
 // AgiExecGrafanaFixCmd runs the Grafana helper service.

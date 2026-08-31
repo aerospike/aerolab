@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
+	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
 	"golang.org/x/sys/unix"
 )
 

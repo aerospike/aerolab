@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds/sshkey"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds/sshkey"
 	"github.com/rglonek/logger"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"

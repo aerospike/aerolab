@@ -3,7 +3,7 @@ package baws
 import (
 	"io"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 func (s *b) DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error {

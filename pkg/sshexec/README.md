@@ -48,7 +48,7 @@ Result structure containing stdout, stderr, errors, and warnings from command ex
 ### Basic Command Execution
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/sshexec"
+import "github.com/citrusleaf/aerolab/pkg/sshexec"
 
 input := &sshexec.ExecInput{
     ClientConf: sshexec.ClientConf{

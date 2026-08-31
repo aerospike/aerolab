@@ -22,8 +22,8 @@ linters:
         - G117
     errcheck:
       exclude-functions:
-        - (*github.com/aerospike-community/aerolab/pkg/backend/backends.Architecture).FromString
-        - (github.com/aerospike-community/aerolab/pkg/backend/backends.Backend).ForceRefreshInventory
+        - (*github.com/citrusleaf/aerolab/pkg/backend/backends.Architecture).FromString
+        - (github.com/citrusleaf/aerolab/pkg/backend/backends.Backend).ForceRefreshInventory
         - (github.com/rglonek/aerospike-config-file-parser.Stanza).SetValue
         - (github.com/rglonek/aerospike-config-file-parser.Stanza).SetValues
         - (github.com/rglonek/aerospike-config-file-parser.Stanza).Delete

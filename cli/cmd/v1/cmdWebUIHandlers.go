@@ -13,8 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
 )
 
 // handleFileDownload handles streaming file downloads via tar.gz

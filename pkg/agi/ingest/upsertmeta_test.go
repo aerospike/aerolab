@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/citrusleaf/aerolab/pkg/agi/db"
 )
 
 // makeIngestForUpsertTests wires the smallest possible Ingest shell

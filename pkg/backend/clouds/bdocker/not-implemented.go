@@ -1,6 +1,6 @@
 package bdocker
 
-import "github.com/aerospike-community/aerolab/pkg/backend/backends"
+import "github.com/citrusleaf/aerolab/pkg/backend/backends"
 
 func (s *b) AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeDocker, "AssociateVPCWithHostedZone")

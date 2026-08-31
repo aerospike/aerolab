@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/installers"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike/jfrog"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/rglonek/logger"
 )
 

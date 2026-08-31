@@ -8,7 +8,7 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 	"google.golang.org/api/iterator"

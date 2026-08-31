@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
-	"github.com/aerospike-community/aerolab/pkg/utils/choice"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/utils/choice"
 	"github.com/rglonek/go-flags"
 )
 

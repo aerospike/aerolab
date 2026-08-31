@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/backend/backendtest"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backendtest"
 	"github.com/stretchr/testify/require"
 )
 

@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	aerolabmcp "github.com/aerospike-community/aerolab/pkg/mcp"
+	aerolabmcp "github.com/citrusleaf/aerolab/pkg/mcp"
 )
 
 // McpCmd runs the aerolab MCP (Model Context Protocol) server. It exposes

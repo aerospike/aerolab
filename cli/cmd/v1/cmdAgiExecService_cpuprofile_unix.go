@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/plugin"
+	"github.com/citrusleaf/aerolab/pkg/agi/plugin"
 )
 
 // installCPUProfileRotateHandler wires SIGUSR1 to a goroutine that

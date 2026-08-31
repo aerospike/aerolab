@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/termutil"
-	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
+	"github.com/citrusleaf/aerolab/pkg/termutil"
+	"github.com/citrusleaf/aerolab/pkg/utils/shutdown"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/crypto/ssh"

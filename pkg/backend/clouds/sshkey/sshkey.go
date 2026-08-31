@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/file"
+	"github.com/citrusleaf/aerolab/pkg/utils/file"
 	"github.com/rglonek/logger"
 	"golang.org/x/crypto/ssh"
 )

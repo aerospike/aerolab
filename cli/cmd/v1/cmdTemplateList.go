@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 type TemplateListCmd struct {

@@ -19,8 +19,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/contextio"
-	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
+	"github.com/citrusleaf/aerolab/pkg/utils/contextio"
+	"github.com/citrusleaf/aerolab/pkg/utils/shutdown"
 	"github.com/gabriel-vasile/mimetype"
 )
 

@@ -5,7 +5,7 @@ import (
 	"embed"
 	"text/template"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/installers"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers"
 )
 
 //go:embed scripts

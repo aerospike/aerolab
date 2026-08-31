@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -20,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 	stypes "github.com/aws/aws-sdk-go-v2/service/scheduler/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 )

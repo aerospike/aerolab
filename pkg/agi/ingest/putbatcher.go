@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/citrusleaf/aerolab/pkg/agi/db"
 )
 
 // putBatcher streams ingest metric rows into per-set buffers and flushes

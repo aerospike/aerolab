@@ -18,16 +18,16 @@ To remove the v7 expiry system, you need to use AeroLab v7. Download the v7.9.0 
 
 ### Step 1: Download AeroLab v7.9.0
 
-Download the appropriate zip file for your platform from the [v7.9.0 release](https://github.com/aerospike-community/aerolab/releases/tag/v7.9.0):
+Download the appropriate zip file for your platform from the [v7.9.0 release](https://github.com/citrusleaf/aerolab/releases/tag/v7.9.0):
 
 | Platform | Download Link |
 |----------|---------------|
-| Linux (amd64) | [aerolab-linux-amd64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-linux-amd64-7.9.0.zip) |
-| Linux (arm64) | [aerolab-linux-arm64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-linux-arm64-7.9.0.zip) |
-| macOS (Intel) | [aerolab-macos-amd64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-macos-amd64-7.9.0.zip) |
-| macOS (Apple Silicon) | [aerolab-macos-arm64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-macos-arm64-7.9.0.zip) |
-| Windows (amd64) | [aerolab-windows-amd64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-windows-amd64-7.9.0.zip) |
-| Windows (arm64) | [aerolab-windows-arm64-7.9.0.zip](https://github.com/aerospike-community/aerolab/releases/download/v7.9.0/aerolab-windows-arm64-7.9.0.zip) |
+| Linux (amd64) | [aerolab-linux-amd64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-linux-amd64-7.9.0.zip) |
+| Linux (arm64) | [aerolab-linux-arm64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-linux-arm64-7.9.0.zip) |
+| macOS (Intel) | [aerolab-macos-amd64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-macos-amd64-7.9.0.zip) |
+| macOS (Apple Silicon) | [aerolab-macos-arm64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-macos-arm64-7.9.0.zip) |
+| Windows (amd64) | [aerolab-windows-amd64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-windows-amd64-7.9.0.zip) |
+| Windows (arm64) | [aerolab-windows-arm64-7.9.0.zip](https://github.com/citrusleaf/aerolab/releases/download/v7.9.0/aerolab-windows-arm64-7.9.0.zip) |
 
 ### Step 2: Extract and Configure
 

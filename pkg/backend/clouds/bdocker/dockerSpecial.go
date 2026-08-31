@@ -9,7 +9,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 	"github.com/lithammer/shortuuid"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"

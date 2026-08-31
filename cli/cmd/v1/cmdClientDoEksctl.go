@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/eks"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerolab"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/eksctl"
-	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/eks"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerolab"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/eksctl"
+	"github.com/citrusleaf/aerolab/pkg/utils/parallelize"
+	"github.com/citrusleaf/aerolab/pkg/utils/scriptlog"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
@@ -102,7 +102,7 @@ func (c *ClientCreateEksCtlCmd) Execute(args []string) error {
 	system.Logger.Info("Done")
 	system.Logger.Info("To configure timezone inside the machine, run: aerolab attach client -n %s -- dpkg-reconfigure tzdata", c.ClientName)
 	system.Logger.Info("Attach command: aerolab attach client -n %s", c.ClientName)
-	system.Logger.Info("Usage instructions: https://github.com/aerospike-community/aerolab/blob/master/docs/eks/README.md")
+	system.Logger.Info("Usage instructions: https://github.com/citrusleaf/aerolab/blob/master/docs/eks/README.md")
 	return Error(nil, system, cmd, c, args)
 }
 

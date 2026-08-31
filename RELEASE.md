@@ -10,8 +10,8 @@ While extensive testing has been performed, Aerolab v8 is still in beta and may 
 
 #### Usage
 
-Please refer to the [README.md](https://github.com/aerospike-community/aerolab/tree/v8.0.0/docs) for usage instructions and getting started guides.
+Please refer to the [README.md](https://github.com/citrusleaf/aerolab/tree/v8.0.0/docs) for usage instructions and getting started guides.
 
 #### Migration from AeroLab v7
 
-AeroLab v7 volumes, images, firewalls and instances are not automatically visible in v8. To migrate to v8, use the `config migrate` and `inventory migrate` commands. See [docs/migration-guide.md](https://github.com/aerospike-community/aerolab/tree/v8.0.0/docs/migration-guide.md) for details. Note that the migration commands are safe to run multiple times and will not corrupt existing v7 configuration or access. In essence, after migration completes, both v7 and v8 can be used side by side for the existing migrated resources.
+AeroLab v7 volumes, images, firewalls and instances are not automatically visible in v8. To migrate to v8, use the `config migrate` and `inventory migrate` commands. See [docs/migration-guide.md](https://github.com/citrusleaf/aerolab/tree/v8.0.0/docs/migration-guide.md) for details. Note that the migration commands are safe to run multiple times and will not corrupt existing v7 configuration or access. In essence, after migration completes, both v7 and v8 can be used side by side for the existing migrated resources.

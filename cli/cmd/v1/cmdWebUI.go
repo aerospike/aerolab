@@ -23,11 +23,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
-	"github.com/aerospike-community/aerolab/pkg/utils/openbrowser"
-	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
-	"github.com/aerospike-community/aerolab/pkg/webui"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
+	"github.com/citrusleaf/aerolab/pkg/utils/openbrowser"
+	"github.com/citrusleaf/aerolab/pkg/utils/scriptlog"
+	"github.com/citrusleaf/aerolab/pkg/webui"
 )
 
 // WebUICmd runs the AeroLab REST API server.

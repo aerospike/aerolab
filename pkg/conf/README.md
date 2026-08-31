@@ -43,7 +43,7 @@ The package uses a modular architecture where:
 ### Basic Configuration Editing
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/conf/aerospike/confeditor"
+import "github.com/citrusleaf/aerolab/pkg/conf/aerospike/confeditor"
 
 // Load existing configuration
 config, err := confeditor.LoadConfig("/etc/aerospike/aerospike.conf")
@@ -66,7 +66,7 @@ if err != nil {
 ### Version 7 Specific Configuration
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/conf/aerospike/confeditor7"
+import "github.com/citrusleaf/aerolab/pkg/conf/aerospike/confeditor7"
 
 // Create new configuration for Aerospike 7.x
 config := confeditor7.NewConfig()

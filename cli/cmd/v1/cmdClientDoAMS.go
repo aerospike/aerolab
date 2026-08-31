@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/grafana"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/prometheus"
-	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/grafana"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/prometheus"
+	"github.com/citrusleaf/aerolab/pkg/utils/parallelize"
+	"github.com/citrusleaf/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
@@ -32,7 +32,7 @@ type ClientCreateAMSCmd struct {
 	PrometheusVersion string          `long:"prometheus-version" description:"Prometheus version to install" default:"latest"`
 	ConnectClusters   TypeClusterName `short:"s" long:"clusters" description:"Comma-separated list of clusters to configure as source for this AMS"`
 	ConnectClients    TypeClientName  `short:"S" long:"clients" description:"Comma-separated list of (graph) clients to configure as source for this AMS"`
-	Dashboards        flags.Filename  `long:"dashboards" description:"Dashboards list file, see https://github.com/aerospike-community/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
+	Dashboards        flags.Filename  `long:"dashboards" description:"Dashboards list file, see https://github.com/citrusleaf/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	DebugDashboards   bool            `long:"debug-dashboards" description:"Enable debug output for dashboard installation"`
 }
 
@@ -239,7 +239,7 @@ func (c *ClientCreateAMSCmd) loadCustomDashboards() ([]CustomAMSDashboard, error
 	}
 
 	// Always add asbench dashboard
-	asbenchURL := "https://raw.githubusercontent.com/aerospike-community/aerolab/master/scripts/asbench2.json"
+	asbenchURL := "https://raw.githubusercontent.com/citrusleaf/aerolab/master/scripts/asbench2.json"
 	dashboards = append(dashboards, CustomAMSDashboard{
 		FromUrl:     &asbenchURL,
 		Destination: "/var/lib/grafana/dashboards/asbench.json",

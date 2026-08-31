@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
 )
 
 // telemetryTagKey is the tag key used to identify resources that should have telemetry sent on expiry

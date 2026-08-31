@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
+	"github.com/citrusleaf/aerolab/pkg/agi/notifier"
 	flags "github.com/rglonek/go-flags"
 )
 
