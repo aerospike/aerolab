@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 // debugServer wires a fresh test plugin to a real ServeMux + Server so

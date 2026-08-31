@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 // TestBinListSnapshotLockFreeReadsConcurrent runs a small fixed

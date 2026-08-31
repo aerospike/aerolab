@@ -1,7 +1,7 @@
 package backend
 
 import (
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // Config is an alias for backends.Config, providing a simplified interface for backend configuration.

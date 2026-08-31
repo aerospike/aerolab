@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/utils/github"
-	"github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
-	"github.com/aerospike/aerolab/pkg/utils/versions"
+	"github.com/aerospike-community/aerolab/pkg/utils/github"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike-community/aerolab/pkg/utils/versions"
 	"github.com/rglonek/logger"
 )
 
@@ -49,7 +49,7 @@ func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string
 	// If Edge mode, we need to handle Major flag filtering
 	if c.Edge {
 		// Get all releases to filter prereleases
-		releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+		releases, err := github.GetReleases(30*time.Second, aerolab.Owner, aerolab.Repo)
 		if err != nil {
 			return false, "", nil, err
 		}

@@ -4,7 +4,7 @@ This guide will help you get started with AGI (Aerospike Grafana Integration) fo
 
 ## Prerequisites
 
-- **Aerolab** - Install Aerolab from the [releases page](https://github.com/aerospike/aerolab/releases)
+- **Aerolab** - Install Aerolab from the [releases page](https://github.com/aerospike-community/aerolab/releases)
 - **Backend configured** - Docker, AWS, or GCP backend must be configured
 
 ## Choose Your Backend

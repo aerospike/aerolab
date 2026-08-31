@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/choice"
-	"github.com/aerospike/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike/aerolab/pkg/utils/progress"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/choice"
+	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike-community/aerolab/pkg/utils/progress"
 	"github.com/rglonek/go-flags"
 )
 

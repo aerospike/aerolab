@@ -3,7 +3,7 @@ package plugin
 import (
 	"fmt"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 // DBOptionsFromConfig translates the plugin Config's DB sub-struct into

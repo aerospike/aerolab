@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 )

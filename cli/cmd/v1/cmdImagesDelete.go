@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/utils/choice"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/utils/choice"
 )
 
 type ImagesDeleteCmd struct {

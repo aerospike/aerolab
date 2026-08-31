@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/backend/backendtest"
+	"github.com/aerospike-community/aerolab/pkg/backend/backendtest"
 	"github.com/stretchr/testify/require"
 )
 

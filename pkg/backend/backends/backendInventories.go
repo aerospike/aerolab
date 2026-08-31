@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/cache"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/backend/cache"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
 )

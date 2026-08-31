@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 // seedTestData populates a db.DB with a handful of rows that exercise the

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"

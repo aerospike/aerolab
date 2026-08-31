@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // InstanceOption mutates an Instance being built by NewInstance.

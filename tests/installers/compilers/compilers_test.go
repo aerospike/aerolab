@@ -5,8 +5,8 @@ package compilers_test
 import (
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/utils/installers/compilers"
-	"github.com/aerospike/aerolab/tests/installers/installertest"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/compilers"
+	"github.com/aerospike-community/aerolab/tests/installers/installertest"
 	"github.com/stretchr/testify/require"
 )
 

@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
-	"github.com/aerospike/aerolab/pkg/utils/callerip"
+	"github.com/aerospike-community/aerolab/pkg/backend"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike-community/aerolab/pkg/utils/callerip"
 	"github.com/rglonek/logger"
 	"github.com/stretchr/testify/require"
 )

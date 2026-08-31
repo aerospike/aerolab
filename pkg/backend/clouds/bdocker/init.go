@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/counters"
-	"github.com/aerospike/aerolab/pkg/utils/file"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/counters"
+	"github.com/aerospike-community/aerolab/pkg/utils/file"
 	"github.com/moby/moby/client"
 	"github.com/rglonek/logger"
 )

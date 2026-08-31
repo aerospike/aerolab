@@ -11,11 +11,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
 	flags "github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )

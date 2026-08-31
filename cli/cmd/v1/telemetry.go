@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/termutil"
+	"github.com/aerospike-community/aerolab/pkg/termutil"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/term"

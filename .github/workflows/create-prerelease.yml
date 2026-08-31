@@ -301,7 +301,7 @@ jobs:
                 ls Rwindows/
                 echo "Darwin artifacts:"
                 ls Rdarwin/
-                gh release create -R github.com/aerospike/aerolab --notes-file RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} Rlinux/* Rwindows/* Rdarwin/*
+                gh release create -R github.com/aerospike-community/aerolab --notes-file RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} Rlinux/* Rwindows/* Rdarwin/*
     post-release:
       needs: release
       runs-on: ubuntu-22.04
@@ -329,14 +329,14 @@ jobs:
                   TAG=${VER}-${COMMIT}
                   [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
                   echo "Protected tag: ${TAG}"
-                  gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk -F'\t' '{print $3}' |while read line
+                  gh release list -R github.com/aerospike-community/aerolab -L 100 |grep Pre-release |awk -F'\t' '{print $3}' |while read line
                   do
                     if [ "$line" != "${TAG}" ]
                     then
                       if [[ $line =~ ^${VER}- ]]
                       then
                         echo "Removing $line"
-                        gh release delete $line -R github.com/aerospike/aerolab --yes --cleanup-tag
+                        gh release delete $line -R github.com/aerospike-community/aerolab --yes --cleanup-tag
                       fi
                     fi
                   done
@@ -373,9 +373,9 @@ jobs:
                   if [ "${ADDCOMMIT}" = "true" ]
                   then
                       TAG=${VER}-${COMMIT}
-                      curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                      curl -d "text=A new dev build is available at https://github.com/aerospike-community/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   else
                       TAG=${VER}
-                      curl -d "text=A new release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                      curl -d "text=A new release is available at https://github.com/aerospike-community/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   fi
                 fi

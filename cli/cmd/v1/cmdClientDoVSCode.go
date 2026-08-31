@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/sshexec"
-	"github.com/aerospike/aerolab/pkg/utils/installers/compilers"
-	"github.com/aerospike/aerolab/pkg/utils/installers/vscode"
-	"github.com/aerospike/aerolab/pkg/utils/scriptlog"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/compilers"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/vscode"
+	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/logger"
 )
 
@@ -335,7 +335,7 @@ func (c *ClientCreateVSCodeCmd) buildExampleCodeScript() string {
 # Setup example code from GitHub
 mkdir -p /opt/code
 cd /opt/code
-git clone -b code-server-examples --depth 1 https://github.com/aerospike/aerolab.git temp || true
+git clone -b code-server-examples --depth 1 https://github.com/aerospike-community/aerolab.git temp || true
 if [ -d temp ]; then
     mv temp/* . 2>/dev/null || true
     mv temp/.vscode . 2>/dev/null || true

@@ -14,7 +14,7 @@ The [expiry package](mdc:pkg/expiry/expire/expire.go) provides automated cleanup
 
 ## Expiry Handler Usage
 ```go
-import "github.com/aerospike/aerolab/pkg/expiry/expire"
+import "github.com/aerospike-community/aerolab/pkg/expiry/expire"
 
 handler := &expire.ExpiryHandler{
     Backend:      backend,           // Initialized backend instance
@@ -34,7 +34,7 @@ if err != nil {
 The [EKS package](mdc:pkg/eks/eksexpiry/expiry.go) provides comprehensive Kubernetes cluster cleanup:
 
 ```go
-import "github.com/aerospike/aerolab/pkg/eks/eksexpiry"
+import "github.com/aerospike-community/aerolab/pkg/eks/eksexpiry"
 
 // Trigger EKS expiry process
 eksexpiry.Expiry()

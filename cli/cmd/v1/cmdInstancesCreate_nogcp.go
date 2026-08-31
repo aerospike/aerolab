@@ -2,7 +2,7 @@
 
 package cmd
 
-import "github.com/aerospike/aerolab/pkg/backend/backends"
+import "github.com/aerospike-community/aerolab/pkg/backend/backends"
 
 func buildGCPInstanceParams(_ *InstancesCreateCmd, _ string, _ string) any {
 	return nil

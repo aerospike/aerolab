@@ -3,7 +3,7 @@ package backendtest
 import (
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // RegisterFakeCloud registers c as the Cloud implementation for backend type bt

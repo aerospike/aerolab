@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/rglonek/go-flags"
 )
 

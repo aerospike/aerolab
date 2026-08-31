@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aerospike/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
 	flags "github.com/rglonek/go-flags"
 )
 

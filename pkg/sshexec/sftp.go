@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/utils/progress"
+	"github.com/aerospike-community/aerolab/pkg/utils/progress"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
