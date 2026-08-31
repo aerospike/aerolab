@@ -26,6 +26,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/charmbracelet/x/term"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 	"github.com/moby/moby/api/pkg/stdcopy"
@@ -148,6 +149,25 @@ func getImageDetail(img *backends.Image) *ImageDetail {
 	return img.BackendSpecific.(*ImageDetail)
 }
 
+// lifeCycleState maps a Docker/Podman container state string onto the aerolab
+// lifecycle state. Unrecognised states report as running, which is the historic
+// behaviour of this mapping.
+func lifeCycleState(state container.ContainerState) backends.LifeCycleState {
+	switch state {
+	case "exited":
+		return backends.LifeCycleStateStopped
+	case "dead":
+		return backends.LifeCycleStateFail
+	case "paused":
+		return backends.LifeCycleStateUnknown
+	case "restarting":
+		return backends.LifeCycleStateStarting
+	case "created":
+		return backends.LifeCycleStateCreated
+	}
+	return backends.LifeCycleStateRunning
+}
+
 func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.NetworkList, firewallList backends.FirewallList) (backends.InstanceList, error) {
 	log := s.log.WithPrefix("GetInstances: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
@@ -224,21 +244,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 				if net != nil && net.IPAddress.IsValid() {
 					ip = net.IPAddress.String()
 				}
-				istate := backends.LifeCycleStateRunning
-				switch container.State {
-				case "running":
-					istate = backends.LifeCycleStateRunning
-				case "exited":
-					istate = backends.LifeCycleStateStopped
-				case "dead":
-					istate = backends.LifeCycleStateFail
-				case "paused":
-					istate = backends.LifeCycleStateUnknown
-				case "restarting":
-					istate = backends.LifeCycleStateStarting
-				case "created":
-					istate = backends.LifeCycleStateCreated
-				}
+				istate := lifeCycleState(container.State)
 				fw := []string{}
 				for _, port := range container.Ports {
 					// fw format: host={hostIP:hostPORT},container={containerPORT} ; example: host=0.0.0.0:8080,container=80
@@ -487,34 +493,13 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 			return err
 		}
 		for _, id := range ids {
-			wg := new(sync.WaitGroup)
-			wg.Add(1)
-			var reterr error
-			go func(id string) {
-				defer wg.Done()
-				log.Detail("starting container %s", id)
-				_, err := cli.ContainerStart(context.Background(), id, client.ContainerStartOptions{})
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-				}
-				log.Detail("waiting for container %s to be running", id)
-				for {
-					inspected, err := cli.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
-					if err != nil {
-						reterr = errors.Join(reterr, err)
-						return
-					}
-					if inspected.Container.State.Running {
-						break
-					}
-					time.Sleep(250 * time.Millisecond)
-				}
-				log.Detail("container %s is running, waiting for ssh-ready", id)
-			}(id)
-			wg.Wait()
-			if reterr != nil {
-				return reterr
+			log.Detail("starting container %s", id)
+			if _, err := cli.ContainerStart(context.Background(), id, client.ContainerStartOptions{}); err != nil {
+				return err
 			}
+		}
+		if err := s.waitForContainersRunning(cli, ids, containerRunningBudget, log); err != nil {
+			return fmt.Errorf("%w%s", err, s.diagnoseStopped(cli, ids))
 		}
 		// A stopped container reports no published ports: the Docker API only
 		// populates NetworkSettings.Ports (and thus container.Summary.Ports)
@@ -540,18 +525,80 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 		remaining := waitDur - time.Since(startedAt)
 		log.Detail("Waiting for instances to be ssh-ready (budget: %s)", remaining)
 		if !s.waitForSSHReady(instances, remaining, log) {
-			return fmt.Errorf("instances started but failed to become ssh-ready within %s", waitDur)
+			return fmt.Errorf("instances started but failed to become ssh-ready within %s%s", waitDur, s.describeInstanceContainers(instanceIds))
 		}
 	}
 	return nil
 }
 
+// containerRunningBudget bounds how long we wait for a started container to
+// report a running state. Reaching running is a local operation; anything
+// slower than this means the container is not coming up at all.
+const containerRunningBudget = 2 * time.Minute
+
+// containerInspector is the slice of the docker client that
+// waitForContainersRunning needs, so the wait can be tested without a daemon.
+type containerInspector interface {
+	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
+}
+
+// waitForContainersRunning blocks until every container in ids reports a
+// running state, or returns an error if one of them dies or the budget runs
+// out. Starting a container is not enough to make it usable: both Docker and
+// Podman publish port mappings and network settings only once the container is
+// running, so anything that reads the container list before this returns can
+// see an empty port list. Podman on a Windows/WSL2 host is markedly slower to
+// settle here than a native Linux daemon.
+func (s *b) waitForContainersRunning(cli containerInspector, ids []string, budget time.Duration, log loggerIface) error {
+	deadline := time.Now().Add(budget)
+	for _, id := range ids {
+		log.Detail("waiting for container %s to be running", id)
+		for {
+			inspected, err := cli.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
+			if err != nil {
+				// A container created with auto-remove that dies on startup is
+				// gone by the time we look, so say what happened rather than
+				// reporting a bare "no such container" for an ID we just made.
+				if cerrdefs.IsNotFound(err) {
+					return fmt.Errorf("container %s disappeared before it reached running state; it most likely exited on startup and was auto-removed", id)
+				}
+				return fmt.Errorf("failed to inspect container %s: %w", id, err)
+			}
+			state := inspected.Container.State
+			if state == nil {
+				return fmt.Errorf("container %s reported no state", id)
+			}
+			if state.Running {
+				break
+			}
+			// A container that already exited is never going to come back on
+			// its own, so fail immediately with the exit code instead of
+			// burning the whole budget. This is the usual shape of an init
+			// system that cannot start inside the container.
+			if state.Status == "exited" || state.Status == "dead" {
+				msg := fmt.Sprintf("container %s is %s (exit code %d) instead of running", id, state.Status, state.ExitCode)
+				if state.Error != "" {
+					msg += ": " + state.Error
+				}
+				return errors.New(msg)
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("container %s did not reach running state within %s (state=%s)", id, budget, state.Status)
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		log.Detail("container %s is running", id)
+	}
+	return nil
+}
+
 // refreshStartedInstances re-lists the containers in a zone and refreshes the
-// cached container summary (and private IP) on each instance whose ID is in
-// ids. This is required after starting a container because Docker only reports
-// published ports and network settings for running containers; the summary
-// captured while the container was stopped has an empty port list, which would
-// otherwise cause SSH connections to resolve to host port 0.
+// cached container summary (state, published ports and private IP) on each
+// instance whose ID is in ids. This is required after starting a container
+// because Docker only reports published ports and network settings for running
+// containers; the summary captured while the container was stopped has an empty
+// port list, which would otherwise cause SSH connections to resolve to host
+// port 0.
 func (s *b) refreshStartedInstances(cli *client.Client, ids []string, instances backends.InstanceList) error {
 	f := make(client.Filters)
 	if !s.listAllProjects {
@@ -582,6 +629,7 @@ func (s *b) refreshStartedInstances(cli *client.Client, ids []string, instances 
 			continue
 		}
 		getInstanceDetail(inst).Docker = c
+		inst.InstanceState = lifeCycleState(c.State)
 		if c.NetworkSettings != nil {
 			for _, n := range c.NetworkSettings.Networks {
 				if n != nil && n.IPAddress.IsValid() {
@@ -640,6 +688,50 @@ func (s *b) waitForSSHReady(instances backends.InstanceList, budget time.Duratio
 // type; we only need Detail(format, args...) in this hot path.
 type loggerIface interface {
 	Detail(format string, args ...any)
+}
+
+// sshHostPort resolves the host port that the instance's container port 22 is
+// published on. Aerolab always reaches containers over loopback on that
+// published port, never on the container's own IP, so an unresolved port is a
+// hard failure rather than something a retry can fix: dialling port 0 would
+// fail identically on every attempt until the caller's budget expired.
+func sshHostPort(i *backends.Instance) (int, error) {
+	for _, x := range getInstanceDetail(i).Docker.Ports {
+		if x.PrivatePort == 22 {
+			if x.PublicPort == 0 {
+				return 0, fmt.Errorf("container %s exposes port 22 but it is not published on a host port; the container may not be running yet", i.InstanceID)
+			}
+			return int(x.PublicPort), nil
+		}
+	}
+	return 0, fmt.Errorf("container %s has no host port mapped to port 22 (host->container ports: %s)", i.InstanceID, describePorts(getInstanceDetail(i).Docker.Ports))
+}
+
+// unresolvedSSHTargets reports whether any instance still lacks the details
+// needed to attempt an SSH connection, meaning its cached container summary is
+// worth re-reading.
+func unresolvedSSHTargets(instances backends.InstanceList) bool {
+	for _, i := range instances {
+		if i.InstanceState != backends.LifeCycleStateRunning {
+			return true
+		}
+		if _, err := sshHostPort(i); err != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// describePorts renders a container's published ports for error messages.
+func describePorts(ports []container.PortSummary) string {
+	if len(ports) == 0 {
+		return "none"
+	}
+	parts := make([]string, 0, len(ports))
+	for _, p := range ports {
+		parts = append(parts, fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type))
+	}
+	return strings.Join(parts, ",")
 }
 
 func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput) []*backends.ExecOutput {
@@ -742,12 +834,17 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				outl.Unlock()
 				return
 			}
-			sshPort := 0
-			for _, x := range getInstanceDetail(i).Docker.Ports {
-				if x.PrivatePort == 22 {
-					sshPort = int(x.PublicPort)
-					break
-				}
+			sshPort, err := sshHostPort(i)
+			if err != nil {
+				outl.Lock()
+				out = append(out, &backends.ExecOutput{
+					Output: &sshexec.ExecOutput{
+						Err: err,
+					},
+					Instance: i,
+				})
+				outl.Unlock()
+				return
 			}
 			clientConf := sshexec.ClientConf{
 				Host:           "127.0.0.1",
@@ -815,12 +912,9 @@ func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username str
 		if err != nil {
 			return nil, errors.New("required key not found")
 		}
-		sshPort := 0
-		for _, x := range getInstanceDetail(i).Docker.Ports {
-			if x.PrivatePort == 22 {
-				sshPort = int(x.PublicPort)
-				break
-			}
+		sshPort, err := sshHostPort(i)
+		if err != nil {
+			return nil, err
 		}
 		clientConf := &sshexec.ClientConf{
 			Host:           "127.0.0.1",
@@ -1330,6 +1424,19 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		runResults = append(runResults, runResult)
 	}
 
+	// Starting a container is not the same as it being usable: published port
+	// mappings and network settings only show up in the container list once the
+	// container is actually running. Wait for that before listing, otherwise
+	// every instance below is built from a summary with an empty port list and
+	// a pre-running state.
+	runIDs := make([]string, 0, len(runResults))
+	for _, rr := range runResults {
+		runIDs = append(runIDs, rr.ID)
+	}
+	if err := s.waitForContainersRunning(cli, runIDs, containerRunningBudget, log); err != nil {
+		return nil, fmt.Errorf("%w%s", err, s.diagnoseStopped(cli, runIDs))
+	}
+
 	// get final instance details
 	log.Detail("Getting final instance details")
 	output = &backends.CreateInstanceOutput{
@@ -1347,6 +1454,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 		output.Instances = append(output.Instances, inst.Describe()[0])
 	}
+	if len(output.Instances) != len(runResults) {
+		return nil, fmt.Errorf("created %d instances but only %d were found in the container list", len(runResults), len(output.Instances))
+	}
 
 	if backendSpecificParams.SkipSshReadyCheck {
 		return output, nil
@@ -1357,9 +1467,23 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if backendSpecificParams.Image.Username == "" {
 		backendSpecificParams.Image.Username = "root"
 	}
+	var lastErrs error
+	waitStart := time.Now()
+	diagnosed := false
 	for waitDur > 0 {
 		now := time.Now()
 		success := true
+		// Re-read the container summaries while any SSH target is still
+		// unresolved. The cached summary holds the published port list and
+		// lifecycle state that InstancesExec uses to pick the target, so a
+		// summary captured a moment too early would otherwise pin every
+		// remaining attempt to a target that cannot possibly work. Once every
+		// target resolves there is nothing left to learn from re-listing.
+		if unresolvedSSHTargets(output.Instances) {
+			if err := s.refreshStartedInstances(cli, runIDs, output.Instances); err != nil {
+				log.Detail("Could not refresh container details: %s", err)
+			}
+		}
 		out := output.Instances.Exec(&backends.ExecInput{
 			Username:        backendSpecificParams.Image.Username,
 			ParallelThreads: input.ParallelSSHThreads,
@@ -1371,24 +1495,50 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		if len(out) != len(output.Instances) {
 			success = false
 		}
+		lastErrs = nil
+		failedIDs := []string{}
 		for _, o := range out {
 			if o.Output.Err != nil {
 				success = false
+				lastErrs = errors.Join(lastErrs, fmt.Errorf("%s: %w", o.Instance.Name, o.Output.Err))
+				failedIDs = append(failedIDs, o.Instance.InstanceID)
 				log.Detail("Waiting for instance %s to be ready: %s: %s", o.Instance.InstanceID, o.Output.Err, o.Output.Stdout)
 			}
 		}
 		if success {
 			break
 		}
+		// A container that is no longer running will never answer, because the
+		// host port it published disappears with it - which on the client side
+		// is indistinguishable from an sshd that has not come up yet. Stop as
+		// soon as the daemon says the container is gone and report what it
+		// did, instead of retrying a dead target until the budget expires.
+		if stopped := stoppedContainers(cli, failedIDs); len(stopped) > 0 {
+			return nil, fmt.Errorf("instances failed to initialize ssh because they stopped running:\n%s", describeContainers(cli, stopped))
+		}
+		// The containers are alive but not answering. Say so once, part-way
+		// through the budget, rather than leaving the user watching identical
+		// connection errors scroll past until the whole budget is gone: a
+		// running container whose port 22 is published and still refuses
+		// connections is a host-side problem, and the evidence for that is the
+		// container status below.
+		if !diagnosed && time.Since(waitStart) > sshDiagnosticsAfter {
+			diagnosed = true
+			log.Warn("Instances have not answered ssh for %s; aerolab connects over 127.0.0.1 on the host port published for container port 22. Container status:\n%s", sshDiagnosticsAfter, describeContainers(cli, runIDs))
+		}
 		waitDur -= time.Since(now)
 		if waitDur > 0 {
 			time.Sleep(1 * time.Second)
+			waitDur -= 1 * time.Second
 		}
 	}
 
 	if waitDur <= 0 {
 		log.Detail("Instances failed to initialize ssh")
-		return nil, fmt.Errorf("instances failed to initialize ssh")
+		if lastErrs != nil {
+			return nil, fmt.Errorf("instances failed to initialize ssh: aerolab connects over 127.0.0.1 on the host port that docker/podman published for container port 22, so a refused connection means nothing is listening on that host port - either the container is not running, or the container engine's virtual machine is not forwarding published ports to the host (on macOS and Windows, restarting the docker/podman machine usually fixes that); last error(s): %w\n%s", lastErrs, describeContainers(cli, runIDs))
+		}
+		return nil, fmt.Errorf("instances failed to initialize ssh\n%s", describeContainers(cli, runIDs))
 	}
 
 	// return
