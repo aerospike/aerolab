@@ -8,7 +8,7 @@ description: Guidelines for working with cloud backend integrations
 The [backend package](mdc:pkg/backend/init.go) provides unified multi-cloud management:
 
 ```go
-import "github.com/citrusleaf/aerolab/pkg/backend"
+import "github.com/aerospike-community/aerolab/pkg/backend"
 
 // Initialize backend with multiple cloud providers
 config := &backend.Config{
@@ -28,7 +28,7 @@ Use the appropriate client getter functions from cloud packages:
 
 ### AWS Integration
 ```go
-import "github.com/citrusleaf/aerolab/pkg/backend/clouds/baws"
+import "github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
 
 // Get AWS service clients
 ec2Client, err := baws.GetEc2Client(credentials, &region)
@@ -39,7 +39,7 @@ iamClient, err := baws.GetIamClient(credentials, &region)
 
 ### GCP Integration
 ```go
-import "github.com/citrusleaf/aerolab/pkg/backend/clouds/bgcp/connect"
+import "github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp/connect"
 
 // Get GCP credentials and clients
 creds, err := connect.GetCredentials(gcpCreds, logger)

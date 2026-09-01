@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 // TestSharedDBIngestPluginIntegration exercises the X4 scenario: a

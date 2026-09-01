@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/backendtest"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backendtest"
 )
 
 // Every command a user runs against a node funnels through one of these, so

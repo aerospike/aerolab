@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -17,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/scheduler"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
 )
 
 // getPricingClient returns a client for the Pricing API, which is a single

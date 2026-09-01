@@ -47,8 +47,8 @@ Caching layer for backend operations to improve performance and reduce API calls
 
 ```go
 import (
-    "github.com/citrusleaf/aerolab/pkg/backend"
-    "github.com/citrusleaf/aerolab/pkg/backend/backends"
+    "github.com/aerospike-community/aerolab/pkg/backend"
+    "github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 config := &backend.Config{

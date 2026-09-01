@@ -8,7 +8,7 @@ import (
 
 	"log"
 
-	"github.com/citrusleaf/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
 )
 
 type tableResponse struct {

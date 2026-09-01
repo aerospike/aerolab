@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
 	"gopkg.in/yaml.v3"
 )
 

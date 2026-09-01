@@ -2,7 +2,7 @@
 
 ## Download & Install
 
-Download the latest release from the [GitHub Releases page](https://github.com/citrusleaf/aerolab/releases).
+Download the latest release from the [GitHub Releases page](https://github.com/aerospike-community/aerolab/releases).
 
 ### macOS
 

@@ -4,8 +4,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
 )
 
 // aerospikeArch maps an instance architecture onto the labels used by

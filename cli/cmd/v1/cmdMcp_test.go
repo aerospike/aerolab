@@ -5,7 +5,7 @@ package cmd
 import (
 	"testing"
 
-	aerolabmcp "github.com/citrusleaf/aerolab/pkg/mcp"
+	aerolabmcp "github.com/aerospike-community/aerolab/pkg/mcp"
 )
 
 // TestConvertParamsForMCPPreservesInjectionSignal is a regression guard

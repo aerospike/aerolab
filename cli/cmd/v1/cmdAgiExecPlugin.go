@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/citrusleaf/aerolab/pkg/agi/db"
-	"github.com/citrusleaf/aerolab/pkg/agi/plugin"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/plugin"
 )
 
 // AgiExecPluginCmd runs the Grafana plugin backend service.

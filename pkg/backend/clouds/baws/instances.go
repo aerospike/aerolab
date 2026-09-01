@@ -16,16 +16,16 @@ import (
 
 	"encoding/json"
 
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/sshkey"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike-community/aerolab/pkg/utils/structtags"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	rtypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/sshkey"
-	"github.com/citrusleaf/aerolab/pkg/sshexec"
-	"github.com/citrusleaf/aerolab/pkg/utils/parallelize"
-	"github.com/citrusleaf/aerolab/pkg/utils/structtags"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 )

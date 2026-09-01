@@ -10,7 +10,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
 )
 
 // agiWipeOnVersionMismatch removes the on-disk AGI DB directory and

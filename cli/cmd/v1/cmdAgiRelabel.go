@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 	"github.com/rglonek/logger"
 )
 

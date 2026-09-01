@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // handleInventoryData handles GET /api/inventory/{type}

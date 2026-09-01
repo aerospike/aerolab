@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citrusleaf/aerolab/cli/cmd/v1/cloud"
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/utils/choice"
+	"github.com/aerospike-community/aerolab/cli/cmd/v1/cloud"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/utils/choice"
 	"github.com/rglonek/logger"
 )
 

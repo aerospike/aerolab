@@ -9,10 +9,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/bdocker"
-	"github.com/citrusleaf/aerolab/pkg/utils/pager"
-	"github.com/citrusleaf/aerolab/pkg/utils/printer"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike-community/aerolab/pkg/utils/pager"
+	"github.com/aerospike-community/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
