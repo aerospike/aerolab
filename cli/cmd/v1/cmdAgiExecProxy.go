@@ -34,10 +34,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/agi"
-	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
-	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
 	"github.com/bestmethod/inslice"
+	"github.com/citrusleaf/aerolab/pkg/agi"
+	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
+	"github.com/citrusleaf/aerolab/pkg/agi/notifier"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	ps "github.com/mitchellh/go-ps"

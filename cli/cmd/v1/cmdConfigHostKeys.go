@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
 )
 
 // ConfigHostKeysCmd groups the commands that inspect and edit the local SSH

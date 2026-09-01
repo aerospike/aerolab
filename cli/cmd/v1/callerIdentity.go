@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/utils/callerip"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/utils/callerip"
 )
 
 // EnvFirewallAutolock disables the automatic creation, re-locking and

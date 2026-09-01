@@ -63,7 +63,7 @@ The AGI package is typically used as part of the Aerolab ecosystem to provide co
 
 ### Example: Basic Log Ingestion
 ```go
-import "github.com/aerospike-community/aerolab/pkg/agi/ingest"
+import "github.com/citrusleaf/aerolab/pkg/agi/ingest"
 
 // Run log ingestion with configuration file
 err := ingest.Run("config.yaml")
@@ -74,7 +74,7 @@ if err != nil {
 
 ### Example: Grafana Setup
 ```go
-import "github.com/aerospike-community/aerolab/pkg/agi/grafanafix"
+import "github.com/citrusleaf/aerolab/pkg/agi/grafanafix"
 
 // Setup Grafana with default configuration
 if err := grafanafix.Run(nil); err != nil {

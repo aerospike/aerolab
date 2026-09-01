@@ -8,7 +8,7 @@ description: Guidelines for using Aerolab utility functions and helpers
 Always use the [shutdown package](mdc:pkg/utils/shutdown/handler.go) for graceful application termination:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/shutdown"
+import "github.com/citrusleaf/aerolab/pkg/utils/shutdown"
 
 // In main function
 func main() {
@@ -41,7 +41,7 @@ func main() {
 Use the [choice package](mdc:pkg/utils/choice/simpleList.go) for terminal-based selections:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/choice"
+import "github.com/citrusleaf/aerolab/pkg/utils/choice"
 
 options := []string{"option1", "option2", "option3"}
 items := choice.StringSliceToItems(options)
@@ -56,7 +56,7 @@ fmt.Printf("Selected: %s\n", selected)
 Use the [sshexec package](mdc:pkg/sshexec/exec.go) for remote operations:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/sshexec"
+import "github.com/citrusleaf/aerolab/pkg/sshexec"
 
 input := &sshexec.ExecInput{
     ClientConf: sshexec.ClientConf{
@@ -83,7 +83,7 @@ if output.Err != nil {
 Use job queues for managing concurrent operations:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/jobqueue"
+import "github.com/citrusleaf/aerolab/pkg/utils/jobqueue"
 
 // Simple job queue
 queue := jobqueue.NewSimpleQueue(5, 100) // 5 concurrent, 100 queued
@@ -96,7 +96,7 @@ queueWithIDs := jobqueue.NewQueueWithIDs(5, 100)
 Use the [versions package](mdc:pkg/utils/versions/versions.go) for version comparisons:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/versions"
+import "github.com/citrusleaf/aerolab/pkg/utils/versions"
 
 result := versions.Compare("1.2.3", "1.2.4") // Returns -1
 latest := versions.Latest("1.2.3", "1.2.4")  // Returns "1.2.4"
@@ -107,7 +107,7 @@ oldest := versions.Oldest("1.2.3", "1.2.4")  // Returns "1.2.3"
 Use the [printer package](mdc:pkg/utils/printer/printer.go) for formatted output:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/printer"
+import "github.com/citrusleaf/aerolab/pkg/utils/printer"
 
 writer, err := printer.GetTableWriter(
     "table",        // render type
@@ -126,7 +126,7 @@ if err != nil {
 Use [contextio package](mdc:pkg/utils/contextio/contextio.go) for cancellable I/O:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/contextio"
+import "github.com/citrusleaf/aerolab/pkg/utils/contextio"
 
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
@@ -149,7 +149,7 @@ The [installers package](mdc:pkg/utils/installers/) provides installation utilit
 - Development tools (VSCode, Grafana, Prometheus)
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/installers/aerolab"
+import "github.com/citrusleaf/aerolab/pkg/utils/installers/aerolab"
 
 // Get latest Aerolab version
 release, err := aerolab.GetLatestVersion(true) // stable only

@@ -3,7 +3,7 @@ package ingest
 import (
 	"fmt"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/citrusleaf/aerolab/pkg/agi/db"
 )
 
 // DBOptionsFromConfig translates the ingest Config's DB sub-struct

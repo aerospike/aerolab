@@ -5,8 +5,8 @@ package grafana_test
 import (
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/grafana"
-	"github.com/aerospike-community/aerolab/tests/installers/installertest"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/grafana"
+	"github.com/citrusleaf/aerolab/tests/installers/installertest"
 	"github.com/stretchr/testify/require"
 )
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 func TestSanitizeOwner(t *testing.T) {

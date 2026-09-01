@@ -48,4 +48,4 @@ jobs:
                 SLACK_CHANNEL: ${{ secrets.RELEASE_SLACK_CHANNEL }}
                 SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
             run: |
-              curl -d "text=https://github.com/aerospike-community/aerolab/releases/tag/${VERSION}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+              curl -d "text=https://github.com/citrusleaf/aerolab/releases/tag/${VERSION}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0

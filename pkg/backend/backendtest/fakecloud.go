@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
 	"github.com/rglonek/logger"
 )
 

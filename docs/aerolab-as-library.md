@@ -36,9 +36,9 @@ createCmd.ClusterName = "mycluster"
 
 ```go
 import (
-    cmd "github.com/aerospike-community/aerolab/cli/cmd/v1"
-    "github.com/aerospike-community/aerolab/pkg/backend/backends"
-    "github.com/aerospike-community/aerolab/pkg/backend/clouds"  // for GCP auth methods
+    cmd "github.com/citrusleaf/aerolab/cli/cmd/v1"
+    "github.com/citrusleaf/aerolab/pkg/backend/backends"
+    "github.com/citrusleaf/aerolab/pkg/backend/clouds"  // for GCP auth methods
 )
 ```
 
@@ -97,8 +97,8 @@ import (
     "fmt"
     "os"
 
-    cmd "github.com/aerospike-community/aerolab/cli/cmd/v1"
-    "github.com/aerospike-community/aerolab/pkg/backend/backends"
+    cmd "github.com/citrusleaf/aerolab/cli/cmd/v1"
+    "github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 func main() {

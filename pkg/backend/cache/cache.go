@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/file"
+	"github.com/citrusleaf/aerolab/pkg/utils/file"
 )
 
 type Cache struct {

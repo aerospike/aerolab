@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/citrusleaf/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 )

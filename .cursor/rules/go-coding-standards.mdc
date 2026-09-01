@@ -65,7 +65,7 @@ func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, er
 For long-running operations, integrate with the shutdown system:
 
 ```go
-import "github.com/aerospike-community/aerolab/pkg/utils/shutdown"
+import "github.com/citrusleaf/aerolab/pkg/utils/shutdown"
 
 func longRunningOperation() {
     shutdown.AddJob()

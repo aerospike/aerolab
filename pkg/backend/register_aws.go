@@ -2,4 +2,4 @@
 
 package backend
 
-import _ "github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
+import _ "github.com/citrusleaf/aerolab/pkg/backend/clouds/baws"

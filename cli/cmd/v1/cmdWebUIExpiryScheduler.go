@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
 )
 
 // expiryRefreshScheduler schedules a ForceRefreshInventory at the next

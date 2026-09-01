@@ -14,14 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
-	"github.com/aerospike-community/aerolab/pkg/utils/structtags"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	etypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/utils/structtags"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 )

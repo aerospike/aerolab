@@ -8,8 +8,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/github"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers"
+	"github.com/citrusleaf/aerolab/pkg/utils/github"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers"
 )
 
 //go:embed scripts
@@ -17,7 +17,7 @@ var scripts embed.FS
 
 const (
 	// Owner is the GitHub repository owner for aerolab
-	Owner = "aerospike-community"
+	Owner = "citrusleaf"
 	// Repo is the GitHub repository name for aerolab
 	Repo = "aerolab"
 )

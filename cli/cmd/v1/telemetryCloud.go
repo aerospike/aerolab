@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/cli/cmd/v1/cloud"
+	"github.com/citrusleaf/aerolab/cli/cmd/v1/cloud"
 )
 
 // Aerospike Cloud telemetry detection.

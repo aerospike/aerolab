@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/backend/backendtest"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/backend/backendtest"
 )
 
 func TestFakeBackendServesSeededInventory(t *testing.T) {

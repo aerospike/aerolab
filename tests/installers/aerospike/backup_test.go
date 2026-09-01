@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
 	"github.com/stretchr/testify/require"
 )
 

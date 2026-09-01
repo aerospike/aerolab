@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
+	"github.com/citrusleaf/aerolab/pkg/agi/notifier"
 )
 
 // initEmbeddedAgiMonitor initializes the embedded AGI monitor when

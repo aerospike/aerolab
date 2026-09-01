@@ -99,7 +99,7 @@ func aerolabBinary(t *testing.T) string {
 		defer cancel()
 		// Build the CLI main package. Inherit the caller's environment but force
 		// vendored, workspace-off builds to match the Makefile.
-		cmd := exec.CommandContext(ctx, "go", "build", "-o", out, "github.com/aerospike-community/aerolab/cli")
+		cmd := exec.CommandContext(ctx, "go", "build", "-o", out, "github.com/citrusleaf/aerolab/cli")
 		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=vendor")
 		if b, err := cmd.CombinedOutput(); err != nil {
 			buildErr = &buildFailure{output: string(b), err: err}

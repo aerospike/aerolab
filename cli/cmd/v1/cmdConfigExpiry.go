@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/utils/pager"
-	"github.com/aerospike-community/aerolab/pkg/utils/printer"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/utils/pager"
+	"github.com/citrusleaf/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rglonek/logger"
 )
@@ -66,7 +66,7 @@ func warnIfV7ExpiryInstalled(backend backends.Backend, backendType backends.Back
 		log.Warn("The v7 expiry system runs alongside v8.")
 		log.Warn("If you are not using aerolab v7 anymore, you can remove the v7 expiry system.")
 		log.Warn("")
-		log.Warn("See https://github.com/aerospike-community/aerolab/blob/v8.0.0/docs/migration-expiry-system.md")
+		log.Warn("See https://github.com/citrusleaf/aerolab/blob/v8.0.0/docs/migration-expiry-system.md")
 		log.Warn("=======================================================================")
 	}
 }

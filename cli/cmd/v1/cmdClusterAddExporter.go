@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/sshexec"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/nodeexporter"
-	"github.com/aerospike-community/aerolab/pkg/utils/parallelize"
-	"github.com/aerospike-community/aerolab/pkg/utils/scriptlog"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/nodeexporter"
+	"github.com/citrusleaf/aerolab/pkg/utils/parallelize"
+	"github.com/citrusleaf/aerolab/pkg/utils/scriptlog"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )

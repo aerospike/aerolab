@@ -12,11 +12,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/termutil"
-	"github.com/aerospike-community/aerolab/pkg/utils/callerip"
-	"github.com/aerospike-community/aerolab/pkg/utils/choice"
-	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/termutil"
+	"github.com/citrusleaf/aerolab/pkg/utils/callerip"
+	"github.com/citrusleaf/aerolab/pkg/utils/choice"
+	"github.com/citrusleaf/aerolab/pkg/utils/shutdown"
 	"golang.org/x/term"
 )
 

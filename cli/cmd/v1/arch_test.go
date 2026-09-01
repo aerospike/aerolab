@@ -4,8 +4,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/aerospike-community/aerolab/pkg/backend/backends"
-	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
+	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
 	"github.com/stretchr/testify/require"
 )
 
