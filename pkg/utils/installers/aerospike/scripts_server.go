@@ -3,7 +3,7 @@ package aerospike
 import (
 	"errors"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/installers"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers"
 )
 
 func init() {

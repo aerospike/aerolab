@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // agiStatusCache is a thread-safe cache of AGI ingest status display strings,

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/lithammer/shortuuid"
 	"github.com/moby/moby/api/types/container"

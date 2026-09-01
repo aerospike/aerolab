@@ -2,7 +2,7 @@
 
 package cmd
 
-import "github.com/citrusleaf/aerolab/pkg/backend/clouds/bgcp"
+import "github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp"
 
 func firewallGcpPortDetails(backendSpecific any) (targetTags []string, destRanges []string) {
 	if v, ok := backendSpecific.(*bgcp.PortDetail); ok {

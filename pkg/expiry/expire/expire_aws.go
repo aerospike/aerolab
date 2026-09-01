@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
@@ -18,7 +19,6 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/baws"
 )
 
 func (h *ExpiryHandler) expireEksctl(region string) error {

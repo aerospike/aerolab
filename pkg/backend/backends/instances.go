@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/sshexec"
+	"github.com/aerospike-community/aerolab/pkg/sshexec"
 )
 
 type CreateInstanceInput struct {

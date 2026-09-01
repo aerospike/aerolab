@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/agi"
-	"github.com/citrusleaf/aerolab/pkg/agi/db"
-	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
-	"github.com/citrusleaf/aerolab/pkg/agi/notifier"
+	"github.com/aerospike-community/aerolab/pkg/agi"
+	"github.com/aerospike-community/aerolab/pkg/agi/db"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/notifier"
 	"gopkg.in/yaml.v3"
 )
 

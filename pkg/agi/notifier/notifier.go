@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/slack"
+	"github.com/aerospike-community/aerolab/pkg/utils/slack"
 	"github.com/google/uuid"
 )
 

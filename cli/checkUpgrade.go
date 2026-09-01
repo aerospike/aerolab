@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	cmd "github.com/citrusleaf/aerolab/cli/cmd/v1"
-	"github.com/citrusleaf/aerolab/pkg/utils/versions"
+	cmd "github.com/aerospike-community/aerolab/cli/cmd/v1"
+	"github.com/aerospike-community/aerolab/pkg/utils/versions"
 	"github.com/rglonek/logger"
 )
 

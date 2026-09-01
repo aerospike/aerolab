@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 // Exit codes aerolab terminates with. Commands that simply fail keep using

@@ -1,7 +1,7 @@
 package bdocker
 
 import (
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 	"github.com/lithammer/shortuuid"
 )
 

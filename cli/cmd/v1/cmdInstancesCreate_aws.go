@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/baws"
 )
 
 func buildAWSInstanceParams(c *InstancesCreateCmd, itype string, awsCustomImageID string) any {

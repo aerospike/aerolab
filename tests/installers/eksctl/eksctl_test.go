@@ -5,8 +5,8 @@ package eksctl_test
 import (
 	"testing"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/eksctl"
-	"github.com/citrusleaf/aerolab/tests/installers/installertest"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/eksctl"
+	"github.com/aerospike-community/aerolab/tests/installers/installertest"
 	"github.com/stretchr/testify/require"
 )
 

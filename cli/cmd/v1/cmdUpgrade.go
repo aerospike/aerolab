@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/github"
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerolab"
-	"github.com/citrusleaf/aerolab/pkg/utils/versions"
+	"github.com/aerospike-community/aerolab/pkg/utils/github"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerolab"
+	"github.com/aerospike-community/aerolab/pkg/utils/versions"
 	"github.com/rglonek/logger"
 )
 

@@ -3,7 +3,7 @@
 package cmd
 
 import (
-	"github.com/citrusleaf/aerolab/pkg/agi/ingest"
+	"github.com/aerospike-community/aerolab/pkg/agi/ingest"
 )
 
 // GetAgiStatus is a stub implementation for Windows.

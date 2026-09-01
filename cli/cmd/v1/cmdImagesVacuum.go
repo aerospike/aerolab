@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
 )
 
 type ImagesVacuumCmd struct {

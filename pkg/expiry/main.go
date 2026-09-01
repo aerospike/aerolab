@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aerospike-community/aerolab/pkg/backend"
+	"github.com/aerospike-community/aerolab/pkg/backend/backends"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/expiry/expire"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/citrusleaf/aerolab/pkg/backend"
-	"github.com/citrusleaf/aerolab/pkg/backend/backends"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
-	"github.com/citrusleaf/aerolab/pkg/expiry/expire"
 	"github.com/jessevdk/go-flags"
 	"github.com/rglonek/logger"
 )

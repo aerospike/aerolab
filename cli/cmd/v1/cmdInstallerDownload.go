@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike"
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/aerospike/jfrog"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/aerospike/jfrog"
 	"github.com/rglonek/go-wget"
 	"github.com/rglonek/logger"
 )

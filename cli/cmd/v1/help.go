@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/shutdown"
+	"github.com/aerospike-community/aerolab/pkg/utils/shutdown"
 )
 
 type HelpCmd struct {

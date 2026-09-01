@@ -3,7 +3,7 @@ Name: aerolab
 Version: VERSIONHERE
 Release: 2
 Summary: Tool for deploying non-prod Aerospike server clusters on Docker, AWS, or GCP
-License: see github.com/citrusleaf/aerolab
+License: see github.com/aerospike-community/aerolab
 Group: aerospike
 
 %define _rpmdir ./

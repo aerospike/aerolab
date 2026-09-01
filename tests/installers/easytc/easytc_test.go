@@ -5,8 +5,8 @@ package easytc_test
 import (
 	"testing"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/installers/easytc"
-	"github.com/citrusleaf/aerolab/tests/installers/installertest"
+	"github.com/aerospike-community/aerolab/pkg/utils/installers/easytc"
+	"github.com/aerospike-community/aerolab/tests/installers/installertest"
 	"github.com/stretchr/testify/require"
 )
 

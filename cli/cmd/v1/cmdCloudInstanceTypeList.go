@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/citrusleaf/aerolab/pkg/utils/pager"
-	"github.com/citrusleaf/aerolab/pkg/utils/printer"
+	"github.com/aerospike-community/aerolab/pkg/utils/pager"
+	"github.com/aerospike-community/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 

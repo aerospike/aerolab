@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds"
+	"github.com/aerospike-community/aerolab/pkg/utils/callerip"
 	"github.com/bestmethod/inslice"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds"
-	"github.com/citrusleaf/aerolab/pkg/utils/callerip"
 	flags "github.com/rglonek/go-flags"
 )
 

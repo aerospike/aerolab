@@ -14,7 +14,7 @@ import (
 	"cloud.google.com/go/run/apiv2/runpb"
 	scheduler "cloud.google.com/go/scheduler/apiv1"
 	"cloud.google.com/go/scheduler/apiv1/schedulerpb"
-	"github.com/citrusleaf/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike-community/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/oauth2/google"
